@@ -22,7 +22,8 @@ const QUALITY = (() => {
     effectRate: low ? 0.58 : 0.82,
     minimapInterval: low ? 0.16 : 0.11,
     hudInterval: low ? 0.08 : 0.05,
-    venueStep: low ? 44 : 34
+    venueStep: low ? 44 : 34,
+    menuFrameInterval: low ? 520 : 300
   };
 })();
 
@@ -332,6 +333,9 @@ const state = {
   mode: "title",
   selectedCharacter: 0,
   selectedKart: 0,
+  selectedCourse: Math.max(0, (DATA.courses || []).findIndex((course) => course.id === DATA.course?.id)),
+  trackCourseId: DATA.course?.id || "",
+  trackNeedsRebuild: false,
   raceMode: "grandPrix",
   difficulty: "Normal",
   time: 0,
@@ -385,6 +389,9 @@ let lastHudCharacter = "";
 let minimapTimer = 0;
 let hudTimer = 0;
 let lastMenuFrameTime = 0;
+let menuDirty = true;
+let environmentGroup = null;
+let trackLights = [];
 
 init();
 
@@ -423,12 +430,12 @@ function normalizeData(raw) {
     ...fallbackData.items[i % fallbackData.items.length],
     ...item
   }));
-  const selectedCourse =
-    source.course ||
-    (Array.isArray(source.courses)
-      ? source.courses.find((course) => course.id === source.defaults?.courseId) || source.courses[0]
-      : null);
-  data.course = normalizeCourse(selectedCourse);
+  const courseSource = Array.isArray(source.courses) && source.courses.length
+    ? source.courses
+    : [source.course || fallbackData.course];
+  data.courses = courseSource.map((course) => normalizeCourse(course));
+  const defaultCourseId = source.defaults?.courseId || data.defaults?.courseId;
+  data.course = data.courses.find((course) => course.id === defaultCourseId) || data.courses[0] || normalizeCourse(source.course);
   data.difficulties = { ...fallbackData.difficulties, ...(data.difficulties || {}) };
   return data;
 }
@@ -572,6 +579,31 @@ function cacheDom() {
     dom[id] = document.getElementById(id);
   });
 }
+const uiTapGuard = new WeakMap();
+
+function bindUiTap(button, action) {
+  if (!button) return;
+  const run = (event, fromTouch = false) => {
+    if (event?.cancelable) event.preventDefault();
+    event?.stopPropagation?.();
+    const now = performance.now();
+    const last = uiTapGuard.get(button) || 0;
+    if (now - last < 260) return;
+    uiTapGuard.set(button, now);
+    button.classList.add("is-pressed");
+    window.setTimeout(() => button.classList.remove("is-pressed"), fromTouch ? 150 : 110);
+    action(event);
+  };
+  button.addEventListener("pointerup", (event) => run(event, true), { passive: false });
+  button.addEventListener("touchend", (event) => run(event, true), { passive: false });
+  button.addEventListener("click", (event) => {
+    if (performance.now() - (uiTapGuard.get(button) || 0) < 320) {
+      event.preventDefault();
+      return;
+    }
+    run(event, false);
+  });
+}
 
 function bindEvents() {
   const go = (screen) => showScreen(screen);
@@ -589,35 +621,36 @@ function bindEvents() {
     useItem(player);
   };
 
-  dom.startButton.addEventListener("click", () => go("mode"));
-  dom.helpTitleButton.addEventListener("click", () => openHelp("title"));
-  dom.backFromModeButton.addEventListener("click", () => go("title"));
-  dom.backToTitleButton.addEventListener("click", () => go("mode"));
-  dom.courseButton.addEventListener("click", () => {
+  bindUiTap(dom.startButton, () => go("mode"));
+  bindUiTap(dom.helpTitleButton, () => openHelp("title"));
+  bindUiTap(dom.backFromModeButton, () => go("title"));
+  bindUiTap(dom.backToTitleButton, () => go("mode"));
+  bindUiTap(dom.courseButton, () => {
     populateCourse();
     go("course");
   });
-  dom.backToSelectButton.addEventListener("click", () => go("select"));
-  dom.raceButton.addEventListener("click", () => startCountdown());
-  dom.resumeButton.addEventListener("click", () => resumeRace());
-  dom.helpPauseButton.addEventListener("click", () => openHelp("pause"));
-  dom.restartPauseButton.addEventListener("click", () => startCountdown());
-  dom.restartButton.addEventListener("click", () => startCountdown());
-  dom.changeRacerButton.addEventListener("click", () => {
+  bindUiTap(dom.backToSelectButton, () => go("select"));
+  bindUiTap(dom.raceButton, () => startCountdown());
+  bindUiTap(dom.resumeButton, () => resumeRace());
+  bindUiTap(dom.helpPauseButton, () => openHelp("pause"));
+  bindUiTap(dom.restartPauseButton, () => startCountdown());
+  bindUiTap(dom.restartButton, () => startCountdown());
+  bindUiTap(dom.changeRacerButton, () => {
     resetRace();
     go("select");
   });
-  dom.closeHelpButton.addEventListener("click", closeHelp);
-  dom.touchHelp.addEventListener("click", () => openHelp(state.mode === "racing" ? "pause" : state.currentScreen));
-  dom.touchPause.addEventListener("click", () => {
+  bindUiTap(dom.closeHelpButton, closeHelp);
+  bindUiTap(dom.touchHelp, () => openHelp(state.mode === "racing" ? "pause" : state.currentScreen));
+  bindUiTap(dom.touchPause, () => {
     if (state.mode === "racing") pauseRace();
     else if (state.mode === "paused") resumeRace();
   });
-  dom.touchItem.addEventListener("click", usePlayerItem);
+  bindUiTap(dom.touchItem, usePlayerItem);
 
   dom.difficultySelector.addEventListener("click", (event) => {
     const button = event.target.closest("button[data-difficulty]");
     if (!button) return;
+    if (event?.cancelable) event.preventDefault();
     state.difficulty = button.dataset.difficulty || "Normal";
     dom.difficultySelector.querySelectorAll("button").forEach((segment) => {
       segment.classList.toggle("selected", segment === button);
@@ -657,30 +690,42 @@ function bindEvents() {
   });
 
   const bindHold = (button, key) => {
+    if (!button) return;
     const set = (active) => {
       input[key] = active;
       button.classList.toggle("is-pressed", active);
     };
-    button.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
+    const start = (event) => {
+      if (event?.cancelable) event.preventDefault();
+      event?.stopPropagation?.();
       button.setPointerCapture?.(event.pointerId);
       set(true);
+    };
+    const end = (event) => {
+      if (event?.cancelable) event.preventDefault();
+      event?.stopPropagation?.();
+      button.releasePointerCapture?.(event.pointerId);
+      set(false);
+    };
+    button.addEventListener("pointerdown", start, { passive: false });
+    ["pointerup", "pointercancel", "pointerleave", "lostpointercapture"].forEach((type) => {
+      button.addEventListener(type, end, { passive: false });
     });
-    ["pointerup", "pointercancel", "pointerleave"].forEach((type) => {
-      button.addEventListener(type, (event) => {
-        button.releasePointerCapture?.(event.pointerId);
-        set(false);
-      });
-    });
+    button.addEventListener("touchstart", start, { passive: false });
+    button.addEventListener("touchend", end, { passive: false });
+    button.addEventListener("touchcancel", end, { passive: false });
   };
   bindHold(dom.touchGas, "accel");
   bindHold(dom.touchBrake, "brake");
   bindHold(dom.touchDrift, "drift");
 
+  const touchPoint = (event) => event?.touches?.[0] || event?.changedTouches?.[0] || event;
   const updateTouchSteer = (event) => {
+    const point = touchPoint(event);
+    if (!point) return;
     const rect = dom.touchSteer.getBoundingClientRect();
     const center = rect.left + rect.width * 0.5;
-    input.touchSteer = clamp((event.clientX - center) / (rect.width * 0.42), -1, 1);
+    input.touchSteer = clamp((point.clientX - center) / (rect.width * 0.42), -1, 1);
     dom.touchSteer.style.setProperty("--steer-x", (input.touchSteer * rect.width * 0.32) + "px");
   };
   const clearTouchSteer = () => {
@@ -688,20 +733,43 @@ function bindEvents() {
     dom.touchSteer.style.setProperty("--steer-x", "0px");
     dom.touchSteer.classList.remove("is-pressed");
   };
-  dom.touchSteer.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
+  const startTouchSteer = (event) => {
+    if (event?.cancelable) event.preventDefault();
+    event?.stopPropagation?.();
     dom.touchSteer.setPointerCapture?.(event.pointerId);
     dom.touchSteer.classList.add("is-pressed");
     updateTouchSteer(event);
-  });
-  dom.touchSteer.addEventListener("pointermove", (event) => {
-    if (dom.touchSteer.classList.contains("is-pressed")) updateTouchSteer(event);
-  });
+  };
+  const moveTouchSteer = (event) => {
+    if (!dom.touchSteer.classList.contains("is-pressed")) return;
+    if (event?.cancelable) event.preventDefault();
+    updateTouchSteer(event);
+  };
+  const endTouchSteer = (event) => {
+    if (event?.cancelable) event.preventDefault();
+    dom.touchSteer.releasePointerCapture?.(event.pointerId);
+    clearTouchSteer();
+  };
+  dom.touchSteer.addEventListener("pointerdown", startTouchSteer, { passive: false });
+  dom.touchSteer.addEventListener("pointermove", moveTouchSteer, { passive: false });
   ["pointerup", "pointercancel", "lostpointercapture"].forEach((type) => {
-    dom.touchSteer.addEventListener(type, (event) => {
-      dom.touchSteer.releasePointerCapture?.(event.pointerId);
-      clearTouchSteer();
-    });
+    dom.touchSteer.addEventListener(type, endTouchSteer, { passive: false });
+  });
+  dom.touchSteer.addEventListener("touchstart", startTouchSteer, { passive: false });
+  dom.touchSteer.addEventListener("touchmove", moveTouchSteer, { passive: false });
+  dom.touchSteer.addEventListener("touchend", endTouchSteer, { passive: false });
+  dom.touchSteer.addEventListener("touchcancel", endTouchSteer, { passive: false });
+
+  const clearTouchInputs = () => {
+    input.accel = false;
+    input.brake = false;
+    input.drift = false;
+    [dom.touchGas, dom.touchBrake, dom.touchDrift].forEach((button) => button?.classList.remove("is-pressed"));
+    clearTouchSteer();
+  };
+  window.addEventListener("blur", clearTouchInputs);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) clearTouchInputs();
   });
 }
 
@@ -728,7 +796,7 @@ function populateModes() {
       '<strong>' + escapeHtml(mode.name) + '</strong>' +
       '<span class="mode-short">' + escapeHtml(mode.shortName) + '</span>' +
       '<small>' + escapeHtml(mode.description) + '</small>';
-    button.addEventListener("click", () => selectRaceMode(mode.id));
+    bindUiTap(button, () => selectRaceMode(mode.id));
     dom.modeGrid.appendChild(button);
   });
 }
@@ -768,11 +836,48 @@ function machineForCharacter(character, fallbackIndex = 0) {
   return DATA.karts[machineIndexForCharacter(character, fallbackIndex)] || DATA.karts[0];
 }
 
+function markMenuDirty() {
+  menuDirty = true;
+}
+
+function activeCourse() {
+  return (DATA.courses && DATA.courses[state.selectedCourse]) || DATA.course || DATA.courses?.[0] || fallbackData.course;
+}
+
+function selectCourse(index) {
+  state.selectedCourse = clamp(index, 0, Math.max(0, (DATA.courses || []).length - 1));
+  DATA.course = activeCourse();
+  state.trackNeedsRebuild = true;
+  dom.courseName.textContent = displayName(DATA.course);
+  dom.courseDescription.textContent = DATA.course.description;
+  populateCourse();
+  markMenuDirty();
+}
+
+function ensureCourseSelector() {
+  if (dom.courseGrid) return dom.courseGrid;
+  const grid = document.createElement("div");
+  grid.id = "courseGrid";
+  grid.className = "course-grid";
+  dom.courseFeatures?.parentNode?.insertBefore(grid, dom.courseFeatures);
+  dom.courseGrid = grid;
+  return grid;
+}
+
+function refreshCharacterSelection() {
+  dom.characterGrid?.querySelectorAll(".racer-set-card").forEach((card) => {
+    const selected = Number(card.dataset.index) === state.selectedCharacter;
+    card.classList.toggle("selected", selected);
+    card.setAttribute("aria-selected", selected ? "true" : "false");
+  });
+  markMenuDirty();
+}
+
 function selectCharacterSet(index) {
   state.selectedCharacter = clamp(index, 0, DATA.characters.length - 1);
   const character = DATA.characters[state.selectedCharacter] || DATA.characters[0];
   state.selectedKart = machineIndexForCharacter(character, state.selectedCharacter);
-  populateChoices();
+  refreshCharacterSelection();
   previewSelection();
 }
 
@@ -816,6 +921,7 @@ function populateChoices() {
     button.dataset.index = index;
     button.dataset.character = character.id || "";
     button.dataset.machine = machine?.id || "";
+    button.setAttribute("aria-selected", selected ? "true" : "false");
     button.style.setProperty("--primary", character.colors.primary || "#7df9ff");
     button.style.setProperty("--secondary", character.colors.secondary || "#14233b");
     button.style.setProperty("--accent", character.colors.accent || "#ffd166");
@@ -834,15 +940,39 @@ function populateChoices() {
       '<span class="machine-name">せんようマシン ' + escapeHtml(displayName(machine)) + '</span>' +
       setStatBars(character, machine) +
       '<span class="racer-line">「' + escapeHtml(character.catchLine || art.victory) + '」</span>';
-    button.addEventListener("click", () => selectCharacterSet(index));
+    bindUiTap(button, () => selectCharacterSet(index));
     dom.characterGrid.appendChild(button);
   });
+  refreshCharacterSelection();
 }
 
 function populateCourse() {
+  DATA.course = activeCourse();
+  dom.courseName.textContent = displayName(DATA.course);
+  dom.courseDescription.textContent = DATA.course.description;
   dom.courseFeatures.innerHTML = "";
   if (dom.modeSummary) dom.modeSummary.textContent = modeSummaryText();
-  [...new Set(DATA.course.features.map(friendlyFeature).filter(Boolean))].slice(0, 8).forEach((feature) => {
+  const grid = ensureCourseSelector();
+  if (grid) {
+    grid.innerHTML = "";
+    grid.hidden = (DATA.courses || []).length <= 1;
+    (DATA.courses || [DATA.course]).forEach((course, index) => {
+      const selected = index === state.selectedCourse;
+      const button = document.createElement("button");
+      button.className = "course-card" + (selected ? " selected" : "");
+      button.dataset.course = course.id || String(index);
+      button.setAttribute("aria-selected", selected ? "true" : "false");
+      const featureText = (course.features || []).slice(0, 3).map(friendlyFeature).join(" / ");
+      button.innerHTML =
+        '<span class="course-orbit" aria-hidden="true"></span>' +
+        '<strong>' + escapeHtml(displayName(course)) + '</strong>' +
+        '<small>' + escapeHtml(course.description || course.theme || "うちゅうコース") + '</small>' +
+        '<em>' + escapeHtml(featureText) + '</em>';
+      bindUiTap(button, () => selectCourse(index));
+      grid.appendChild(button);
+    });
+  }
+  [...new Set((DATA.course.features || []).map(friendlyFeature).filter(Boolean))].slice(0, 8).forEach((feature) => {
     const item = document.createElement("span");
     item.textContent = feature;
     dom.courseFeatures.appendChild(item);
@@ -1192,8 +1322,39 @@ function makeGroundPlane() {
   return group;
 }
 
-function buildTrack() {
-  const points = [
+function courseTrackPoints(course = activeCourse()) {
+  const id = course?.id || "starlight-orbit-ring";
+  if (id === "meteor-mining-belt") {
+    return [
+      new THREE.Vector3(0, 0, -118),
+      new THREE.Vector3(62, 3, -124),
+      new THREE.Vector3(122, 5, -78),
+      new THREE.Vector3(92, 2, -24),
+      new THREE.Vector3(132, 6, 34),
+      new THREE.Vector3(78, 8, 98),
+      new THREE.Vector3(8, 3, 124),
+      new THREE.Vector3(-56, 0, 96),
+      new THREE.Vector3(-122, 5, 62),
+      new THREE.Vector3(-92, 10, -8),
+      new THREE.Vector3(-138, 3, -70),
+      new THREE.Vector3(-58, 0, -116)
+    ];
+  }
+  if (id === "nebula-drift-stream") {
+    return [
+      new THREE.Vector3(0, 0, -132),
+      new THREE.Vector3(88, 4, -118),
+      new THREE.Vector3(148, 8, -42),
+      new THREE.Vector3(120, 12, 42),
+      new THREE.Vector3(48, 6, 120),
+      new THREE.Vector3(-32, 2, 132),
+      new THREE.Vector3(-112, 5, 74),
+      new THREE.Vector3(-152, 9, -10),
+      new THREE.Vector3(-96, 3, -82),
+      new THREE.Vector3(-32, 0, -126)
+    ];
+  }
+  return [
     new THREE.Vector3(0, 0, -120),
     new THREE.Vector3(70, 2, -105),
     new THREE.Vector3(128, 0, -48),
@@ -1206,7 +1367,40 @@ function buildTrack() {
     new THREE.Vector3(-72, 4, -68),
     new THREE.Vector3(-44, 0, -122)
   ];
-  const curve = new THREE.CatmullRomCurve3(points, true, "catmullrom", 0.45);
+}
+
+function courseLayout(course = activeCourse()) {
+  const id = course?.id || "starlight-orbit-ring";
+  if (id === "meteor-mining-belt") {
+    return {
+      boostPanels: [32, 118, 212, 306, 374],
+      dirtZones: [[86, 112, -TRACK_WIDTH * 0.36], [248, 280, TRACK_WIDTH * 0.34]],
+      jumpRamps: [152, 332],
+      itemBoxes: [[52, -5], [52, 5], [136, 0], [202, -4], [202, 4], [286, -5], [286, 5], [366, 0]],
+      obstacles: [[76, -12, "pylon"], [164, 12, "crate"], [236, -13, "crate"], [318, 12, "pylon"]]
+    };
+  }
+  if (id === "nebula-drift-stream") {
+    return {
+      boostPanels: [46, 154, 266, 352],
+      dirtZones: [[126, 168, TRACK_WIDTH * 0.38], [292, 326, -TRACK_WIDTH * 0.36]],
+      jumpRamps: [96, 238, 382],
+      itemBoxes: [[64, -5], [64, 5], [172, -4], [172, 4], [250, 0], [324, -5], [324, 5], [394, 0]],
+      obstacles: [[108, 12, "crate"], [198, -12, "pylon"], [282, 12, "pylon"], [360, -12, "crate"]]
+    };
+  }
+  return {
+    boostPanels: [38, 126, 238, 324],
+    dirtZones: [[154, 180, TRACK_WIDTH * 0.42], [260, 288, -TRACK_WIDTH * 0.38]],
+    jumpRamps: [112, 218],
+    itemBoxes: [[58, -5], [58, 5], [145, -4], [145, 5], [206, -4], [206, 4], [294, -5], [294, 5], [360, 0]],
+    obstacles: [[82, -12, "crate"], [172, 11, "pylon"], [247, -12, "crate"], [335, 11, "pylon"]]
+  };
+}
+function buildTrack() {
+  const course = activeCourse();
+  const points = courseTrackPoints(course);
+  const curve = new THREE.CatmullRomCurve3(points, true, "catmullrom", course.curveTension || 0.45);
   const samples = [];
   let totalLength = 0;
   for (let i = 0; i < TRACK_STEPS; i += 1) {
@@ -1222,7 +1416,7 @@ function buildTrack() {
     sample.segmentLength = sample.point.distanceTo(next.point);
   });
 
-  const trackInfo = { curve, samples, width: TRACK_WIDTH, group: new THREE.Group() };
+  const trackInfo = { curve, samples, width: TRACK_WIDTH, group: new THREE.Group(), layout: courseLayout(course) };
   scene.add(trackInfo.group);
 
   createTrackRibbon(trackInfo, 0, TRACK_WIDTH, 0x1b2d3d, 0x2c5968, 0.97, true);
@@ -1389,7 +1583,7 @@ function addStartLine(trackInfo) {
 }
 
 function addBoostPanels(trackInfo) {
-  [38, 126, 238, 324].forEach((index, i) => {
+  (trackInfo.layout || courseLayout()).boostPanels.forEach((index, i) => {
     const sample = trackInfo.samples[index];
     const panelMap = createAtlasTileTexture(1, 0) || createRoadDecalTexture("arrow");
     const panel = new THREE.Mesh(
@@ -1437,16 +1631,13 @@ function addBoostPanels(trackInfo) {
 }
 
 function addDirtZones(trackInfo) {
-  [
-    [154, 180, TRACK_WIDTH * 0.42],
-    [260, 288, -TRACK_WIDTH * 0.38]
-  ].forEach(([start, end, offset]) => {
+  (trackInfo.layout || courseLayout()).dirtZones.forEach(([start, end, offset]) => {
     createTrackRibbon(trackInfo, offset, 7.5, 0x705042, 0x341a16, 0.72, true, 1, start, end);
   });
 }
 
 function addJumpRamps(trackInfo) {
-  [112, 218].forEach((index) => {
+  (trackInfo.layout || courseLayout()).jumpRamps.forEach((index) => {
     const sample = trackInfo.samples[index];
     const ramp = new THREE.Mesh(
       new THREE.BoxGeometry(10, 1.3, 7),
@@ -1480,18 +1671,7 @@ function addJumpRamps(trackInfo) {
 }
 
 function addItemBoxes(trackInfo) {
-  const locations = [
-    [58, -5],
-    [58, 5],
-    [145, -4],
-    [145, 5],
-    [206, -4],
-    [206, 4],
-    [294, -5],
-    [294, 5],
-    [360, 0]
-  ];
-  locations.forEach(([index, offset], n) => {
+  (trackInfo.layout || courseLayout()).itemBoxes.forEach(([index, offset], n) => {
     const sample = trackInfo.samples[index];
     const group = new THREE.Group();
     const glyphMap = createAtlasTileTexture(2 + (n % 2), 1) || createAdPanelTexture("\u3069\u3046\u3050", n + 50);
@@ -1541,13 +1721,7 @@ function addItemBoxes(trackInfo) {
 }
 
 function addObstacles(trackInfo) {
-  const configs = [
-    [82, -12, "crate"],
-    [172, 11, "pylon"],
-    [247, -12, "crate"],
-    [335, 11, "pylon"]
-  ];
-  configs.forEach(([index, offset, type]) => {
+  (trackInfo.layout || courseLayout()).obstacles.forEach(([index, offset, type]) => {
     const sample = trackInfo.samples[index];
     const mesh =
       type === "crate"
@@ -1821,6 +1995,7 @@ function addBeacon(position, color) {
   beacon.position.copy(position);
   beacon.position.y += 6;
   scene.add(beacon);
+  trackLights.push(beacon);
 }
 
 function buildEnvironment() {
@@ -1885,6 +2060,8 @@ function buildEnvironment() {
   addNeonGate(city, 118, 0x60e9ff, "JUMP");
   addNeonGate(city, 308, 0xff5fa8, "ORBIT");
   scene.add(city);
+  environmentGroup = city;
+  return city;
 }
 
 function addTowerWindows(city, tower, width, height, index) {
@@ -2320,6 +2497,52 @@ function clearRaceObjects() {
   traps = [];
   particles = [];
   tireMarks = [];
+}
+
+function disposeObject3D(object) {
+  object?.traverse?.((child) => {
+    child.geometry?.dispose?.();
+    const materials = Array.isArray(child.material) ? child.material : child.material ? [child.material] : [];
+    materials.forEach((material) => {
+      material.map?.dispose?.();
+      material.emissiveMap?.dispose?.();
+      material.roughnessMap?.dispose?.();
+      material.dispose?.();
+    });
+  });
+}
+
+function rebuildTrackForSelectedCourse() {
+  if (!scene) return;
+  clearRaceObjects();
+  if (track?.group) {
+    scene.remove(track.group);
+    disposeObject3D(track.group);
+  }
+  if (environmentGroup) {
+    scene.remove(environmentGroup);
+    disposeObject3D(environmentGroup);
+    environmentGroup = null;
+  }
+  trackLights.forEach((light) => scene.remove(light));
+  trackLights = [];
+  itemBoxes = [];
+  boostPanels = [];
+  obstacles = [];
+  seed = 11 + state.selectedCourse * 101;
+  DATA.course = activeCourse();
+  track = buildTrack();
+  buildEnvironment();
+  state.trackCourseId = DATA.course?.id || "";
+  state.trackNeedsRebuild = false;
+  markMenuDirty();
+}
+
+function ensureTrackForSelectedCourse() {
+  DATA.course = activeCourse();
+  if (!track || state.trackNeedsRebuild || state.trackCourseId !== (DATA.course?.id || "")) {
+    rebuildTrackForSelectedCourse();
+  }
 }
 
 function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
@@ -3693,6 +3916,7 @@ function previewSelection() {
 
 async function startCountdown() {
   startAudioOnce();
+  ensureTrackForSelectedCourse();
   resetRace();
   state.mode = "countdown";
   dom.hud.classList.remove("hidden");
@@ -3792,17 +4016,20 @@ function showScreen(name) {
     result: dom.resultScreen
   };
   map[name].classList.remove("hidden");
+  markMenuDirty();
 }
 
 function animate() {
   const now = performance.now();
   const menuScene = state.mode !== "racing" && state.mode !== "countdown";
   if (menuScene) {
-    const interval = QUALITY.low ? 180 : 125;
-    if (lastMenuFrameTime && now - lastMenuFrameTime < interval) return;
+    const interval = QUALITY.menuFrameInterval;
+    if (!menuDirty && lastMenuFrameTime && now - lastMenuFrameTime < interval) return;
     lastMenuFrameTime = now;
+    menuDirty = false;
   } else {
     lastMenuFrameTime = 0;
+    menuDirty = true;
   }
   const rawDt = Math.min(clock.getDelta(), menuScene ? 0.032 : 0.05);
   const dt = rawDt || 0.016;
@@ -4070,7 +4297,7 @@ function animateDriverSignature(racer, dt, speedFactor, boosting, steer) {
 }
 
 function readPlayerControls() {
-  const steerKeys = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  const steerKeys = (input.left ? 1 : 0) - (input.right ? 1 : 0);
   const touch = Math.abs(input.touchSteer) > 0.05 ? input.touchSteer : 0;
   return {
     accel: input.accel,
@@ -4144,10 +4371,13 @@ function handleSurface(racer, nearest, dt) {
   const offTrack = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.52;
   const hardWall = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.72;
   const rescueZone = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.95;
-  const dirt =
-    (isIndexBetween(nearest.index, 154, 180) && nearest.lateral > TRACK_WIDTH * 0.2) ||
-    (isIndexBetween(nearest.index, 260, 288) && nearest.lateral < -TRACK_WIDTH * 0.2);
+  const layout = track?.layout || courseLayout();
+  const dirt = layout.dirtZones.some(([start, end, offset]) => {
+    const sameSide = offset === 0 || Math.sign(nearest.lateral || offset) === Math.sign(offset);
+    return isIndexBetween(nearest.index, start, end) && sameSide && Math.abs(nearest.lateral) > TRACK_WIDTH * 0.2;
+  });
   const shortcut =
+    activeCourse().id === "starlight-orbit-ring" &&
     isIndexBetween(nearest.index, 186, 228) && nearest.lateral < -TRACK_WIDTH * 0.42 && nearest.lateral > -TRACK_WIDTH * 1.1;
 
   if ((offTrack && !shortcut) || dirt) {
@@ -4867,7 +5097,7 @@ function updateCamera(dt) {
   const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
   const speed01 = clamp(player.speed / 62, 0, 1);
   const boosting = player.boostTimer > 0 || player.miniTurboTimer > 0;
-  const steerLean = clamp((input.right ? 1 : 0) - (input.left ? 1 : 0) + input.touchSteer, -1, 1);
+  const steerLean = clamp((input.left ? 1 : 0) - (input.right ? 1 : 0) + input.touchSteer, -1, 1);
   const behind = 17.5 + speed01 * 7.5 + (boosting ? 5.0 : 0);
   const height = 7.4 + speed01 * 3.4;
   const targetPos = player.position
@@ -4939,6 +5169,7 @@ function resizeRenderer() {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  markMenuDirty();
 }
 
 function nearestTrackSample(position, startIndex = null) {
@@ -5025,58 +5256,4 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

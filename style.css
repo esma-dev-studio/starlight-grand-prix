@@ -1,4 +1,4 @@
-﻿*,
+*,
 *::before,
 *::after {
   box-sizing: border-box;
@@ -3260,4 +3260,182 @@ body {
 .low-quality #app.is-menu .choice-card::before,
 .low-quality #app.is-menu .racer-set-card.choice-card.rich-card::before {
   opacity: 0.36;
+}
+
+/* Course choice and lighter menu rendering */
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 12px;
+  margin: 4px 0 2px;
+}
+
+.course-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 6px 10px;
+  min-height: 136px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(125, 249, 255, 0.34);
+  border-radius: 7px;
+  background:
+    linear-gradient(135deg, rgba(125, 249, 255, 0.14), rgba(255, 255, 255, 0.035) 48%, rgba(255, 79, 216, 0.1)),
+    rgba(4, 10, 22, 0.78);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  contain: layout paint;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 12px 24px rgba(0, 0, 0, 0.32);
+}
+
+.course-card.selected,
+.course-card[aria-selected="true"] {
+  border-color: rgba(255, 209, 102, 0.76);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 22px rgba(255, 209, 102, 0.2);
+}
+
+.course-card strong,
+.course-card small,
+.course-card em {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.course-card strong {
+  align-self: end;
+  color: #fff;
+  font-size: 1.02rem;
+  line-height: 1.18;
+}
+
+.course-card small {
+  grid-column: 2;
+  color: rgba(231, 244, 255, 0.82);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.course-card em {
+  grid-column: 1 / -1;
+  align-self: end;
+  color: #9ee7ff;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.course-orbit {
+  grid-row: 1 / span 2;
+  position: relative;
+  width: 44px;
+  height: 44px;
+  align-self: center;
+  border: 2px solid rgba(125, 249, 255, 0.76);
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(125, 249, 255, 0.34), inset 0 0 14px rgba(255, 209, 102, 0.14);
+}
+
+.course-orbit::before,
+.course-orbit::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+}
+
+.course-orbit::before {
+  border: 1px solid rgba(255, 209, 102, 0.68);
+  transform: rotate(-22deg) scaleX(1.45);
+}
+
+.course-orbit::after {
+  inset: 17px;
+  background: #ffd166;
+  box-shadow: 0 0 10px #ffd166;
+}
+
+#app.is-menu .choice-card,
+#app.is-menu .mode-card,
+#app.is-menu .course-card {
+  contain: layout paint;
+}
+
+.low-quality #app.is-menu .racer-set-card.choice-card.rich-card {
+  min-height: 330px;
+  padding: 12px;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.low-quality #app.is-menu .racer-set-visuals .choice-visual {
+  height: 104px;
+  min-height: 104px;
+}
+
+.low-quality #app.is-menu .portrait-aura,
+.low-quality #app.is-menu .portrait-shadow,
+.low-quality #app.is-menu .kart-shadow,
+.low-quality #app.is-menu .racer-visual::before,
+.low-quality #app.is-menu .kart-visual::before {
+  display: none !important;
+}
+
+.low-quality #app.is-menu .course-card,
+.low-quality #app.is-menu .mode-card,
+.low-quality #app.is-menu .choice-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 16px rgba(0, 0, 0, 0.28) !important;
+}
+/* Touch device reliability: keep the race controls tappable on iPad and phones. */
+#mobileControls,
+#mobileControls * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+}
+
+@media (pointer: coarse), (hover: none), (max-width: 1180px) {
+  #mobileControls.active {
+    display: flex !important;
+    pointer-events: none;
+  }
+
+  #mobileControls .touch-pad,
+  #mobileControls .touch-buttons,
+  #mobileControls .touch-button {
+    pointer-events: auto;
+  }
+
+  #mobileControls .touch-buttons {
+    align-items: stretch;
+  }
+
+  #mobileControls .touch-button {
+    min-width: 58px !important;
+    min-height: clamp(48px, 13vw, 64px) !important;
+    height: 100%;
+  }
+}
+
+@media (min-width: 768px) and (pointer: coarse) {
+  #mobileControls .touch-button {
+    min-width: 96px !important;
+    min-height: 72px !important;
+  }
+}
+/* Menu tap reliability: make screen buttons advance on real phones/tablets. */
+button,
+.game-button,
+.mode-card,
+.choice-card,
+.course-card,
+#difficultySelector button {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  cursor: pointer;
+}
+
+#screenOverlay {
+  -webkit-overflow-scrolling: touch;
 }

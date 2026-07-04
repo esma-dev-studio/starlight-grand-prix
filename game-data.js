@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   var titleCandidates = [
@@ -1194,8 +1194,35 @@
     description: "大きな惑星、宇宙ステーション、流星、ワープゲートをぬけて走る、発光レールの宇宙コース。",
     features: ["ワープゲート", "発光レール", "大きな惑星", "宇宙ステーション", "流星", "星くず", "低重力ジャンプ台", "ブーストパネル", "どうぐボックス", "宇宙の看板"],
     lapCount: 3,
+    curveTension: 0.45,
     backgroundEffects: ["星が流れる背景", "遠くに見える惑星", "コース外に広がる宇宙", "星くずのエフェクト"]
   };
+
+  var meteorCourse = {
+    id: "meteor-mining-belt",
+    name: "Meteor Mining Belt",
+    jaName: "メテオ・こうざんベルト",
+    theme: "隕石こうざんのあいだをぬける力強い宇宙コース",
+    description: "大きな隕石、採掘ステーション、せまいコーナーを走る、ぶつかりとジャンプが楽しいコース。",
+    features: ["隕石ベルト", "採掘ステーション", "発光レール", "低重力ジャンプ台", "ブーストパネル", "どうぐボックス", "宇宙の看板", "せまいカーブ"],
+    lapCount: 3,
+    curveTension: 0.52,
+    backgroundEffects: ["近くを流れる隕石", "遠くのこうざんライト", "コース下の宇宙空間", "オレンジの炉心発光"]
+  };
+
+  var nebulaCourse = {
+    id: "nebula-drift-stream",
+    name: "Nebula Drift Stream",
+    jaName: "ネビュラ・ドリフトストリーム",
+    theme: "星雲の光の川にそって走るドリフト向けコース",
+    description: "むらさきの星雲、長いカーブ、連続ジャンプをぬける、まがる楽しさが強いコース。",
+    features: ["星雲の光", "長いカーブ", "発光レール", "流星", "低重力ジャンプ台", "ブーストパネル", "どうぐボックス", "星くず"],
+    lapCount: 3,
+    curveTension: 0.38,
+    backgroundEffects: ["むらさきの星雲", "光る星くず", "遠景ライト", "なめらかな発光レール"]
+  };
+
+  var spaceCourses = [spaceCourse, meteorCourse, nebulaCourse];
 
   window.AURORA_GAME_DATA.version = "0.2.0-space-grand-prix";
   window.AURORA_GAME_DATA.selectedTitleId = "starlight-grand-prix";
@@ -1219,7 +1246,7 @@
   };
   window.AURORA_GAME_DATA.characters = spaceCharacters;
   window.AURORA_GAME_DATA.karts = spaceMachines;
-  window.AURORA_GAME_DATA.courses = [spaceCourse];
+  window.AURORA_GAME_DATA.courses = spaceCourses;
   window.AURORA_GAME_DATA.course = spaceCourse;
   window.AURORA_GAME_DATA.defaults = {
     characterId: "luna-mimi",
@@ -1249,4 +1276,3 @@
   };
 
 })();
-
