@@ -4297,7 +4297,7 @@ function animateDriverSignature(racer, dt, speedFactor, boosting, steer) {
 }
 
 function readPlayerControls() {
-  const steerKeys = (input.left ? 1 : 0) - (input.right ? 1 : 0);
+  const steerKeys = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   const touch = Math.abs(input.touchSteer) > 0.05 ? input.touchSteer : 0;
   return {
     accel: input.accel,
@@ -5097,7 +5097,7 @@ function updateCamera(dt) {
   const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
   const speed01 = clamp(player.speed / 62, 0, 1);
   const boosting = player.boostTimer > 0 || player.miniTurboTimer > 0;
-  const steerLean = clamp((input.left ? 1 : 0) - (input.right ? 1 : 0) + input.touchSteer, -1, 1);
+  const steerLean = clamp((input.right ? 1 : 0) - (input.left ? 1 : 0) + input.touchSteer, -1, 1);
   const behind = 17.5 + speed01 * 7.5 + (boosting ? 5.0 : 0);
   const height = 7.4 + speed01 * 3.4;
   const targetPos = player.position
