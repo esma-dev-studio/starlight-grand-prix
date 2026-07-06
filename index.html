@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>スターライト・グランプリ</title>
-    <link rel="stylesheet" href="./style.css?v=tap-fix-v1" />
+    <link rel="stylesheet" href="./style.css?v=tap-polish-v6" />
     <script type="importmap">
       {
         "imports": {
@@ -170,8 +170,25 @@
       </section>
     </main>
 
-    <script src="./game-data.js?v=tap-fix-v1"></script>
+    <script>
+      (() => {
+        window.__earlyStartRequested = false;
+        const startButton = document.getElementById("startButton");
+        if (startButton) startButton.dataset.readyLabel = startButton.textContent;
+        const markStart = () => {
+          if (document.documentElement.classList.contains("app-ready")) return;
+          window.__earlyStartRequested = true;
+          startButton?.classList.add("is-loading", "is-pressed");
+          startButton?.setAttribute("aria-busy", "true");
+          if (startButton) startButton.textContent = "\u3058\u3085\u3093\u3073\u3061\u3085\u3046...";
+        };
+        ["pointerdown", "touchstart", "click"].forEach((type) => {
+          startButton?.addEventListener(type, markStart, { passive: true });
+        });
+      })();
+    </script>
+    <script src="./game-data.js?v=tap-polish-v6"></script>
     <script src="./audio.js"></script>
-    <script type="module" src="./main.js?v=tap-fix-v1"></script>
+    <script type="module" src="./main.js?v=tap-polish-v6"></script>
   </body>
 </html>

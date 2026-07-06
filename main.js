@@ -523,9 +523,13 @@ function init() {
   populateChoices();
   populateCourse();
   bindEvents();
-  showScreen("title");
+  if (dom.startButton?.dataset.readyLabel) dom.startButton.textContent = dom.startButton.dataset.readyLabel;
+  dom.startButton?.classList.remove("is-loading", "is-pressed");
+  dom.startButton?.removeAttribute("aria-busy");
+  const initialScreen = window.__earlyStartRequested ? "mode" : "title";
+  showScreen(initialScreen);
+  document.documentElement.classList.add("app-ready");
   clock = new THREE.Clock();
-  if (!QUALITY.low) scheduleBaseWarmup();
 }
 function cacheDom() {
   [
@@ -1124,11 +1128,14 @@ function scheduleBaseWarmup(delay = 700) {
   const warm = () => {
     if (!threeReady) ensureThreeReady();
   };
-  if ("requestIdleCallback" in window) {
-    window.requestIdleCallback(warm, { timeout: delay + 1200 });
-  } else {
-    window.setTimeout(warm, delay);
-  }
+  const queueWarmup = () => {
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(warm, { timeout: 1200 });
+    } else {
+      warm();
+    }
+  };
+  window.setTimeout(queueWarmup, delay);
 }
 function scheduleRaceWarmup(delay = 900) {
   if (raceWarmupStarted || raceWarmupComplete) return;
@@ -1222,9 +1229,7 @@ function initThree() {
 function loadGeneratedTextureAtlas() {
   const loader = new THREE.TextureLoader();
   generatedTextureAtlas = loader.load("./assets/arcade-texture-atlas.png", prepareLoadedTexture);
-  prepareLoadedTexture(generatedTextureAtlas);
   kartLiveryAtlas = loader.load("./assets/kart-livery-atlas.png", prepareLoadedTexture);
-  prepareLoadedTexture(kartLiveryAtlas);
 }
 
 function prepareLoadedTexture(texture) {
@@ -1236,7 +1241,7 @@ function prepareLoadedTexture(texture) {
 }
 
 function createAtlasTileTexture(tileX = 0, tileY = 0) {
-  if (!generatedTextureAtlas) return null;
+  if (!generatedTextureAtlas?.image?.width) return null;
   const texture = generatedTextureAtlas.clone();
   texture.needsUpdate = true;
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -1260,7 +1265,7 @@ function makeAtlasMaterial(tileX, tileY, fallbackColor = 0xffffff, opacity = 0.9
   });
 }
 function createKartLiveryTileTexture(tileX = 0, tileY = 0) {
-  if (!kartLiveryAtlas) return null;
+  if (!kartLiveryAtlas?.image?.width) return null;
   const texture = kartLiveryAtlas.clone();
   prepareLoadedTexture(texture);
   texture.repeat.set(0.25, 0.25);
@@ -4023,6 +4028,16 @@ function previewSelection() {
 
 async function startCountdown() {
   startAudioOnce();
+  state.mode = "countdown";
+  dom.hud.classList.remove("hidden");
+  dom.app?.classList.remove("is-menu");
+  dom.app?.classList.add("is-racing");
+  dom.screenOverlay.classList.add("hidden");
+  dom.countdown.classList.remove("hidden");
+  dom.countdown.textContent = "\u3058\u3085\u3093\u3073";
+  dom.countdown.classList.add("pop");
+  dom.mobileControls.classList.add("active");
+  await wait(48);
   raceWarmupStarted = true;
   ensureRaceAssetsReady({ createRacers: true });
   if (state.currentScreen !== "course") {
@@ -4034,13 +4049,6 @@ async function startCountdown() {
     state.winner = null;
     updateHud();
   }
-  state.mode = "countdown";
-  dom.hud.classList.remove("hidden");
-  dom.app?.classList.remove("is-menu");
-  dom.app?.classList.add("is-racing");
-  dom.screenOverlay.classList.add("hidden");
-  dom.countdown.classList.remove("hidden");
-  dom.mobileControls.classList.add("active");
   state.countdown = 3;
   for (const label of ["3", "2", "1", "スタート！"]) {
     dom.countdown.textContent = label;
@@ -4132,8 +4140,10 @@ function showScreen(name) {
     result: dom.resultScreen
   };
   map[name].classList.remove("hidden");
-  if (name !== "title") scheduleBaseWarmup(QUALITY.low ? 900 : 180);
-  if (name === "course") scheduleRaceWarmup(180);
+  if (name === "course") {
+    scheduleBaseWarmup(QUALITY.low ? 900 : 320);
+    scheduleRaceWarmup(QUALITY.low ? 1800 : 900);
+  }
   markMenuDirty();
 }
 

@@ -3373,6 +3373,47 @@ body {
   min-height: 104px;
 }
 
+@media (pointer: coarse), (hover: none), (max-width: 900px) {
+  #selectScreen,
+  #courseScreen {
+    scroll-padding-bottom: 78px;
+  }
+
+  #selectScreen .screen-actions,
+  #courseScreen .screen-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 8;
+    margin: 8px -6px -6px;
+    padding: 10px;
+    border: 1px solid rgba(125, 249, 255, 0.22);
+    background:
+      linear-gradient(90deg, rgba(47, 230, 255, 0.1), rgba(255, 79, 134, 0.08)),
+      rgba(4, 10, 22, 0.92);
+    box-shadow: 0 -12px 24px rgba(0, 0, 0, 0.32);
+  }
+
+  .low-quality #app.is-menu .racer-set-grid {
+    gap: 10px;
+  }
+
+  .low-quality #app.is-menu .racer-set-card.choice-card.rich-card {
+    min-height: 300px;
+    padding: 10px;
+  }
+
+  .low-quality #app.is-menu .racer-set-visuals .choice-visual {
+    height: 88px;
+    min-height: 88px;
+  }
+
+  .low-quality #app.is-menu .select-copy {
+    padding-block: 5px;
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+}
+
 .low-quality #app.is-menu .portrait-aura,
 .low-quality #app.is-menu .portrait-shadow,
 .low-quality #app.is-menu .kart-shadow,
@@ -3385,6 +3426,38 @@ body {
 .low-quality #app.is-menu .mode-card,
 .low-quality #app.is-menu .choice-card {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 16px rgba(0, 0, 0, 0.28) !important;
+}
+
+.low-quality #app.is-menu .screen {
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+
+.low-quality #app.is-menu *,
+.low-quality #app.is-menu *::before,
+.low-quality #app.is-menu *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 80ms !important;
+}
+
+.low-quality #app.is-menu .portrait-aura,
+.low-quality #app.is-menu .portrait-shadow,
+.low-quality #app.is-menu .kart-shadow,
+.low-quality #app.is-menu .racer-visual::before,
+.low-quality #app.is-menu .kart-visual::before,
+.low-quality #app.is-menu .choice-card::before,
+.low-quality #app.is-menu .racer-set-card.choice-card.rich-card::before {
+  display: none !important;
+}
+
+.low-quality #app.is-menu .mode-card,
+.low-quality #app.is-menu .choice-card,
+.low-quality #app.is-menu .course-card,
+.low-quality #app.is-menu .racer-set-card.choice-card.rich-card {
+  contain: layout paint style;
 }
 /* Touch device reliability: keep the race controls tappable on iPad and phones. */
 #mobileControls,
