@@ -258,6 +258,24 @@ const RACE_MODES = [
   }
 ];
 
+const DIFFICULTY_COPY = {
+  Easy: {
+    label: "やさしい",
+    hint: "ライバルはゆっくりめ。コースにもどりやすく、はじめてでも走りやすい。",
+    coach: "ライバルはやさしい速さ"
+  },
+  Normal: {
+    label: "ふつう",
+    hint: "ライバルがほどよく速い、ふつうのレース。",
+    coach: "ライバルはふつうの速さ"
+  },
+  Hard: {
+    label: "つよい",
+    hint: "ライバルが本気で走る。ライン取りとどうぐの使い方が大事。",
+    coach: "ライバルはかなり速い"
+  }
+};
+
 const CHARACTER_ART = {
   "luna-mimi": {
     symbol: "☾",
@@ -395,6 +413,7 @@ let minimapContext = null;
 let seed = 11;
 let lastHudRank = 1;
 let lastHudItem = "";
+let lastHudLap = 0;
 let lastHudCharacter = "";
 let lastCoachKey = "";
 let minimapTimer = 0;
@@ -444,10 +463,13 @@ function normalizeData(raw) {
       stats: normalizeStats(k.stats)
     };
   });
-  data.items = (data.items && data.items.length ? data.items : fallbackData.items).map((item, i) => ({
-    ...fallbackData.items[i % fallbackData.items.length],
-    ...item
-  }));
+  data.items = (data.items && data.items.length ? data.items : fallbackData.items).map((item, i) => {
+    const base = fallbackData.items[i % fallbackData.items.length];
+    const merged = { ...base, ...item };
+    merged.kind = item.kind || itemKindFromMeta(item) || base.kind;
+    merged.shortEffect = item.shortEffect || itemEffectText(merged);
+    return merged;
+  });
   const courseSource = Array.isArray(source.courses) && source.courses.length
     ? source.courses
     : [source.course || fallbackData.course];
@@ -456,6 +478,32 @@ function normalizeData(raw) {
   data.course = data.courses.find((course) => course.id === defaultCourseId) || data.courses[0] || normalizeCourse(source.course);
   data.difficulties = { ...fallbackData.difficulties, ...(data.difficulties || {}) };
   return data;
+}
+
+function itemKindFromMeta(item) {
+  const key = `${item?.kind || ""} ${item?.category || ""} ${item?.id || ""} ${item?.name || ""}`.toLowerCase();
+  if (/(boost|gale|dash|speed|thread)/.test(key)) return "boost";
+  if (/(defense|shield|mirror|veil|counter|phase|anchor)/.test(key)) return "shield";
+  if (/(hazard|trap|flare|loom|gravity)/.test(key)) return "trap";
+  if (/(tempo|chrono|wave|aoe|bloom)/.test(key)) return "aoe";
+  if (/(movement|comeback|fold|warp|comet)/.test(key)) return "comeback";
+  if (/(projectile|lance|shot|arrow)/.test(key)) return "projectile";
+  return "boost";
+}
+
+function itemEffectText(item) {
+  const key = String(item?.kind || itemKindFromMeta(item) || "").toLowerCase();
+  if (key === "boost") return "少しの間、はやく走る";
+  if (key === "projectile") return "前に光をとばして相手を止める";
+  if (key === "aoe") return "近くの相手を光でおどろかせる";
+  if (key === "trap") return "後ろに光のしかけを置く";
+  if (key === "shield") return "一回だけぶつかりに強くなる";
+  if (key === "comeback") return "ダッシュと守りで追いつく";
+  return "使うとレースを助ける";
+}
+
+function difficultyCopy(id = state?.difficulty || "Normal") {
+  return DIFFICULTY_COPY[id] || DIFFICULTY_COPY.Normal;
 }
 
 function inferCharacterTrait(character, index) {
@@ -527,6 +575,8 @@ function init() {
   populateModes();
   populateChoices();
   populateCourse();
+  populateItemGuide();
+  updateDifficultyUi();
   bindEvents();
   if (dom.startButton?.dataset.readyLabel) dom.startButton.textContent = dom.startButton.dataset.readyLabel;
   dom.startButton?.classList.remove("is-loading", "is-pressed");
@@ -583,9 +633,13 @@ function cacheDom() {
     "courseFeatures",
     "positionValue",
     "lapValue",
+    "lapHint",
     "timeValue",
     "speedValue",
     "itemSlot",
+    "itemHint",
+    "difficultyHint",
+    "itemGuide",
     "minimap",
     "mobileControls",
     "touchSteer",
@@ -681,9 +735,7 @@ function bindEvents() {
     if (!button) return;
     if (event?.cancelable) event.preventDefault();
     state.difficulty = button.dataset.difficulty || "Normal";
-    dom.difficultySelector.querySelectorAll("button").forEach((segment) => {
-      segment.classList.toggle("selected", segment === button);
-    });
+    updateDifficultyUi();
     resetRaceIfReady();
   });
 
@@ -842,13 +894,47 @@ function raceMode() {
   return RACE_MODES.find((mode) => mode.id === state.raceMode) || RACE_MODES[0];
 }
 
+function lapTotalForCourse(course, mode = raceMode()) {
+  const courseLaps = Number(course?.lapCount || TOTAL_LAPS);
+  if (courseLaps > TOTAL_LAPS) return courseLaps;
+  if (mode.id === "singleRace") return mode.laps || 2;
+  return Math.max(mode.laps || TOTAL_LAPS, courseLaps);
+}
+
 function activeLapTotal() {
-  return raceMode().laps || TOTAL_LAPS;
+  return lapTotalForCourse(activeCourse());
 }
 
 function modeSummaryText() {
   const mode = raceMode();
-  return mode.name + ": " + mode.description;
+  const laps = activeLapTotal();
+  let description = mode.description;
+  if (mode.id === "singleRace" && laps !== mode.laps) {
+    description = `このコースは少し長め。ライバル3人と${laps}しゅう走るレース。`;
+  }
+  return mode.name + ": " + description + " / " + laps + "しゅう";
+}
+
+function updateDifficultyUi() {
+  if (!dom.difficultySelector) return;
+  dom.difficultySelector.querySelectorAll("button[data-difficulty]").forEach((segment) => {
+    const selected = segment.dataset.difficulty === state.difficulty;
+    segment.classList.toggle("selected", selected);
+    segment.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
+  if (dom.difficultyHint) dom.difficultyHint.textContent = difficultyCopy().hint;
+}
+
+function populateItemGuide() {
+  if (!dom.itemGuide) return;
+  dom.itemGuide.innerHTML = "";
+  DATA.items.slice(0, 6).forEach((item) => {
+    const chip = document.createElement("span");
+    chip.className = "item-guide-chip";
+    chip.style.setProperty("--item-color", item.color || item.colors?.primary || "#ffd166");
+    chip.innerHTML = '<b>' + escapeHtml(friendlyItemIcon(item)) + '</b><strong>' + escapeHtml(displayName(item)) + '</strong><small>' + escapeHtml(itemEffectText(item)) + '</small>';
+    dom.itemGuide.appendChild(chip);
+  });
 }
 
 function machineIndexForCharacter(character, fallbackIndex = 0) {
@@ -990,6 +1076,7 @@ function populateCourse() {
   dom.courseDescription.textContent = DATA.course.description;
   dom.courseFeatures.innerHTML = "";
   if (dom.modeSummary) dom.modeSummary.textContent = modeSummaryText();
+  updateDifficultyUi();
   const grid = ensureCourseSelector();
   if (grid) {
     grid.innerHTML = "";
@@ -1005,6 +1092,7 @@ function populateCourse() {
         '<span class="course-orbit" aria-hidden="true"></span>' +
         '<strong>' + escapeHtml(displayName(course)) + '</strong>' +
         '<small>' + escapeHtml(course.description || course.theme || "うちゅうコース") + '</small>' +
+        '<span class="course-lap-chip">' + escapeHtml(lapTotalForCourse(course)) + 'しゅう</span>' +
         '<em>' + escapeHtml(featureText) + '</em>';
       bindUiTap(button, () => selectCourse(index));
       grid.appendChild(button);
@@ -2643,6 +2731,7 @@ function resetRace() {
   state.finishTime = 0;
   state.rank = 1;
   lastCoachKey = "";
+  lastHudLap = 0;
   state.winner = null;
   updateHud();
   previewSelection();
@@ -4146,10 +4235,11 @@ function finishRace() {
     player.group.userData.victoryPose = true;
     spawnGoalLightShow(player);
   }
-  showScreen("result");
   const sorted = getRanking();
   const winner = sorted[0];
   const playerRank = sorted.findIndex((r) => r === player) + 1;
+  showScreen("result");
+  showGoalBanner(playerRank);
   const mode = raceMode();
   const playerCard = resultCharacterCardMarkup(player.character);
   if (mode.timeAttack) {
@@ -4169,6 +4259,18 @@ function finishRace() {
     <div><span>タイム</span><strong>${formatTime(state.finishTime)}</strong></div>
     <div><span>1いのレーサー</span><strong>${escapeHtml(displayName(winner.character))}</strong></div>
   `;
+}
+
+function showGoalBanner(playerRank) {
+  if (!dom.countdown) return;
+  dom.countdown.textContent = playerRank === 1 ? "1いでゴール!" : "ゴール!";
+  dom.countdown.classList.remove("hidden", "pop", "goal-flash");
+  void dom.countdown.offsetWidth;
+  dom.countdown.classList.add("pop", "goal-flash");
+  window.setTimeout(() => {
+    if (state.mode === "result") dom.countdown.classList.add("hidden");
+    dom.countdown.classList.remove("goal-flash");
+  }, 1250);
 }
 
 function showScreen(name) {
@@ -4385,6 +4487,7 @@ function updateRacer(racer, dt) {
   handleObstacleCollisions(racer, nearest);
   handleRacerContacts(racer, dt);
   handleStuckAssist(racer, nearest, controls, dt);
+  nearest = stabilizeRacerGrounding(racer, nearest, dt);
 
   const wasAirborne = racer.wasAirborne;
   if (racer.jumpHeight > 0 || racer.verticalSpeed > 0) {
@@ -4622,6 +4725,22 @@ function handleCourseAssist(racer, nearest, controls, dt) {
   }
   return true;
 }
+function stabilizeRacerGrounding(racer, nearest, dt) {
+  const current = nearestTrackSample(racer.position, nearest?.index ?? racer.trackIndex);
+  if (!current?.sample) return nearest;
+  const groundY = current.sample.point.y;
+  const airborne = racer.jumpHeight > 0.08 || racer.verticalSpeed > 0.1;
+  if (racer.position.y < groundY - 0.08) {
+    racer.position.y = groundY;
+    racer.verticalSpeed = Math.max(0, racer.verticalSpeed || 0);
+    racer.jumpHeight = Math.max(0, racer.jumpHeight || 0);
+    if (racer.isPlayer) cameraShake = Math.max(cameraShake, 0.08);
+  } else if (!airborne) {
+    racer.position.y = approach(racer.position.y, groundY, (racer.isPlayer ? 18 : 14) * dt);
+  }
+  return current;
+}
+
 function handleSurface(racer, nearest, dt) {
   const offTrack = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.52;
   const hardWall = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.72;
@@ -4771,13 +4890,13 @@ function handleObstacleCollisions(racer, nearest) {
       const tangent = obstacle.tangent || nearest?.sample?.tangent || forwardFromYaw(racer.yaw);
       const overlap = hitRadius - dist;
       const slideSign = Math.sign(racer.velocity.dot(tangent) || racer.speed || 1);
-      const slideStrength = obstacle.type === "pylon" ? 0.86 : 0.34;
-      racer.position.addScaledVector(away, overlap * (obstacle.type === "pylon" ? 0.72 : 0.52));
+      const slideStrength = obstacle.type === "pylon" ? 1.25 : 0.34;
+      racer.position.addScaledVector(away, overlap * (obstacle.type === "pylon" ? 0.92 : 0.52));
       racer.position.addScaledVector(tangent, slideSign * overlap * slideStrength);
       if (nearest?.sample?.point) racer.position.y = nearest.sample.point.y;
       if (obstacle.type === "pylon") {
         racer.speed = racer.speed >= 0
-          ? Math.max(racer.speed * 0.58, racer.isPlayer ? 12 : 7)
+          ? Math.max(racer.speed * 0.66, racer.isPlayer ? 15 : 8)
           : Math.min(racer.speed * 0.4, racer.isPlayer ? -5 : -3);
         const desiredYaw = Math.atan2(tangent.x, tangent.z);
         racer.yaw += shortestAngle(racer.yaw, desiredYaw) * 0.18;
@@ -5322,11 +5441,23 @@ function updateHud() {
   dom.hud.style.setProperty("--drift-pct", `${clamp(player.driftCharge / 1.45, 0, 1) * 100}%`);
   dom.positionValue.textContent = `${state.rank}/${racers.length}`;
   const lapTotal = activeLapTotal();
-  dom.lapValue.textContent = `${Math.min(player.lap + 1, lapTotal)}/${lapTotal}`;
+  const visibleLap = Math.min(player.lap + 1, lapTotal);
+  if (visibleLap !== lastHudLap) {
+    dom.lapValue.classList.remove("lap-bump");
+    void dom.lapValue.offsetWidth;
+    dom.lapValue.classList.add("lap-bump");
+    lastHudLap = visibleLap;
+  }
+  dom.lapValue.textContent = `${visibleLap}/${lapTotal}`;
+  if (dom.lapHint) {
+    const remaining = Math.max(0, lapTotal - visibleLap);
+    dom.lapHint.textContent = player.finished ? "ゴール!" : remaining === 0 ? "さいごのしゅう" : `あと${remaining}しゅう`;
+  }
   dom.timeValue.textContent = formatTime(state.time);
   dom.speedValue.textContent = String(speedKmh);
   dom.mobileControls.classList.toggle("has-item-ready", Boolean(player.item));
-  dom.touchItem.setAttribute("aria-label", player.item ? `${displayName(player.item)}を使う` : "どうぐを使う");
+  dom.touchItem.setAttribute("aria-label", player.item ? `${displayName(player.item)}を使う: ${itemEffectText(player.item)}` : "どうぐを使う");
+  if (dom.itemHint) dom.itemHint.textContent = player.item ? itemEffectText(player.item) : "光る箱でゲット";
   updateRaceCoach(boosting, speedKmh);
   const itemKey = player.item ? player.item.id || player.item.name : "empty";
   if (itemKey !== lastHudItem) {
@@ -5376,7 +5507,7 @@ function updateRaceCoach(boosting, speedKmh) {
   } else if (player.item) {
     key = "item-" + (player.item.id || player.item.kind || "ready");
     title = "どうぐをつかえる";
-    text = "右下のどうぐをタップ";
+    text = itemEffectText(player.item);
     tone = "item";
   } else if (boosting) {
     key = "boost";
@@ -5441,7 +5572,7 @@ function resultCharacterCardMarkup(character) {
       '<span class="result-machine-portrait">' + kartVisualMarkup(machine) + '</span>' +
     '</span>' +
     '<span class="result-racer-copy">' +
-      '<span>???????</span>' +
+      '<span>ゴールポーズ</span>' +
       '<strong>' + escapeHtml(displayName(character)) + '</strong>' +
       '<small>' + escapeHtml(art.victory) + '</small>' +
     '</span>' +
@@ -5651,4 +5782,3 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 }
-
