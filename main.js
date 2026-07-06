@@ -11,6 +11,7 @@ const TRACK_STEPS = (() => {
   return 340;
 })();
 const TRACK_WIDTH = 22;
+const MAX_SHIELD = 100;
 const PLAYER_ID = "player";
 const DEG = Math.PI / 180;
 const QUALITY = (() => {
@@ -404,6 +405,7 @@ let particles = [];
 let tireMarks = [];
 let itemBoxes = [];
 let boostPanels = [];
+let repairPads = [];
 let obstacles = [];
 let speedLines = [];
 let audio = null;
@@ -636,6 +638,8 @@ function cacheDom() {
     "lapHint",
     "timeValue",
     "speedValue",
+    "shieldMeter",
+    "shieldHint",
     "itemSlot",
     "itemHint",
     "difficultyHint",
@@ -1098,7 +1102,7 @@ function populateCourse() {
       grid.appendChild(button);
     });
   }
-  [...new Set((DATA.course.features || []).map(friendlyFeature).filter(Boolean))].slice(0, 8).forEach((feature) => {
+  [...new Set((DATA.course.features || []).map(friendlyFeature).filter(Boolean))].slice(0, 10).forEach((feature) => {
     const item = document.createElement("span");
     item.textContent = feature;
     dom.courseFeatures.appendChild(item);
@@ -1557,6 +1561,7 @@ function scaledCourseLayout(layout) {
     dirtZones: layout.dirtZones.map(([start, end, offset]) => [layoutIndex(start), layoutIndex(end), offset]),
     jumpRamps: layout.jumpRamps.map(layoutIndex),
     itemBoxes: layout.itemBoxes.map(([index, offset]) => [layoutIndex(index), offset]),
+    repairPads: (layout.repairPads || []).map(([index, offset]) => [layoutIndex(index), offset]),
     obstacles: layout.obstacles.map(([index, offset, type]) => [layoutIndex(index), offset, type])
   };
 }
@@ -1569,6 +1574,7 @@ function courseLayout(course = activeCourse()) {
       dirtZones: [[86, 112, -TRACK_WIDTH * 0.36], [248, 280, TRACK_WIDTH * 0.34]],
       jumpRamps: [152, 332],
       itemBoxes: [[52, -5], [52, 5], [136, 0], [202, -4], [202, 4], [286, -5], [286, 5], [366, 0]],
+      repairPads: [[24, 0], [188, 0], [344, 0]],
       obstacles: [[76, -TRACK_WIDTH * 0.6, "pylon"], [164, TRACK_WIDTH * 0.58, "crate"], [236, -TRACK_WIDTH * 0.6, "crate"], [318, TRACK_WIDTH * 0.58, "pylon"]]
     });
   }
@@ -1578,6 +1584,7 @@ function courseLayout(course = activeCourse()) {
       dirtZones: [[126, 168, TRACK_WIDTH * 0.38], [292, 326, -TRACK_WIDTH * 0.36]],
       jumpRamps: [96, 238, 382],
       itemBoxes: [[64, -5], [64, 5], [172, -4], [172, 4], [250, 0], [324, -5], [324, 5], [394, 0]],
+      repairPads: [[34, 0], [218, 0], [372, 0]],
       obstacles: [[108, TRACK_WIDTH * 0.58, "crate"], [198, -TRACK_WIDTH * 0.6, "pylon"], [282, TRACK_WIDTH * 0.58, "pylon"], [360, -TRACK_WIDTH * 0.6, "crate"]]
     });
   }
@@ -1586,6 +1593,7 @@ function courseLayout(course = activeCourse()) {
     dirtZones: [[154, 180, TRACK_WIDTH * 0.42], [260, 288, -TRACK_WIDTH * 0.38]],
     jumpRamps: [112, 218],
     itemBoxes: [[58, -5], [58, 5], [145, -4], [145, 5], [206, -4], [206, 4], [294, -5], [294, 5], [360, 0]],
+    repairPads: [[28, 0], [184, 0], [332, 0]],
     obstacles: [[82, -TRACK_WIDTH * 0.58, "crate"], [172, TRACK_WIDTH * 0.56, "pylon"], [247, -TRACK_WIDTH * 0.6, "crate"], [335, TRACK_WIDTH * 0.56, "pylon"]]
   });
 }
@@ -1622,6 +1630,7 @@ function buildTrack() {
   addBoostPanels(trackInfo);
   addDirtZones(trackInfo);
   addJumpRamps(trackInfo);
+  addRepairPads(trackInfo);
   addItemBoxes(trackInfo);
   addObstacles(trackInfo);
   addRails(trackInfo);
@@ -1863,6 +1872,30 @@ function addJumpRamps(trackInfo) {
   });
 }
 
+function addRepairPads(trackInfo) {
+  const layout = trackInfo.layout || courseLayout();
+  (layout.repairPads || []).forEach(([index, offset], i) => {
+    const sample = trackInfo.samples[index];
+    const group = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: 0x8ff8ff, transparent: true, opacity: 0.72, blending: THREE.AdditiveBlending, depthWrite: false });
+    const core = new THREE.Mesh(new THREE.PlaneGeometry(9.2, 5.4), new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    core.rotation.x = -Math.PI / 2;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(3.8, 0.09, 8, 72), mat.clone());
+    ring.rotation.x = Math.PI / 2;
+    const crossA = new THREE.Mesh(new THREE.BoxGeometry(6.2, 0.08, 0.46), mat.clone());
+    const crossB = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.08, 3.7), mat.clone());
+    crossA.position.y = 0.08;
+    crossB.position.y = 0.09;
+    group.add(core, ring, crossA, crossB);
+    group.position.copy(sample.point).addScaledVector(sample.normal, offset);
+    group.position.y += 0.24;
+    group.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+    group.userData = { index, offset, baseY: group.position.y, ring, core, cooldown: 0 };
+    trackInfo.group.add(group);
+    repairPads.push(group);
+    addBeacon(group.position, 0x8ff8ff);
+  });
+}
 function addItemBoxes(trackInfo) {
   (trackInfo.layout || courseLayout()).itemBoxes.forEach(([index, offset], n) => {
     const sample = trackInfo.samples[index];
@@ -2780,6 +2813,7 @@ function rebuildTrackForSelectedCourse() {
   trackLights = [];
   itemBoxes = [];
   boostPanels = [];
+  repairPads = [];
   obstacles = [];
   seed = 11 + state.selectedCourse * 101;
   DATA.course = activeCourse();
@@ -2833,6 +2867,8 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     itemCooldown: 0,
     boostTimer: 0,
     shieldTimer: 0,
+    shieldEnergy: MAX_SHIELD,
+    shieldWarningTimer: 0,
     stunTimer: 0,
     obstacleCooldown: 0,
     unstuckCooldown: 0,
@@ -4371,6 +4407,14 @@ function updateScene(dt) {
     }
   });
 
+  repairPads.forEach((pad) => {
+    const phase = performance.now() * 0.0028 + pad.userData.index;
+    pad.position.y = (pad.userData.baseY ?? pad.position.y) + Math.sin(phase) * 0.08;
+    if (pad.userData.ring) pad.userData.ring.rotation.z += dt * 1.8;
+    if (pad.userData.core?.material) pad.userData.core.material.opacity = 0.14 + Math.sin(phase * 1.6) * 0.04;
+    pad.userData.cooldown = Math.max(0, (pad.userData.cooldown || 0) - dt);
+  });
+
   if (raceActive) {
     racers.forEach((racer) => updateRacer(racer, dt));
     updateProjectiles(dt);
@@ -4404,6 +4448,7 @@ function updateRacer(racer, dt) {
   racer.itemCooldown = Math.max(0, racer.itemCooldown - dt);
   racer.boostTimer = Math.max(0, racer.boostTimer - dt);
   racer.shieldTimer = Math.max(0, racer.shieldTimer - dt);
+  racer.shieldWarningTimer = Math.max(0, (racer.shieldWarningTimer || 0) - dt);
   racer.stunTimer = Math.max(0, racer.stunTimer - dt);
   racer.obstacleCooldown = Math.max(0, (racer.obstacleCooldown || 0) - dt);
   racer.unstuckCooldown = Math.max(0, (racer.unstuckCooldown || 0) - dt);
@@ -4440,7 +4485,10 @@ function updateRacer(racer, dt) {
   if (!throttle && !reverse) racer.speed = approach(racer.speed, 0, (6.5 + Math.abs(racer.speed) * 0.05) * dt);
 
   const boosting = racer.boostTimer > 0 || racer.miniTurboTimer > 0;
-  const currentMax = maxSpeed * (boosting ? 1.32 * boostPower : 1);
+  if (!boosting && !stunned && racer.shieldEnergy < MAX_SHIELD && (racer.shieldWarningTimer || 0) <= 0) adjustShield(racer, dt * 0.9, { silent: true });
+  if (boosting && racer.speed > maxSpeed * 0.92) adjustShield(racer, -dt * (racer.isPlayer ? 1.45 : 0.85), { silent: true });
+  const shieldSpeedLimit = (racer.shieldEnergy || MAX_SHIELD) < 18 ? 0.86 : 1;
+  const currentMax = maxSpeed * (boosting ? 1.32 * boostPower : 1) * shieldSpeedLimit;
   racer.speed = clamp(racer.speed, -maxSpeed * 0.32, currentMax);
 
   const steer = controls.steer;
@@ -4483,6 +4531,7 @@ function updateRacer(racer, dt) {
   handleRaceProgress(racer, nearest);
   handleItemPickup(racer);
   handleBoostPanels(racer, nearest);
+  handleRepairPads(racer, nearest);
   handleJumpRamps(racer, nearest);
   handleObstacleCollisions(racer, nearest);
   handleRacerContacts(racer, dt);
@@ -4838,6 +4887,34 @@ function handleItemPickup(racer) {
   }
 }
 
+function adjustShield(racer, amount, options = {}) {
+  if (!racer || racer.finished) return;
+  const before = Number.isFinite(racer.shieldEnergy) ? racer.shieldEnergy : MAX_SHIELD;
+  const next = clamp(before + amount, 0, MAX_SHIELD);
+  racer.shieldEnergy = next;
+  if (amount < -0.1) {
+    racer.shieldWarningTimer = Math.max(racer.shieldWarningTimer || 0, options.big ? 1.7 : 0.95);
+    if (!options.silent) spawnBurst(racer.position, next < 24 ? 0xff8fb8 : 0x7df9ff, options.big ? 14 : 7, options.big ? 1.15 : 0.74);
+    if (racer.isPlayer && next < 22) cameraShake = Math.max(cameraShake, 0.24);
+  } else if (amount > 0.1 && next > before + 0.5 && !options.silent) {
+    spawnBurst(racer.position, 0x8ff8ff, 5, 0.62);
+  }
+}
+
+function handleRepairPads(racer, nearest) {
+  for (const pad of repairPads) {
+    if (indexDistance(nearest.index, pad.userData.index) < 5 && Math.abs(nearest.lateral - (pad.userData.offset || 0)) < TRACK_WIDTH * 0.32) {
+      adjustShield(racer, racer.isPlayer ? 15 : 10, { silent: (pad.userData.cooldown || 0) > 0 });
+      racer.stunTimer = Math.max(0, racer.stunTimer - 0.18);
+      if ((pad.userData.cooldown || 0) <= 0) {
+        pad.userData.cooldown = 0.55;
+        spawnShockwave(racer.position, 0x8ff8ff, racer.isPlayer ? 4.6 : 3.2);
+        if (racer.isPlayer) cameraShake = Math.max(cameraShake, 0.12);
+      }
+      break;
+    }
+  }
+}
 function handleBoostPanels(racer, nearest) {
   for (const panel of boostPanels) {
     if (indexDistance(nearest.index, panel.userData.index) < 5 && Math.abs(nearest.lateral) < TRACK_WIDTH * 0.38) {
@@ -4909,6 +4986,7 @@ function handleObstacleCollisions(racer, nearest) {
         cameraShake = racer.isPlayer ? Math.max(cameraShake, obstacle.type === "pylon" ? 0.34 : 0.65) : cameraShake;
         spawnBurst(racer.position, 0xff7a5c, obstacle.type === "pylon" ? 5 : 10, obstacle.type === "pylon" ? 0.7 : 1.1);
         spawnShockwave(racer.position, racer.kart.colors.accent || racer.character.colors.accent, obstacle.type === "pylon" ? 2.6 : 4.4);
+        adjustShield(racer, obstacle.type === "pylon" ? -7 : -16, { big: obstacle.type !== "pylon" });
         playAudio("collision", obstacle.type === "pylon" ? 0.28 : 0.55);
       }
       racer.obstacleCooldown = obstacle.type === "pylon" ? 0.28 : 0.42;
@@ -4976,6 +5054,8 @@ function handleRacerContacts(racer, dt) {
       other.wobble = 0.7;
       racer.impactPose = 0.8;
       other.impactPose = 0.8;
+      adjustShield(racer, -4, { silent: true });
+      adjustShield(other, -4, { silent: true });
       if (racer.isPlayer || other.isPlayer) {
         cameraShake = Math.max(cameraShake, 0.35);
         playAudio("collision", 0.25);
@@ -5171,6 +5251,7 @@ function hitRacer(racer, item, owner, stun = 1.25) {
     spawnBurst(racer.position, 0x9ee7ff, 18, 1.4);
     return;
   }
+  adjustShield(racer, -22, { big: true });
   racer.stunTimer = Math.max(racer.stunTimer, stun);
   racer.speed *= 0.42;
   racer.wobble = 1.2;
@@ -5436,9 +5517,15 @@ function updateHud() {
   const speedKmh = Math.max(0, Math.round(player.speed * 3.1));
   dom.hud.classList.toggle("is-boosting", boosting);
   dom.hud.classList.toggle("is-drifting", player.driftActive);
+  const shieldPct = clamp((player.shieldEnergy ?? MAX_SHIELD) / MAX_SHIELD, 0, 1);
+  dom.hud.classList.toggle("is-shield-low", shieldPct < 0.28 || player.shieldWarningTimer > 0);
+  dom.hud.classList.toggle("is-shield-critical", shieldPct < 0.16);
   dom.hud.style.setProperty("--speed-pct", `${clamp(speedKmh / 220, 0, 1) * 100}%`);
   dom.hud.style.setProperty("--boost-pct", `${clamp(Math.max(player.boostTimer, player.miniTurboTimer) / 3.4, 0, 1) * 100}%`);
   dom.hud.style.setProperty("--drift-pct", `${clamp(player.driftCharge / 1.45, 0, 1) * 100}%`);
+  dom.hud.style.setProperty("--shield-pct", `${shieldPct * 100}%`);
+  if (dom.shieldMeter) dom.shieldMeter.style.width = `${shieldPct * 100}%`;
+  if (dom.shieldHint) dom.shieldHint.textContent = shieldPct < 0.16 ? "きけん" : shieldPct < 0.28 ? "リペアリングへ" : player.shieldWarningTimer > 0 ? "注意" : "安全";
   dom.positionValue.textContent = `${state.rank}/${racers.length}`;
   const lapTotal = activeLapTotal();
   const visibleLap = Math.min(player.lap + 1, lapTotal);
@@ -5503,6 +5590,11 @@ function updateRaceCoach(boosting, speedKmh) {
     key = "edge-soft";
     title = "少し中央へ";
     text = "光るレールからはなれすぎ";
+    tone = "warning";
+  } else if ((player.shieldEnergy ?? MAX_SHIELD) < 28) {
+    key = "shield-low";
+    title = "シールド注意";
+    text = "青いリペアリングで回復";
     tone = "warning";
   } else if (player.item) {
     key = "item-" + (player.item.id || player.item.kind || "ready");

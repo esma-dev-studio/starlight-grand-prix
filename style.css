@@ -1507,6 +1507,71 @@ button {
   text-transform: none;
 }
 
+.shield-label,
+.shield-hint {
+  color: rgba(223, 250, 255, 0.72);
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.shield-label {
+  margin-top: 4px;
+  letter-spacing: 0;
+}
+
+.shield-meter {
+  position: relative;
+  display: block;
+  width: min(74px, 100%);
+  height: 7px;
+  margin-top: 2px;
+  overflow: hidden;
+  border: 1px solid rgba(125, 249, 255, 0.42);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(125, 249, 255, 0.1), rgba(255, 255, 255, 0.05));
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.42), 0 0 12px rgba(125, 249, 255, 0.16);
+}
+
+.shield-meter i {
+  display: block;
+  width: var(--shield-pct, 100%);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #64dcff, #8ff8ff 58%, #ffffff);
+  box-shadow: 0 0 14px rgba(125, 249, 255, 0.78);
+  transition: width 140ms ease-out, background 140ms ease-out;
+}
+
+.shield-hint {
+  color: rgba(143, 248, 255, 0.9);
+  text-shadow: 0 0 10px rgba(125, 249, 255, 0.35);
+}
+
+.hud.is-shield-low .speed-panel {
+  border-color: rgba(255, 143, 184, 0.66);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 0 24px rgba(255, 89, 148, 0.2), 0 14px 28px rgba(0, 0, 0, 0.42);
+}
+
+.hud.is-shield-low .shield-meter {
+  border-color: rgba(255, 143, 184, 0.72);
+}
+
+.hud.is-shield-low .shield-meter i {
+  background: linear-gradient(90deg, #ff8fb8, #ffd166);
+  box-shadow: 0 0 16px rgba(255, 143, 184, 0.72);
+}
+
+.hud.is-shield-critical .shield-hint {
+  color: #ffd166;
+  animation: shieldPulse 560ms ease-in-out infinite alternate;
+}
+
+@keyframes shieldPulse {
+  from { opacity: 0.72; filter: drop-shadow(0 0 4px rgba(255, 143, 184, 0.28)); }
+  to { opacity: 1; filter: drop-shadow(0 0 12px rgba(255, 209, 102, 0.72)); }
+}
+
 #itemSlot {
   grid-template-rows: minmax(0, 1fr) auto;
   gap: 2px;
@@ -3843,5 +3908,52 @@ button,
   .item-hint,
   .lap-hint {
     font-size: 0.58rem;
+  }
+}
+
+@media (max-width: 620px) {
+  .speed-panel {
+    min-height: 86px;
+    padding-right: 54px;
+    gap: 1px;
+  }
+
+  .speed-panel::before {
+    width: 42px;
+    right: 6px;
+  }
+
+  .speed-panel .shield-label,
+  .speed-panel .shield-hint {
+    font-size: 0.56rem;
+  }
+
+  .speed-panel .shield-label {
+    margin-top: 1px;
+  }
+
+  .speed-panel .shield-meter {
+    width: 58px;
+    height: 5px;
+  }
+
+  .hud-coach {
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+    justify-self: stretch !important;
+    width: 100% !important;
+    min-height: 44px;
+    padding: 7px 10px;
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .coach-label {
+    min-width: 34px;
+    min-height: 28px;
+    font-size: 0.62rem;
   }
 }

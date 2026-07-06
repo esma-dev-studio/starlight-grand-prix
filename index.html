@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>スターライト・グランプリ</title>
-    <link rel="stylesheet" href="./style.css?v=tap-polish-v12" />
+    <link rel="stylesheet" href="./style.css?v=space-systems-v13" />
     <script type="importmap">
       {
         "imports": {
@@ -47,6 +47,9 @@
             <span class="hud-label">はやさ</span>
             <strong id="speedValue">0</strong>
             <span class="speed-unit">km/時</span>
+            <span class="shield-label">シールド</span>
+            <span class="shield-meter" aria-label="スターシールド"><i id="shieldMeter"></i></span>
+            <small id="shieldHint" class="shield-hint">安全</small>
           </div>
           <div class="hud-panel item-panel">
             <span class="hud-label">どうぐ</span>
@@ -148,6 +151,7 @@
             <article class="help-card"><span class="help-key">ドリフト</span><strong>ドリフト</strong><p>カーブで「ドリフト」を押すとすべりながら曲がる。うまくできると小さなダッシュが出る。</p></article>
             <article class="help-card important"><span class="help-key">どうぐ</span><strong>どうぐの使い方</strong><p>光るどうぐボックスに触ると、画面右上の「どうぐ」に入る。入ったら右下の「どうぐ」をタップ。</p></article>
             <article class="help-card"><span class="help-key">ブレーキ</span><strong>ブレーキ</strong><p>曲がりきれない時やコースから出た時は「ブレーキ」でおちついて戻る。</p></article>
+            <article class="help-card"><span class="help-key">シールド</span><strong>スターシールド</strong><p>ぶつかるとへる。青いリペアリングを通ると回復する。少ない時は安全に走ろう。</p></article>
             <article class="help-card"><span class="help-key">WASD</span><strong>キーボード</strong><p>矢印またはWASDで走る。スペースでドリフト、EまたはShiftでどうぐ、Escで休けい。</p></article>
           </div>
           <div id="itemGuide" class="item-guide" aria-label="どうぐの効果"></div>
@@ -200,8 +204,8 @@
         });
       })();
     </script>
-    <script src="./game-data.js?v=tap-polish-v12"></script>
+    <script src="./game-data.js?v=space-systems-v13"></script>
     <script src="./audio.js"></script>
-    <script type="module" src="./main.js?v=tap-polish-v12"></script>
+    <script type="module" src="./main.js?v=space-systems-v13"></script>
   </body>
 </html>
