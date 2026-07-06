@@ -20,18 +20,18 @@ const QUALITY = (() => {
   const low = dpr > 1.45 || width < 980 || isTouch;
   return {
     low,
-    pixelRatio: Math.min(dpr, low ? 1 : 1.35),
-    shadowSize: low ? 512 : 1024,
-    environmentScale: low ? 0.16 : 0.62,
-    speedLineCount: low ? 10 : 24,
-    particleCap: low ? 72 : 180,
-    tireMarkCap: low ? 32 : 90,
-    maxBurst: low ? 6 : 14,
-    effectRate: low ? 0.34 : 0.68,
-    minimapInterval: low ? 0.16 : 0.11,
-    hudInterval: low ? 0.08 : 0.05,
-    venueStep: low ? 120 : 46,
-    menuFrameInterval: low ? 900 : 520
+    pixelRatio: Math.min(dpr, low ? 0.85 : 1.35),
+    shadowSize: low ? 384 : 1024,
+    environmentScale: low ? 0.12 : 0.62,
+    speedLineCount: low ? 7 : 24,
+    particleCap: low ? 52 : 180,
+    tireMarkCap: low ? 24 : 90,
+    maxBurst: low ? 4 : 14,
+    effectRate: low ? 0.26 : 0.68,
+    minimapInterval: low ? 0.2 : 0.11,
+    hudInterval: low ? 0.1 : 0.05,
+    venueStep: low ? 150 : 46,
+    menuFrameInterval: low ? 1100 : 520
   };
 })();
 
@@ -876,7 +876,7 @@ function selectCourse(index) {
   dom.courseName.textContent = displayName(DATA.course);
   dom.courseDescription.textContent = DATA.course.description;
   populateCourse();
-  if (state.currentScreen === "course") scheduleRaceWarmup(80);
+  if (state.currentScreen === "course") scheduleRaceWarmup(QUALITY.low ? 1800 : 700);
   markMenuDirty();
 }
 
@@ -1149,8 +1149,15 @@ function scheduleRaceWarmup(delay = 900) {
       raceWarmupStarted = false;
     }
   };
+  const queueWarmup = () => {
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(warm, { timeout: QUALITY.low ? 2200 : 1200 });
+    } else {
+      warm();
+    }
+  };
   window.clearTimeout(raceWarmupTimer);
-  raceWarmupTimer = window.setTimeout(warm, delay);
+  raceWarmupTimer = window.setTimeout(queueWarmup, delay);
 }
 
 function ensureThreeReady() {
@@ -1828,7 +1835,14 @@ function addObstacles(trackInfo) {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     trackInfo.group.add(mesh);
-    obstacles.push({ mesh, radius: type === "crate" ? 4 : 3, type, index });
+    obstacles.push({
+      mesh,
+      radius: type === "crate" ? 3.8 : 2.05,
+      type,
+      index,
+      normal: sample.normal.clone(),
+      tangent: sample.tangent.clone()
+    });
   });
 }
 
@@ -2694,6 +2708,7 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     boostTimer: 0,
     shieldTimer: 0,
     stunTimer: 0,
+    obstacleCooldown: 0,
     boostPanelLock: 0,
     impactPose: 0,
     driftCharge: 0,
@@ -4037,7 +4052,8 @@ async function startCountdown() {
   dom.countdown.textContent = "\u3058\u3085\u3093\u3073";
   dom.countdown.classList.add("pop");
   dom.mobileControls.classList.add("active");
-  await wait(48);
+  await waitForNextPaint();
+  await wait(220);
   raceWarmupStarted = true;
   ensureRaceAssetsReady({ createRacers: true });
   if (state.currentScreen !== "course") {
@@ -4222,6 +4238,7 @@ function updateRacer(racer, dt) {
   racer.boostTimer = Math.max(0, racer.boostTimer - dt);
   racer.shieldTimer = Math.max(0, racer.shieldTimer - dt);
   racer.stunTimer = Math.max(0, racer.stunTimer - dt);
+  racer.obstacleCooldown = Math.max(0, (racer.obstacleCooldown || 0) - dt);
   racer.boostPanelLock = Math.max(0, (racer.boostPanelLock || 0) - dt);
   racer.impactPose = Math.max(0, (racer.impactPose || 0) - dt * 2.4);
   racer.miniTurboTimer = Math.max(0, racer.miniTurboTimer - dt);
@@ -4290,7 +4307,7 @@ function updateRacer(racer, dt) {
   handleItemPickup(racer);
   handleBoostPanels(racer, nearest);
   handleJumpRamps(racer, nearest);
-  handleObstacleCollisions(racer);
+  handleObstacleCollisions(racer, nearest);
   handleRacerContacts(racer, dt);
 
   const wasAirborne = racer.wasAirborne;
@@ -4628,20 +4645,44 @@ function handleJumpRamps(racer, nearest) {
   }
 }
 
-function handleObstacleCollisions(racer) {
+function handleObstacleCollisions(racer, nearest) {
   obstacles.forEach((obstacle) => {
     if (obstacle.radius <= 0) return;
-    const dist = racer.position.distanceTo(obstacle.mesh.position);
-    if (dist < obstacle.radius + 2.2) {
-      const away = racer.position.clone().sub(obstacle.mesh.position).normalize();
-      racer.position.addScaledVector(away, (obstacle.radius + 2.2 - dist) * 0.35);
-      racer.speed *= -0.22;
+    const dx = racer.position.x - obstacle.mesh.position.x;
+    const dz = racer.position.z - obstacle.mesh.position.z;
+    const distSq = dx * dx + dz * dz;
+    const hitRadius = obstacle.radius + (obstacle.type === "pylon" ? 1.45 : 1.9);
+    if (distSq < hitRadius * hitRadius) {
+      const dist = Math.sqrt(Math.max(distSq, 0.0001));
+      const fallbackNormal = obstacle.normal || nearest?.sample?.normal || forwardFromYaw(racer.yaw);
+      const away = dist > 0.01
+        ? new THREE.Vector3(dx / dist, 0, dz / dist)
+        : new THREE.Vector3(fallbackNormal.x, 0, fallbackNormal.z).normalize();
+      const tangent = obstacle.tangent || nearest?.sample?.tangent || forwardFromYaw(racer.yaw);
+      const overlap = hitRadius - dist;
+      const slideSign = Math.sign(racer.velocity.dot(tangent) || racer.speed || 1);
+      const slideStrength = obstacle.type === "pylon" ? 0.5 : 0.22;
+      racer.position.addScaledVector(away, overlap * (obstacle.type === "pylon" ? 0.95 : 0.62));
+      racer.position.addScaledVector(tangent, slideSign * overlap * slideStrength);
+      if (nearest?.sample?.point) racer.position.y = nearest.sample.point.y;
+      if (obstacle.type === "pylon") {
+        racer.speed = racer.speed >= 0
+          ? Math.max(racer.speed * 0.42, racer.isPlayer ? 8 : 5)
+          : Math.min(racer.speed * 0.35, racer.isPlayer ? -4 : -3);
+        const desiredYaw = Math.atan2(tangent.x, tangent.z);
+        racer.yaw += shortestAngle(racer.yaw, desiredYaw) * 0.18;
+      } else {
+        racer.speed *= -0.14;
+      }
       racer.wobble = 1;
       racer.impactPose = 1;
-      cameraShake = racer.isPlayer ? Math.max(cameraShake, 0.65) : cameraShake;
-      spawnBurst(racer.position, 0xff7a5c, 12, 1.1);
-      spawnShockwave(racer.position, racer.kart.colors.accent || racer.character.colors.accent, 4.4);
-      playAudio("collision", 0.55);
+      if ((racer.obstacleCooldown || 0) <= 0) {
+        cameraShake = racer.isPlayer ? Math.max(cameraShake, obstacle.type === "pylon" ? 0.34 : 0.65) : cameraShake;
+        spawnBurst(racer.position, 0xff7a5c, obstacle.type === "pylon" ? 5 : 10, obstacle.type === "pylon" ? 0.7 : 1.1);
+        spawnShockwave(racer.position, racer.kart.colors.accent || racer.character.colors.accent, obstacle.type === "pylon" ? 2.6 : 4.4);
+        playAudio("collision", obstacle.type === "pylon" ? 0.28 : 0.55);
+      }
+      racer.obstacleCooldown = obstacle.type === "pylon" ? 0.28 : 0.42;
     }
   });
 }
@@ -5375,6 +5416,12 @@ function formatTime(seconds) {
 
 function wait(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function waitForNextPaint() {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+  });
 }
 
 function escapeHtml(value) {
