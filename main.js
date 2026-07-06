@@ -6,9 +6,9 @@ const TRACK_STEPS = (() => {
   const width = typeof window !== "undefined" ? window.innerWidth || 1280 : 1280;
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
   const touch = typeof navigator !== "undefined" && (navigator.maxTouchPoints || 0) > 0;
-  if (touch || width < 820 || dpr > 1.6) return 180;
-  if (width < 1180 || dpr > 1.25) return 240;
-  return 360;
+  if (touch || width < 820 || dpr > 1.6) return 156;
+  if (width < 1180 || dpr > 1.25) return 220;
+  return 340;
 })();
 const TRACK_WIDTH = 18;
 const PLAYER_ID = "player";
@@ -2709,6 +2709,8 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     shieldTimer: 0,
     stunTimer: 0,
     obstacleCooldown: 0,
+    unstuckCooldown: 0,
+    stuckTimer: 0,
     boostPanelLock: 0,
     impactPose: 0,
     driftCharge: 0,
@@ -4239,6 +4241,7 @@ function updateRacer(racer, dt) {
   racer.shieldTimer = Math.max(0, racer.shieldTimer - dt);
   racer.stunTimer = Math.max(0, racer.stunTimer - dt);
   racer.obstacleCooldown = Math.max(0, (racer.obstacleCooldown || 0) - dt);
+  racer.unstuckCooldown = Math.max(0, (racer.unstuckCooldown || 0) - dt);
   racer.boostPanelLock = Math.max(0, (racer.boostPanelLock || 0) - dt);
   racer.impactPose = Math.max(0, (racer.impactPose || 0) - dt * 2.4);
   racer.miniTurboTimer = Math.max(0, racer.miniTurboTimer - dt);
@@ -4309,6 +4312,7 @@ function updateRacer(racer, dt) {
   handleJumpRamps(racer, nearest);
   handleObstacleCollisions(racer, nearest);
   handleRacerContacts(racer, dt);
+  handleStuckAssist(racer, nearest, controls, dt);
 
   const wasAirborne = racer.wasAirborne;
   if (racer.jumpHeight > 0 || racer.verticalSpeed > 0) {
@@ -4685,6 +4689,51 @@ function handleObstacleCollisions(racer, nearest) {
       racer.obstacleCooldown = obstacle.type === "pylon" ? 0.28 : 0.42;
     }
   });
+}
+function handleStuckAssist(racer, nearest, controls, dt) {
+  if (!nearest?.sample || racer.finished) return;
+  const movingIntent = controls.accel || controls.brake || Math.abs(controls.steer || 0) > 0.22;
+  if (!movingIntent || racer.unstuckCooldown > 0 || racer.jumpHeight > 0.2) {
+    racer.stuckTimer = Math.max(0, (racer.stuckTimer || 0) - dt * 1.8);
+    return;
+  }
+  const offLine = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.42;
+  const nearObstacle = obstacles.some((obstacle) => {
+    if (obstacle.radius <= 0 || obstacle.type === "ramp") return false;
+    if (indexDistance(nearest.index, obstacle.index) > 6) return false;
+    const dx = racer.position.x - obstacle.mesh.position.x;
+    const dz = racer.position.z - obstacle.mesh.position.z;
+    const radius = obstacle.radius + (obstacle.type === "pylon" ? 4.2 : 3.4);
+    return dx * dx + dz * dz < radius * radius;
+  });
+  const trapped = Math.abs(racer.speed) < (racer.isPlayer ? 5.2 : 3.8) && (nearObstacle || offLine || racer.obstacleCooldown > 0.18);
+  if (!trapped) {
+    racer.stuckTimer = Math.max(0, (racer.stuckTimer || 0) - dt * 2.2);
+    return;
+  }
+  racer.stuckTimer = (racer.stuckTimer || 0) + dt;
+  const limit = racer.isPlayer ? 0.82 : 1.2;
+  if (racer.stuckTimer < limit) return;
+
+  const targetIndex = (nearest.index + (racer.isPlayer ? 7 : 5)) % TRACK_STEPS;
+  const sample = track.samples[targetIndex] || nearest.sample;
+  const safeLateral = clamp(nearest.lateral || 0, -TRACK_WIDTH * 0.24, TRACK_WIDTH * 0.24);
+  racer.position.copy(sample.point).addScaledVector(sample.normal, safeLateral);
+  racer.position.y = sample.point.y;
+  racer.yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
+  racer.velocity.copy(sample.tangent).multiplyScalar(racer.isPlayer ? 12 : 8);
+  racer.speed = Math.max(Math.abs(racer.speed), racer.isPlayer ? 17 : 10);
+  racer.verticalSpeed = 0;
+  racer.jumpHeight = 0;
+  racer.stuckTimer = 0;
+  racer.obstacleCooldown = 0;
+  racer.unstuckCooldown = 1.35;
+  racer.wobble = Math.max(racer.wobble, 0.45);
+  racer.impactPose = Math.max(racer.impactPose, 0.45);
+  if (racer.isPlayer) {
+    cameraShake = Math.max(cameraShake, 0.18);
+    spawnBurst(racer.position, racer.kart.colors.accent || racer.character.colors.accent || 0x9ee7ff, 7, 0.82);
+  }
 }
 
 function handleRacerContacts(racer, dt) {
