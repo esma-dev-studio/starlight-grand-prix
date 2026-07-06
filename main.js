@@ -28,6 +28,8 @@ const QUALITY = (() => {
     tireMarkCap: low ? 24 : 90,
     maxBurst: low ? 4 : 14,
     effectRate: low ? 0.26 : 0.68,
+    assistStrength: low ? 1.12 : 0.88,
+    guideStep: low ? 42 : 18,
     minimapInterval: low ? 0.2 : 0.11,
     hudInterval: low ? 0.1 : 0.05,
     venueStep: low ? 150 : 46,
@@ -405,6 +407,8 @@ let baseWarmupStarted = false;
 let raceWarmupStarted = false;
 let raceWarmupComplete = false;
 let raceWarmupTimer = 0;
+let adaptiveEffectScale = 1;
+let frameCostAverage = 16;
 
 init();
 
@@ -1530,6 +1534,7 @@ function buildTrack() {
   addObstacles(trackInfo);
   addRails(trackInfo);
   addRoadDetails(trackInfo);
+  addRacingLineGuides(trackInfo);
   addCornerGuideMarkers(trackInfo);
   return trackInfo;
 }
@@ -1900,6 +1905,33 @@ function addRoadDetails(trackInfo) {
       rail.position.y += 1.72;
       rail.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
       trackInfo.group.add(rail);
+    }
+  }
+}
+function addRacingLineGuides(trackInfo) {
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: QUALITY.low ? 0.28 : 0.4, blending: THREE.AdditiveBlending, depthWrite: false });
+  const turnMat = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: QUALITY.low ? 0.36 : 0.52, blending: THREE.AdditiveBlending, depthWrite: false });
+  const step = Math.max(12, QUALITY.guideStep || 24);
+  for (let i = Math.floor(step * 0.5); i < TRACK_STEPS; i += step) {
+    const sample = trackInfo.samples[i];
+    const future = trackInfo.samples[(i + Math.floor(step * 1.8)) % TRACK_STEPS];
+    const curve = 1 - clamp(sample.tangent.dot(future.tangent), -1, 1);
+    const laneOffset = curve > 0.12 ? (i % (step * 4) < step * 2 ? -2.6 : 2.6) : (i % (step * 3) === 0 ? 1.8 : -1.8);
+    const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(curve > 0.12 ? 0.24 : 0.16, 0.045, curve > 0.12 ? 5.8 : 3.8), curve > 0.12 ? turnMat.clone() : lineMat.clone());
+    dash.position.copy(sample.point).addScaledVector(sample.normal, laneOffset);
+    dash.position.y += 0.18;
+    dash.rotation.y = yaw;
+    trackInfo.group.add(dash);
+
+    if (curve > 0.14) {
+      const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.72, 1.9, 3), turnMat.clone());
+      arrow.position.copy(sample.point).addScaledVector(sample.normal, laneOffset * 1.18).addScaledVector(sample.tangent, 1.15);
+      arrow.position.y += 0.24;
+      arrow.rotation.x = Math.PI / 2;
+      arrow.rotation.y = yaw;
+      arrow.scale.set(1.18, 0.62, 1);
+      trackInfo.group.add(arrow);
     }
   }
 }
@@ -4178,12 +4210,37 @@ function animate() {
     lastMenuFrameTime = 0;
     menuDirty = true;
   }
-  const rawDt = Math.min(clock.getDelta(), menuScene ? 0.032 : 0.05);
+  const clockDelta = clock.getDelta();
+  const rawDt = Math.min(clockDelta, menuScene ? 0.032 : 0.05);
   const dt = rawDt || 0.016;
+  updateAdaptiveQuality(clockDelta || dt, menuScene);
   updateScene(dt);
   renderer.render(scene, camera);
 }
 
+function updateAdaptiveQuality(frameSeconds, menuScene) {
+  if (menuScene) {
+    frameCostAverage = approach(frameCostAverage, 16, 0.4);
+    adaptiveEffectScale = approach(adaptiveEffectScale, 1, 0.02);
+    return;
+  }
+  const frameMs = clamp(frameSeconds * 1000, 8, 80);
+  frameCostAverage = frameCostAverage * 0.94 + frameMs * 0.06;
+  const target = frameCostAverage > 38 ? 0.42 : frameCostAverage > 30 ? 0.58 : frameCostAverage > 24 ? 0.78 : 1;
+  adaptiveEffectScale = approach(adaptiveEffectScale, target, 0.03);
+}
+
+function effectChance(base) {
+  return base * QUALITY.effectRate * adaptiveEffectScale;
+}
+
+function particleLimit() {
+  return Math.max(24, Math.floor(QUALITY.particleCap * adaptiveEffectScale));
+}
+
+function burstLimit(count) {
+  return Math.max(2, Math.floor(Math.min(count, QUALITY.maxBurst) * adaptiveEffectScale));
+}
 function updateScene(dt) {
   const raceActive = state.mode === "racing";
   if (raceActive) state.time += dt;
@@ -4311,7 +4368,10 @@ function updateRacer(racer, dt) {
   racer.velocity.addScaledVector(lateral, slide * Math.abs(racer.speed));
   racer.position.addScaledVector(racer.velocity, dt);
 
-  const nearest = nearestTrackSample(racer.position, racer.trackIndex);
+  let nearest = nearestTrackSample(racer.position, racer.trackIndex);
+  if (handleCourseAssist(racer, nearest, controls, dt)) {
+    nearest = nearestTrackSample(racer.position, nearest.index);
+  }
   handleSurface(racer, nearest, dt);
   handleRaceProgress(racer, nearest);
   handleItemPickup(racer);
@@ -4333,17 +4393,17 @@ function updateRacer(racer, dt) {
     if (racer.isPlayer) cameraShake = Math.max(cameraShake, 0.28);
   }
 
-  if (racer.driftActive && Math.random() < 0.45 * QUALITY.effectRate) {
+  if (racer.driftActive && Math.random() < effectChance(0.45)) {
     spawnSparks(racer);
     addTireMark(racer);
   }
-  if (boosting && Math.random() < 0.62 * QUALITY.effectRate) {
+  if (boosting && Math.random() < effectChance(0.62)) {
     spawnBoostTrail(racer);
   }
-  if (Math.abs(racer.speed) > 10 && Math.random() < (boosting ? 0.68 : 0.26) * QUALITY.effectRate) {
+  if (Math.abs(racer.speed) > 10 && Math.random() < effectChance(boosting ? 0.68 : 0.26)) {
     spawnMachineHoverParticles(racer, boosting);
   }
-  if (Math.abs(racer.speed) > 18 && Math.random() < (boosting ? 0.58 : 0.22) * QUALITY.effectRate) {
+  if (Math.abs(racer.speed) > 18 && Math.random() < effectChance(boosting ? 0.58 : 0.22)) {
     spawnAirShearLine(racer, boosting);
   }
 
@@ -4531,6 +4591,32 @@ function combinedStats(racer) {
   };
 }
 
+function handleCourseAssist(racer, nearest, controls, dt) {
+  if (!racer.isPlayer || !nearest?.sample || racer.finished) return false;
+  const movingIntent = controls.accel || racer.speed > 12;
+  if (!movingIntent) return false;
+  const absLateral = Math.abs(nearest.lateral || 0);
+  const softEdge = TRACK_WIDTH * 0.34;
+  const hardEdge = TRACK_WIDTH * 0.5;
+  if (absLateral < softEdge) return false;
+  const side = Math.sign(nearest.lateral || 1);
+  const amount = clamp((absLateral - softEdge) / Math.max(0.01, hardEdge - softEdge), 0, 1);
+  const assist = QUALITY.assistStrength || 1;
+  const inward = -side;
+  const pull = (1.6 + amount * 5.2) * assist * dt;
+  racer.position.addScaledVector(nearest.sample.normal, inward * pull);
+  racer.velocity.addScaledVector(nearest.sample.normal, inward * amount * 8.5 * assist * dt);
+  const desiredYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
+  const steerRespect = Math.abs(controls.steer || 0) > 0.72 ? 0.42 : 1;
+  racer.yaw += shortestAngle(racer.yaw, desiredYaw) * clamp(dt * (0.55 + amount * 1.45) * assist * steerRespect, 0, 0.105);
+  if (amount > 0.82 && racer.speed > 0) {
+    racer.speed = Math.max(racer.speed * (1 - 0.08 * dt), 13);
+  }
+  if (amount > 0.62 && rand() < effectChance(0.08)) {
+    spawnBurst(racer.position, 0x7df9ff, 2, 0.42);
+  }
+  return true;
+}
 function handleSurface(racer, nearest, dt) {
   const offTrack = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.52;
   const hardWall = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.72;
@@ -5085,7 +5171,7 @@ function spawnGoalLightShow(racer) {
 }
 
 function spawnBurst(origin, color, count, power) {
-  const safeCount = Math.min(count, QUALITY.maxBurst);
+  const safeCount = burstLimit(count);
   for (let i = 0; i < safeCount; i += 1) {
     const shard = i % 4 === 0;
     const geometry = shard
@@ -5116,7 +5202,7 @@ function spawnShockwave(origin, color, radius) {
   addParticle({ mesh: ring, life: 0.46, maxLife: 0.46, velocity: new THREE.Vector3(), scaleRate: radius });
 }
 function addParticle(particle) {
-  while (particles.length >= QUALITY.particleCap) {
+  while (particles.length >= particleLimit()) {
     const old = particles.shift();
     if (!old) break;
     if (old.parented) old.mesh.parent?.remove(old.mesh);
