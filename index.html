@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>スターライト・グランプリ</title>
-    <link rel="stylesheet" href="./style.css?v=tap-polish-v10" />
+    <link rel="stylesheet" href="./style.css?v=tap-polish-v11" />
     <script type="importmap">
       {
         "imports": {
@@ -51,6 +51,12 @@
             <span class="hud-label">どうぐ</span>
             <div id="itemSlot" class="item-slot">なし</div>
           </div>
+        </div>
+
+        <div id="hudCoach" class="hud-coach" aria-live="polite">
+          <span class="coach-label">ナビ</span>
+          <strong id="coachTitle">ひかる線を走ろう</strong>
+          <small id="coachText">コースのまんなかをねらおう</small>
         </div>
 
         <div class="minimap-frame" aria-label="コースマップの枠">
@@ -187,8 +193,8 @@
         });
       })();
     </script>
-    <script src="./game-data.js?v=tap-polish-v10"></script>
+    <script src="./game-data.js?v=tap-polish-v11"></script>
     <script src="./audio.js"></script>
-    <script type="module" src="./main.js?v=tap-polish-v10"></script>
+    <script type="module" src="./main.js?v=tap-polish-v11"></script>
   </body>
 </html>

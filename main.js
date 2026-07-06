@@ -396,6 +396,7 @@ let seed = 11;
 let lastHudRank = 1;
 let lastHudItem = "";
 let lastHudCharacter = "";
+let lastCoachKey = "";
 let minimapTimer = 0;
 let hudTimer = 0;
 let lastMenuFrameTime = 0;
@@ -544,6 +545,9 @@ function cacheDom() {
     "hudRacerPortrait",
     "hudRacerName",
     "hudRacerLine",
+    "hudCoach",
+    "coachTitle",
+    "coachText",
     "screenOverlay",
     "titleScreen",
     "modeScreen",
@@ -2638,6 +2642,7 @@ function resetRace() {
   state.time = 0;
   state.finishTime = 0;
   state.rank = 1;
+  lastCoachKey = "";
   state.winner = null;
   updateHud();
   previewSelection();
@@ -5322,6 +5327,7 @@ function updateHud() {
   dom.speedValue.textContent = String(speedKmh);
   dom.mobileControls.classList.toggle("has-item-ready", Boolean(player.item));
   dom.touchItem.setAttribute("aria-label", player.item ? `${displayName(player.item)}を使う` : "どうぐを使う");
+  updateRaceCoach(boosting, speedKmh);
   const itemKey = player.item ? player.item.id || player.item.name : "empty";
   if (itemKey !== lastHudItem) {
     dom.itemSlot.classList.remove("item-pulse", "has-item", "is-empty");
@@ -5341,6 +5347,69 @@ function updateHud() {
   }
 }
 
+function updateRaceCoach(boosting, speedKmh) {
+  if (!dom.hudCoach || !player || state.mode !== "racing") return;
+  const nearest = track ? nearestTrackSample(player.position, player.trackIndex) : null;
+  const lateral = Math.abs(nearest?.lateral || 0);
+  const offCourse = lateral > TRACK_WIDTH * 0.46;
+  const nearEdge = lateral > TRACK_WIDTH * 0.36;
+  let key = "line";
+  let title = "ひかる線を走ろう";
+  let text = "コースのまんなかをねらおう";
+  let tone = "line";
+
+  if (state.time < 3.8 && speedKmh < 35) {
+    key = "start";
+    title = "すすむでスタート";
+    text = "ひかる線にそって走ろう";
+    tone = "line";
+  } else if (offCourse) {
+    key = "edge";
+    title = "コースにもどろう";
+    text = "あわてず中央の光へ";
+    tone = "warning";
+  } else if (nearEdge) {
+    key = "edge-soft";
+    title = "少し中央へ";
+    text = "光るレールからはなれすぎ";
+    tone = "warning";
+  } else if (player.item) {
+    key = "item-" + (player.item.id || player.item.kind || "ready");
+    title = "どうぐをつかえる";
+    text = "右下のどうぐをタップ";
+    tone = "item";
+  } else if (boosting) {
+    key = "boost";
+    title = "ダッシュ中";
+    text = "次の光るラインへ";
+    tone = "boost";
+  } else if (player.driftActive && player.driftCharge > 0.45) {
+    key = "drift";
+    title = "ドリフトため中";
+    text = "はなすと小ダッシュ";
+    tone = "boost";
+  } else if (state.rank === 1 && state.time > 8) {
+    key = "lead";
+    title = "1いをキープ";
+    text = "カーブ前は早めに曲がろう";
+    tone = "good";
+  } else if (state.rank > Math.ceil(racers.length / 2) && state.time > 10) {
+    key = "catchup";
+    title = "どうぐをねらおう";
+    text = "光る箱で一気に追いつける";
+    tone = "item";
+  }
+
+  dom.hud.classList.toggle("is-edge-warning", tone === "warning");
+  dom.hudCoach.dataset.tone = tone;
+  if (key === lastCoachKey) return;
+  lastCoachKey = key;
+  dom.hudCoach.classList.remove("coach-pop");
+  void dom.hudCoach.offsetWidth;
+  dom.hudCoach.classList.add("coach-pop");
+  dom.coachTitle.textContent = title;
+  dom.coachText.textContent = text;
+}
 function updateHudCharacter() {
   if (!player?.character || !dom.hudRacerPortrait) return;
   const character = player.character;
