@@ -525,7 +525,7 @@ function init() {
   bindEvents();
   showScreen("title");
   clock = new THREE.Clock();
-  scheduleBaseWarmup();
+  if (!QUALITY.low) scheduleBaseWarmup();
 }
 function cacheDom() {
   [
@@ -593,6 +593,7 @@ const uiTapGuard = new WeakMap();
 
 function bindUiTap(button, action) {
   if (!button) return;
+  const instantTouch = button.classList.contains("game-button") || button.classList.contains("touch-button") || button.closest("#difficultySelector");
   const run = (event, fromTouch = false) => {
     if (event?.cancelable) event.preventDefault();
     event?.stopPropagation?.();
@@ -604,6 +605,13 @@ function bindUiTap(button, action) {
     window.setTimeout(() => button.classList.remove("is-pressed"), fromTouch ? 150 : 110);
     action(event);
   };
+  const runTouchStart = (event) => {
+    if (!instantTouch) return;
+    if (event.pointerType && event.pointerType === "mouse") return;
+    run(event, true);
+  };
+  button.addEventListener("pointerdown", runTouchStart, { passive: false });
+  button.addEventListener("touchstart", runTouchStart, { passive: false });
   button.addEventListener("pointerup", (event) => run(event, true), { passive: false });
   button.addEventListener("touchend", (event) => run(event, true), { passive: false });
   button.addEventListener("click", (event) => {
@@ -614,7 +622,6 @@ function bindUiTap(button, action) {
     run(event, false);
   });
 }
-
 function bindEvents() {
   const go = (screen) => showScreen(screen);
   const openHelp = (returnScreen = state.currentScreen || "title") => {
@@ -4125,6 +4132,7 @@ function showScreen(name) {
     result: dom.resultScreen
   };
   map[name].classList.remove("hidden");
+  if (name !== "title") scheduleBaseWarmup(QUALITY.low ? 900 : 180);
   if (name === "course") scheduleRaceWarmup(180);
   markMenuDirty();
 }
