@@ -10,7 +10,7 @@ const TRACK_STEPS = (() => {
   if (width < 1180 || dpr > 1.25) return 220;
   return 340;
 })();
-const TRACK_WIDTH = 18;
+const TRACK_WIDTH = 22;
 const PLAYER_ID = "player";
 const DEG = Math.PI / 180;
 const QUALITY = (() => {
@@ -1473,7 +1473,7 @@ function courseLayout(course = activeCourse()) {
       dirtZones: [[86, 112, -TRACK_WIDTH * 0.36], [248, 280, TRACK_WIDTH * 0.34]],
       jumpRamps: [152, 332],
       itemBoxes: [[52, -5], [52, 5], [136, 0], [202, -4], [202, 4], [286, -5], [286, 5], [366, 0]],
-      obstacles: [[76, -12, "pylon"], [164, 12, "crate"], [236, -13, "crate"], [318, 12, "pylon"]]
+      obstacles: [[76, -TRACK_WIDTH * 0.6, "pylon"], [164, TRACK_WIDTH * 0.58, "crate"], [236, -TRACK_WIDTH * 0.6, "crate"], [318, TRACK_WIDTH * 0.58, "pylon"]]
     });
   }
   if (id === "nebula-drift-stream") {
@@ -1482,7 +1482,7 @@ function courseLayout(course = activeCourse()) {
       dirtZones: [[126, 168, TRACK_WIDTH * 0.38], [292, 326, -TRACK_WIDTH * 0.36]],
       jumpRamps: [96, 238, 382],
       itemBoxes: [[64, -5], [64, 5], [172, -4], [172, 4], [250, 0], [324, -5], [324, 5], [394, 0]],
-      obstacles: [[108, 12, "crate"], [198, -12, "pylon"], [282, 12, "pylon"], [360, -12, "crate"]]
+      obstacles: [[108, TRACK_WIDTH * 0.58, "crate"], [198, -TRACK_WIDTH * 0.6, "pylon"], [282, TRACK_WIDTH * 0.58, "pylon"], [360, -TRACK_WIDTH * 0.6, "crate"]]
     });
   }
   return scaledCourseLayout({
@@ -1490,7 +1490,7 @@ function courseLayout(course = activeCourse()) {
     dirtZones: [[154, 180, TRACK_WIDTH * 0.42], [260, 288, -TRACK_WIDTH * 0.38]],
     jumpRamps: [112, 218],
     itemBoxes: [[58, -5], [58, 5], [145, -4], [145, 5], [206, -4], [206, 4], [294, -5], [294, 5], [360, 0]],
-    obstacles: [[82, -12, "crate"], [172, 11, "pylon"], [247, -12, "crate"], [335, 11, "pylon"]]
+    obstacles: [[82, -TRACK_WIDTH * 0.58, "crate"], [172, TRACK_WIDTH * 0.56, "pylon"], [247, -TRACK_WIDTH * 0.6, "crate"], [335, TRACK_WIDTH * 0.56, "pylon"]]
   });
 }
 function buildTrack() {
@@ -2711,6 +2711,7 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     obstacleCooldown: 0,
     unstuckCooldown: 0,
     stuckTimer: 0,
+    controlSteer: 0,
     boostPanelLock: 0,
     impactPose: 0,
     driftCharge: 0,
@@ -4248,6 +4249,12 @@ function updateRacer(racer, dt) {
   racer.wobble = Math.max(0, racer.wobble - dt * 3);
 
   const controls = racer.isPlayer ? readPlayerControls() : readCpuControls(racer, dt);
+  if (racer.isPlayer) {
+    const currentSteer = racer.controlSteer || 0;
+    const steerRate = Math.abs(controls.steer) > Math.abs(currentSteer) ? 12 : 9;
+    racer.controlSteer = approach(currentSteer, controls.steer, steerRate * dt);
+    controls.steer = Math.abs(controls.steer) < 0.01 && Math.abs(racer.controlSteer) < 0.015 ? 0 : racer.controlSteer;
+  }
   const stats = combinedStats(racer);
   const maxSpeed = (34 + stats.speed * 3.4) * (racer.isPlayer ? 1 : difficulty().speed);
   const accel = 15 + stats.accel * 2.1;
@@ -4445,13 +4452,21 @@ function animateDriverSignature(racer, dt, speedFactor, boosting, steer) {
   });
 }
 
-function readPlayerControls() {
+function readPlayerVisualSteerInput() {
   const steerKeys = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   const touch = Math.abs(input.touchSteer) > 0.05 ? input.touchSteer : 0;
+  return clamp(steerKeys + touch, -1, 1);
+}
+
+function readPlayerSteerInput() {
+  return -readPlayerVisualSteerInput();
+}
+
+function readPlayerControls() {
   return {
     accel: input.accel,
     brake: input.brake,
-    steer: clamp(steerKeys + touch, -1, 1),
+    steer: readPlayerSteerInput(),
     drift: input.drift
   };
 }
@@ -4615,7 +4630,7 @@ function handleItemPickup(racer) {
 
 function handleBoostPanels(racer, nearest) {
   for (const panel of boostPanels) {
-    if (indexDistance(nearest.index, panel.userData.index) < 5 && Math.abs(nearest.lateral) < 6.8) {
+    if (indexDistance(nearest.index, panel.userData.index) < 5 && Math.abs(nearest.lateral) < TRACK_WIDTH * 0.38) {
       const freshBoost = (racer.boostPanelLock || 0) <= 0;
       racer.boostTimer = Math.max(racer.boostTimer, 1.12);
       if (freshBoost) {
@@ -4640,7 +4655,7 @@ function handleBoostPanels(racer, nearest) {
 function handleJumpRamps(racer, nearest) {
   for (const obstacle of obstacles) {
     if (obstacle.type !== "ramp") continue;
-    if (indexDistance(nearest.index, obstacle.index) < 3 && Math.abs(nearest.lateral) < 6 && racer.jumpHeight < 0.1) {
+    if (indexDistance(nearest.index, obstacle.index) < 3 && Math.abs(nearest.lateral) < TRACK_WIDTH * 0.34 && racer.jumpHeight < 0.1) {
       racer.verticalSpeed = 12 + Math.max(racer.speed, 0) * 0.08;
       racer.jumpHeight = 0.2;
       spawnBurst(racer.position, 0x9ee7ff, 10, 1);
@@ -4655,7 +4670,7 @@ function handleObstacleCollisions(racer, nearest) {
     const dx = racer.position.x - obstacle.mesh.position.x;
     const dz = racer.position.z - obstacle.mesh.position.z;
     const distSq = dx * dx + dz * dz;
-    const hitRadius = obstacle.radius + (obstacle.type === "pylon" ? 1.45 : 1.9);
+    const hitRadius = obstacle.radius + (obstacle.type === "pylon" ? 0.95 : 1.35);
     if (distSq < hitRadius * hitRadius) {
       const dist = Math.sqrt(Math.max(distSq, 0.0001));
       const fallbackNormal = obstacle.normal || nearest?.sample?.normal || forwardFromYaw(racer.yaw);
@@ -4665,14 +4680,14 @@ function handleObstacleCollisions(racer, nearest) {
       const tangent = obstacle.tangent || nearest?.sample?.tangent || forwardFromYaw(racer.yaw);
       const overlap = hitRadius - dist;
       const slideSign = Math.sign(racer.velocity.dot(tangent) || racer.speed || 1);
-      const slideStrength = obstacle.type === "pylon" ? 0.5 : 0.22;
-      racer.position.addScaledVector(away, overlap * (obstacle.type === "pylon" ? 0.95 : 0.62));
+      const slideStrength = obstacle.type === "pylon" ? 0.86 : 0.34;
+      racer.position.addScaledVector(away, overlap * (obstacle.type === "pylon" ? 0.72 : 0.52));
       racer.position.addScaledVector(tangent, slideSign * overlap * slideStrength);
       if (nearest?.sample?.point) racer.position.y = nearest.sample.point.y;
       if (obstacle.type === "pylon") {
         racer.speed = racer.speed >= 0
-          ? Math.max(racer.speed * 0.42, racer.isPlayer ? 8 : 5)
-          : Math.min(racer.speed * 0.35, racer.isPlayer ? -4 : -3);
+          ? Math.max(racer.speed * 0.58, racer.isPlayer ? 12 : 7)
+          : Math.min(racer.speed * 0.4, racer.isPlayer ? -5 : -3);
         const desiredYaw = Math.atan2(tangent.x, tangent.z);
         racer.yaw += shortestAngle(racer.yaw, desiredYaw) * 0.18;
       } else {
@@ -4712,7 +4727,7 @@ function handleStuckAssist(racer, nearest, controls, dt) {
     return;
   }
   racer.stuckTimer = (racer.stuckTimer || 0) + dt;
-  const limit = racer.isPlayer ? 0.82 : 1.2;
+  const limit = racer.isPlayer ? 0.55 : 1.0;
   if (racer.stuckTimer < limit) return;
 
   const targetIndex = (nearest.index + (racer.isPlayer ? 7 : 5)) % TRACK_STEPS;
@@ -5315,13 +5330,14 @@ function updateCamera(dt) {
   const right = new THREE.Vector3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
   const speed01 = clamp(player.speed / 62, 0, 1);
   const boosting = player.boostTimer > 0 || player.miniTurboTimer > 0;
-  const steerLean = clamp((input.right ? 1 : 0) - (input.left ? 1 : 0) + input.touchSteer, -1, 1);
+  const steerLean = readPlayerVisualSteerInput();
+  const driftLean = player.driftActive ? -player.driftDir : 0;
   const behind = 17.5 + speed01 * 7.5 + (boosting ? 5.0 : 0);
   const height = 7.4 + speed01 * 3.4;
   const targetPos = player.position
     .clone()
     .addScaledVector(forward, -behind)
-    .addScaledVector(right, input.touchSteer * -1.25 + (player.driftActive ? player.driftDir * 0.8 : 0))
+    .addScaledVector(right, steerLean * 1.25 + driftLean * 0.8)
     .add(new THREE.Vector3(0, height + player.jumpHeight * 0.5, 0));
   if (cameraShake > 0) {
     targetPos.x += (rand() - 0.5) * cameraShake;
@@ -5330,9 +5346,9 @@ function updateCamera(dt) {
   }
   camera.position.lerp(targetPos, 1 - Math.pow(0.001, dt));
   cameraTarget.copy(player.position).addScaledVector(forward, 11 + speed01 * 13);
-  cameraTarget.addScaledVector(right, player.driftActive ? player.driftDir * 2.5 : steerLean * 1.2);
+  cameraTarget.addScaledVector(right, player.driftActive ? driftLean * 2.5 : steerLean * 1.2);
   cameraTarget.y += 3.0 + speed01 * 2.2 + player.jumpHeight * 0.24;
-  const roll = clamp(-steerLean * 0.045 + (player.driftActive ? player.driftDir * 0.085 : 0), -0.13, 0.13);
+  const roll = clamp(-steerLean * 0.045 + driftLean * 0.085, -0.13, 0.13);
   camera.up.lerp(new THREE.Vector3(Math.sin(roll), Math.cos(roll), 0), 1 - Math.pow(0.004, dt));
   camera.lookAt(cameraTarget);
   camera.fov = approach(camera.fov, 56 + speed01 * 12 + (boosting ? 10 : 0), 38 * dt);
