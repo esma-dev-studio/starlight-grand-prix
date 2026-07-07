@@ -1188,28 +1188,28 @@
 
   var lunarCourse = {
     id: "lunar-crater-run",
-    name: "Lunar Crater Run",
-    jaName: "月面クレーターラン",
+    name: "Moon Jump Crater",
+    jaName: "つきのジャンプクレーター",
     kindLabel: "月面コース",
     icon: "月",
     shortCopy: "ふわっとジャンプする、月のコース",
     difficultyLabel: "やさしい",
     caution: "すこしすべる",
-    theme: "月のクレーターと低重力ジャンプを走る月面グランプリコース",
-    description: "白い月面、丸いクレーター、低重力ジャンプ台をぬける、軽くはねる月面コース。道は広めで、はじめてでも走りやすい。",
-    colors: { primary: "#CFE7FF", secondary: "#43516A", accent: "#FFD166" },
-    palette: { road: "#AEB9C9", roadEmissive: "#DDF5FF", railLeft: "#F7FBFF", railRight: "#CFE7FF", centerLine: "#FFFFFF", shortcut: "#607085", dust: "#D7E1EC", warning: "#FFD166", sky: "#080D19", fog: "#111827", structure: "#536276", boost: "#F9FAFF" },
-    surfaceType: "lunar-dust",
-    landmarks: ["大きな地球", "月面基地", "パラボラアンテナ", "月面ローバー"],
-    background: { kind: "moon", sky: "deep-space", horizon: "earth" },
-    hazards: ["月の岩", "クレーター", "低い発光ポール"],
+    theme: "月の平原、クレーター、月面基地を走る低重力グランプリコース",
+    description: "灰色の月面、白い粉じん、大きなクレーター、遠くの地球を見ながら走る月のコース。ジャンプがふわっと長く、道の外は月の砂で少しすべる。",
+    colors: { primary: "#EAF6FF", secondary: "#1A2230", accent: "#E8C66A" },
+    palette: { road: "#D7DCE4", roadEmissive: "#F7FBFF", railLeft: "#F8FDFF", railRight: "#D7EAF7", centerLine: "#FFFFFF", shortcut: "#AEB8C6", dust: "#B9C1CC", warning: "#E8C66A", sky: "#02050D", fog: "#070A12", structure: "#9AA6B5", boost: "#EFFBFF" },
+    surfaceType: "lunar-regolith-lane",
+    landmarks: ["大きな地球", "月面基地", "パラボラアンテナ", "着陸船", "月面ローバー"],
+    background: { kind: "moon", sky: "black-space", horizon: "low-lunar-horizon" },
+    hazards: ["月の岩", "小さなクレーター", "月の粉じん", "低い発光ビーコン"],
     gravityFeel: "low",
     boostStyle: "few-strong",
-    roadFeel: "広め・すこしすべる・ジャンプが長い",
-    features: ["月面クレーター", "低重力ジャンプ台", "広い道", "ムーンベース", "白い発光ライン", "強いブーストパネル", "月の粉じん", "ローバー", "月の岩", "地球の光"],
+    roadFeel: "広め・すこしすべる・低重力ジャンプが長い",
+    features: ["低重力ジャンプ", "月面クレーター", "大きな地球", "月面基地", "パラボラアンテナ", "着陸船", "月面ローバー", "白い粉じん", "月の岩", "低い発光ポール"],
     lapCount: 3,
-    curveTension: 0.58,
-    backgroundEffects: ["月面の地平線", "遠くに見える地球", "クレーターの影", "白い粉じん"]
+    curveTension: 0.56,
+    backgroundEffects: ["黒い宇宙空間", "低い月の水平線", "遠くに見える地球", "白い月の粉じん"]
   };
 
   var spaceCourse = {
@@ -1292,7 +1292,7 @@
 
   var spaceCourses = [lunarCourse, spaceCourse, meteorCourse, nebulaCourse];
 
-  window.AURORA_GAME_DATA.version = "0.2.2-course-theme-performance";
+  window.AURORA_GAME_DATA.version = "0.2.3-lunar-rebuild";
   window.AURORA_GAME_DATA.selectedTitleId = "starlight-grand-prix";
   window.AURORA_GAME_DATA.selectedTitle = {
     id: "starlight-grand-prix",

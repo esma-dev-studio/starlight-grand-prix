@@ -1565,10 +1565,10 @@ function courseTheme(course = activeCourse()) {
     fogColor: hexColor(palette.fog || palette.sky, 0x11243d),
     skyColor: hexColor(palette.sky || palette.fog, 0x07111f),
     accentColor: accent,
-    roadOpacity: id === "nebula-drift-stream" ? 0.91 : 0.97,
-    railOpacity: id === "meteor-mining-belt" ? 0.76 : 0.84,
-    fogDensity: id === "nebula-drift-stream" ? 0.009 : id === "meteor-mining-belt" ? 0.0078 : id === "lunar-crater-run" ? 0.0048 : 0.0062,
-    structureStep: id === "starlight-orbit-ring" ? (QUALITY.low ? 42 : 16) : (QUALITY.low ? 56 : 26)
+    roadOpacity: id === "lunar-crater-run" ? 0.94 : id === "nebula-drift-stream" ? 0.91 : 0.97,
+    railOpacity: id === "lunar-crater-run" ? 0.42 : id === "meteor-mining-belt" ? 0.76 : 0.84,
+    fogDensity: id === "nebula-drift-stream" ? 0.009 : id === "meteor-mining-belt" ? 0.0078 : id === "lunar-crater-run" ? 0.0038 : 0.0062,
+    structureStep: id === "lunar-crater-run" ? (QUALITY.low ? 58 : 34) : id === "starlight-orbit-ring" ? (QUALITY.low ? 42 : 16) : (QUALITY.low ? 56 : 26)
   };
 }
 
@@ -1691,6 +1691,7 @@ function buildTrack() {
   createTrackRibbon(trackInfo, -TRACK_WIDTH * 0.5 - 0.55, 1.1, theme.railLeft, theme.railLeft, theme.railOpacity, false);
   createTrackRibbon(trackInfo, TRACK_WIDTH * 0.5 + 0.55, 1.1, theme.railRight, theme.railRight, theme.railOpacity, false);
   createTrackRibbon(trackInfo, 0, theme.id === "meteor-mining-belt" ? 0.34 : 0.22, theme.centerLine, theme.centerLine, theme.id === "lunar-crater-run" ? 0.34 : 0.24, false, theme.id === "starlight-orbit-ring" ? 10 : 14);
+  if (theme.id === "lunar-crater-run") addLunarTrackShoulders(trackInfo, theme);
   (trackInfo.layout.shortcuts || []).forEach(([start, end, offset, width]) => {
     createTrackRibbon(trackInfo, offset, width, theme.shortcutColor, theme.boostColor, 0.42, false, 1, start, end);
   });
@@ -1738,12 +1739,13 @@ function createTrackRibbon(trackInfo, offset, width, color, emissive, opacity, r
   geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
+  const lunarSurface = trackInfo.theme?.id === "lunar-crater-run" && receiveShadow;
   const materialOptions = {
     color,
-    roughness: receiveShadow ? 0.52 : 0.25,
-    metalness: receiveShadow ? 0.36 : 0.05,
+    roughness: lunarSurface ? 0.88 : receiveShadow ? 0.52 : 0.25,
+    metalness: lunarSurface ? 0.03 : receiveShadow ? 0.36 : 0.05,
     emissive,
-    emissiveIntensity: receiveShadow ? 0.035 : 0.85,
+    emissiveIntensity: lunarSurface ? 0.012 : receiveShadow ? 0.035 : 0.85,
     transparent: opacity < 1,
     opacity,
     side: THREE.DoubleSide
@@ -1759,8 +1761,82 @@ function createTrackRibbon(trackInfo, offset, width, color, emissive, opacity, r
   return mesh;
 }
 
+function addLunarTrackShoulders(trackInfo, theme) {
+  const shoulderWidth = QUALITY.low ? 8.2 : 10.5;
+  createTrackRibbon(trackInfo, -TRACK_WIDTH * 0.66, shoulderWidth, theme.dirtColor, 0x10141c, 0.68, false);
+  createTrackRibbon(trackInfo, TRACK_WIDTH * 0.66, shoulderWidth, theme.dirtColor, 0x10141c, 0.68, false);
+  addLunarBermRocks(trackInfo, theme);
+}
+
+function addLunarBermRocks(trackInfo, theme) {
+  const count = QUALITY.low ? 18 : 34;
+  const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x9da7b5, emissive: 0x151a22, emissiveIntensity: 0.08, roughness: 0.86, metalness: 0.04 });
+  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, count);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < count; i += 1) {
+    const sample = trackInfo.samples[(i * 31 + 17) % TRACK_STEPS];
+    const side = i % 2 ? 1 : -1;
+    const scale = 0.35 + rand() * 0.9;
+    dummy.position.copy(sample.point).addScaledVector(sample.normal, side * (TRACK_WIDTH * 0.66 + 2.8 + rand() * 5.6));
+    dummy.position.y += 0.12 + rand() * 0.26;
+    dummy.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
+    dummy.scale.set(scale * 1.5, scale * 0.55, scale);
+    dummy.updateMatrix();
+    rocks.setMatrixAt(i, dummy.matrix);
+  }
+  rocks.castShadow = false;
+  rocks.receiveShadow = false;
+  trackInfo.group.add(rocks);
+}
+
+function addLunarTrackStructure(trackInfo, theme) {
+  const step = theme.structureStep || (QUALITY.low ? 58 : 34);
+  const postCount = Math.ceil(TRACK_STEPS / step) * 2;
+  const postGeo = new THREE.CylinderGeometry(0.08, 0.16, 1.25, 6);
+  const capGeo = new THREE.OctahedronGeometry(0.28, 0);
+  const fenceGeo = new THREE.BoxGeometry(2.8, 0.12, 0.12);
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x9ba6b5, emissive: 0x202a35, emissiveIntensity: 0.12, roughness: 0.62, metalness: 0.22 });
+  const capMat = new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: QUALITY.low ? 0.58 : 0.74, blending: THREE.AdditiveBlending, depthWrite: false });
+  const fenceMat = new THREE.MeshBasicMaterial({ color: 0xdde8f2, transparent: true, opacity: 0.28, depthWrite: false });
+  const posts = new THREE.InstancedMesh(postGeo, postMat, postCount);
+  const caps = new THREE.InstancedMesh(capGeo, capMat, postCount);
+  const fences = new THREE.InstancedMesh(fenceGeo, fenceMat, postCount);
+  const dummy = new THREE.Object3D();
+  let cursor = 0;
+  for (let i = 0; i < TRACK_STEPS; i += step) {
+    const sample = trackInfo.samples[i];
+    const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
+    [-1, 1].forEach((side) => {
+      const lateral = side * (TRACK_WIDTH * 0.56 + 0.9);
+      dummy.position.copy(sample.point).addScaledVector(sample.normal, lateral);
+      dummy.position.y += 0.55;
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      posts.setMatrixAt(cursor, dummy.matrix);
+      dummy.position.y += 0.72;
+      dummy.updateMatrix();
+      caps.setMatrixAt(cursor, dummy.matrix);
+      dummy.position.y -= 0.28;
+      dummy.rotation.set(0, yaw, 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      fences.setMatrixAt(cursor, dummy.matrix);
+      cursor += 1;
+    });
+  }
+  posts.count = cursor;
+  caps.count = cursor;
+  fences.count = cursor;
+  posts.castShadow = false;
+  caps.castShadow = false;
+  fences.castShadow = false;
+  trackInfo.group.add(posts, fences, caps);
+}
 function addTrackStructure(trackInfo) {
   const theme = trackInfo.theme || courseTheme();
+  if (theme.id === "lunar-crater-run") return addLunarTrackStructure(trackInfo, theme);
   const sideMat = new THREE.MeshStandardMaterial({ color: theme.structureColor, emissive: theme.roadEmissive, emissiveIntensity: QUALITY.low ? 0.16 : 0.26, roughness: 0.48, metalness: 0.52 });
   const beamMat = new THREE.MeshStandardMaterial({ color: 0x08111f, emissive: theme.structureColor, emissiveIntensity: 0.2, roughness: 0.56, metalness: 0.58 });
   const leftGlow = new THREE.MeshBasicMaterial({ color: theme.railLeft, transparent: true, opacity: QUALITY.low ? 0.36 : 0.52, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -1812,7 +1888,45 @@ function addTrackStructure(trackInfo) {
     }
   }
 }
+function addLunarStartLine(trackInfo, theme) {
+  const sample = trackInfo.samples[0];
+  const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
+  const line = new THREE.Mesh(
+    new THREE.BoxGeometry(TRACK_WIDTH + 4, 0.14, 1.6),
+    new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.82 })
+  );
+  line.position.copy(sample.point).addScaledVector(sample.tangent, 1.2);
+  line.position.y += 0.12;
+  line.rotation.y = yaw + Math.PI / 2;
+  trackInfo.group.add(line);
+
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0xb6c0cc, emissive: 0x28323e, emissiveIntensity: 0.18, roughness: 0.58, metalness: 0.32 });
+  const lightMat = new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.78, blending: THREE.AdditiveBlending, depthWrite: false });
+  [-1, 1].forEach((side) => {
+    const mast = new THREE.Group();
+    const legA = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.22, 5.6, 6), towerMat);
+    legA.position.set(-0.42, 2.8, 0);
+    const legB = legA.clone();
+    legB.position.x = 0.42;
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.34, 1.2), towerMat);
+    cap.position.y = 5.5;
+    const beacon = new THREE.Mesh(new THREE.OctahedronGeometry(0.44, 0), lightMat);
+    beacon.position.y = 6.15;
+    mast.add(legA, legB, cap, beacon);
+    mast.position.copy(sample.point).addScaledVector(sample.normal, side * (TRACK_WIDTH * 0.55 + 2.2)).addScaledVector(sample.tangent, 1.2);
+    mast.rotation.y = yaw;
+    trackInfo.group.add(mast);
+  });
+
+  const sign = createTextSprite("MOON BASE", theme.centerLine, 0.72);
+  sign.position.copy(sample.point).addScaledVector(sample.tangent, 4.2);
+  sign.position.y += 6.7;
+  sign.scale.set(12, 4, 1);
+  trackInfo.group.add(sign);
+}
 function addStartLine(trackInfo) {
+  const theme = trackInfo.theme || courseTheme();
+  if (theme.id === "lunar-crater-run") return addLunarStartLine(trackInfo, theme);
   const sample = trackInfo.samples[0];
   const line = new THREE.Mesh(
     new THREE.BoxGeometry(TRACK_WIDTH + 3, 0.25, 2.2),
@@ -2027,9 +2141,26 @@ function addItemBoxes(trackInfo) {
   });
 }
 
+function addLunarObstacle(trackInfo, sample, index, offset, type) {
+  const moonRockMat = new THREE.MeshStandardMaterial({ color: 0x98a2af, emissive: 0x151a22, emissiveIntensity: 0.12, roughness: 0.86, metalness: 0.04 });
+  const beaconMat = new THREE.MeshStandardMaterial({ color: 0xcfd8e4, emissive: 0xe8c66a, emissiveIntensity: 0.28, roughness: 0.48, metalness: 0.18 });
+  const mesh = type === "crate"
+    ? new THREE.Mesh(new THREE.DodecahedronGeometry(2.2, 0), moonRockMat)
+    : new THREE.Mesh(new THREE.ConeGeometry(1.15, 2.8, 7), beaconMat);
+  mesh.position.copy(sample.point).addScaledVector(sample.normal, offset);
+  mesh.position.y += type === "crate" ? 1.3 : 1.4;
+  mesh.rotation.set(rand() * 0.3, rand() * Math.PI, rand() * 0.3);
+  mesh.scale.y = type === "crate" ? 0.62 + rand() * 0.28 : 1;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  trackInfo.group.add(mesh);
+  obstacles.push({ mesh, radius: type === "crate" ? 2.8 : 1.55, type, index, normal: sample.normal.clone(), tangent: sample.tangent.clone() });
+}
 function addObstacles(trackInfo) {
+  const theme = trackInfo.theme || courseTheme();
   (trackInfo.layout || courseLayout()).obstacles.forEach(([index, offset, type]) => {
     const sample = trackInfo.samples[index];
+    if (theme.id === "lunar-crater-run") return addLunarObstacle(trackInfo, sample, index, offset, type);
     const mesh =
       type === "crate"
         ? new THREE.Mesh(
@@ -2058,6 +2189,7 @@ function addObstacles(trackInfo) {
 }
 
 function addRails(trackInfo) {
+  if ((trackInfo.theme || courseTheme()).id === "lunar-crater-run") return;
   for (let i = 0; i < TRACK_STEPS; i += (QUALITY.low ? 32 : 10)) {
     const sample = trackInfo.samples[i];
     for (let side = -1; side <= 1; side += 2) {
@@ -2076,7 +2208,41 @@ function addRails(trackInfo) {
   }
 }
 
+function addLunarRoadDetails(trackInfo) {
+  const theme = trackInfo.theme || courseTheme();
+  const seamMat = new THREE.MeshBasicMaterial({ color: 0xf8fdff, transparent: true, opacity: QUALITY.low ? 0.18 : 0.26, depthWrite: false });
+  const dustMarkMat = new THREE.MeshBasicMaterial({ color: 0x88929f, transparent: true, opacity: 0.18, depthWrite: false });
+  for (let i = 10; i < TRACK_STEPS; i += (QUALITY.low ? 42 : 20)) {
+    const sample = trackInfo.samples[i];
+    const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
+    const center = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.035, 3.8), seamMat);
+    center.position.copy(sample.point);
+    center.position.y += 0.13;
+    center.rotation.y = yaw;
+    trackInfo.group.add(center);
+    [-1, 1].forEach((side) => {
+      const scuff = new THREE.Mesh(new THREE.BoxGeometry(1.8 + rand() * 1.8, 0.028, 0.16), dustMarkMat);
+      scuff.position.copy(sample.point).addScaledVector(sample.normal, side * (TRACK_WIDTH * 0.44 + rand() * 1.8));
+      scuff.position.y += 0.12;
+      scuff.rotation.y = yaw + (rand() - 0.5) * 0.25;
+      trackInfo.group.add(scuff);
+    });
+  }
+  const jumpMarks = QUALITY.low ? [78, 176, 286] : [78, 176, 286, 360];
+  const markMat = new THREE.MeshBasicMaterial({ color: theme.warningColor, transparent: true, opacity: 0.36, depthWrite: false });
+  jumpMarks.forEach((index) => {
+    const sample = trackInfo.samples[layoutIndex(index)];
+    const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.9, 2.2, 3), markMat);
+    arrow.position.copy(sample.point).addScaledVector(sample.tangent, -2.2);
+    arrow.position.y += 0.16;
+    arrow.rotation.x = Math.PI / 2;
+    arrow.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+    arrow.scale.set(1.15, 0.55, 1);
+    trackInfo.group.add(arrow);
+  });
+}
 function addRoadDetails(trackInfo) {
+  if ((trackInfo.theme || courseTheme()).id === "lunar-crater-run") return addLunarRoadDetails(trackInfo);
   const arrowMat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xff9f1c, emissiveIntensity: 0.95, roughness: 0.2, metalness: 0.22 });
   const laneMat = new THREE.MeshBasicMaterial({ color: 0xbefbff, transparent: true, opacity: 0.48, blending: THREE.AdditiveBlending, depthWrite: false });
   addRoadDecalRuns(trackInfo);
@@ -2141,7 +2307,27 @@ function addRacingLineGuides(trackInfo) {
     }
   }
 }
+function addLunarCornerGuideMarkers(trackInfo) {
+  const theme = trackInfo.theme || courseTheme();
+  const markerIndices = QUALITY.low ? [[82, "LOW-G"], [210, "BASE"], [326, "EARTH"]] : [[32, "MOON"], [82, "LOW-G"], [154, "CRATER"], [210, "BASE"], [286, "ROVER"], [326, "EARTH"]];
+  markerIndices.forEach(([index, label], n) => {
+    const sample = trackInfo.samples[layoutIndex(index)];
+    const side = n % 2 ? -1 : 1;
+    const group = new THREE.Group();
+    const sign = createTextSprite(label, n % 2 ? theme.warningColor : theme.centerLine, 0.68);
+    sign.position.set(0, 3.8, 0);
+    sign.scale.set(7.8, 2.8, 1);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.2, 4.2, 6), new THREE.MeshStandardMaterial({ color: 0xaeb8c6, emissive: 0x202832, emissiveIntensity: 0.14, roughness: 0.62, metalness: 0.18 }));
+    mast.position.y = 2.0;
+    group.add(mast, sign);
+    group.position.copy(sample.point).addScaledVector(sample.normal, side * (TRACK_WIDTH * 0.72 + 6.2));
+    group.position.y += 0.4;
+    group.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z) + (side > 0 ? Math.PI * 0.5 : -Math.PI * 0.5);
+    trackInfo.group.add(group);
+  });
+}
 function addCornerGuideMarkers(trackInfo) {
+  if ((trackInfo.theme || courseTheme()).id === "lunar-crater-run") return addLunarCornerGuideMarkers(trackInfo);
   const colors = [0x7df9ff, 0xffd166, 0xff4fd8, 0x34f0b2];
   const labels = ["TURN", "BOOST", "LOW-G", "ORBIT", "PIT", "GO"];
   const markerIndices = QUALITY.low ? [28, 166, 336] : [28, 70, 116, 166, 222, 274, 336, 388];
@@ -2224,7 +2410,7 @@ function createRoadSurfaceTexture(surfaceType = "metal-ring", theme = null) {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
 
-  if (surfaceType === "lunar-dust") {
+  if (surfaceType.startsWith("lunar")) {
     ctx.fillStyle = "rgba(255,255,255,0.08)";
     for (let i = 0; i < (QUALITY.low ? 22 : 58); i += 1) {
       const r = 2 + rand() * 12;
@@ -2299,7 +2485,7 @@ function createRoadRoughnessTexture(surfaceType = "metal-ring") {
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = surfaceType === "lunar-dust" ? "#b8b8b8" : surfaceType === "nebula-glass" ? "#777" : "#999";
+  ctx.fillStyle = surfaceType.startsWith("lunar") ? "#c7ccd4" : surfaceType === "nebula-glass" ? "#777" : "#999";
   ctx.fillRect(0, 0, size, size);
   const noiseCount = QUALITY.low ? 70 : 180;
   for (let i = 0; i < noiseCount; i += 1) {
@@ -2409,6 +2595,127 @@ function addBeacon(position, color) {
   scene.add(beacon);
   trackLights.push(beacon);
 }
+function createLunarPlainTexture(theme) {
+  const key = `lunar-plain-${theme?.id || "moon"}-${QUALITY.low ? "low" : "hi"}`;
+  if (roadSurfaceTextureCache.has(key)) return roadSurfaceTextureCache.get(key);
+  const canvas = document.createElement("canvas");
+  const size = QUALITY.low ? 256 : 512;
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const bg = ctx.createLinearGradient(0, 0, size, size);
+  bg.addColorStop(0, "#d9dee7");
+  bg.addColorStop(0.52, "#aab2bf");
+  bg.addColorStop(1, "#707b89");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, size, size);
+
+  const craters = QUALITY.low ? 16 : 34;
+  for (let i = 0; i < craters; i += 1) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 8 + rand() * (QUALITY.low ? 28 : 44);
+    const shadow = ctx.createRadialGradient(x - r * 0.25, y - r * 0.25, 1, x, y, r);
+    shadow.addColorStop(0, "rgba(255,255,255,0.10)");
+    shadow.addColorStop(0.42, "rgba(77,86,98,0.18)");
+    shadow.addColorStop(0.72, "rgba(28,34,45,0.28)");
+    shadow.addColorStop(1, "rgba(255,255,255,0.06)");
+    ctx.fillStyle = shadow;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r * (1.15 + rand() * 0.55), r * (0.46 + rand() * 0.26), rand() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  const grainCount = QUALITY.low ? 900 : 1800;
+  for (let i = 0; i < grainCount; i += 1) {
+    const value = 150 + Math.floor(rand() * 70);
+    ctx.fillStyle = `rgba(${value},${value + 2},${Math.min(255, value + 12)},${0.05 + rand() * 0.08})`;
+    ctx.fillRect(rand() * size, rand() * size, 1, 1);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(3.2, 3.2);
+  texture.generateMipmaps = !QUALITY.low;
+  texture.anisotropy = 1;
+  texture.userData.sharedCache = true;
+  roadSurfaceTextureCache.set(key, texture);
+  return texture;
+}
+
+function createLunarHorizonTexture() {
+  const key = `lunar-horizon-${QUALITY.low ? "low" : "hi"}`;
+  if (roadSurfaceTextureCache.has(key)) return roadSurfaceTextureCache.get(key);
+  const canvas = document.createElement("canvas");
+  canvas.width = QUALITY.low ? 512 : 768;
+  canvas.height = QUALITY.low ? 160 : 224;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, "rgba(2,5,13,0)");
+  gradient.addColorStop(0.45, "rgba(10,14,24,0.25)");
+  gradient.addColorStop(1, "rgba(122,132,148,0.96)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(174,184,198,0.86)";
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height * 0.72);
+  for (let x = 0; x <= canvas.width; x += 24) {
+    const y = canvas.height * (0.68 + Math.sin(x * 0.018) * 0.035 + rand() * 0.045);
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(canvas.width, canvas.height);
+  ctx.lineTo(0, canvas.height);
+  ctx.closePath();
+  ctx.fill();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.userData.sharedCache = true;
+  roadSurfaceTextureCache.set(key, texture);
+  return texture;
+}
+
+function addLunarSurfaceBackdrop(city, theme) {
+  const plain = new THREE.Mesh(
+    new THREE.CircleGeometry(430, QUALITY.low ? 72 : 128),
+    new THREE.MeshBasicMaterial({ map: createLunarPlainTexture(theme), color: 0xd3d9e2, transparent: true, opacity: 0.88, depthWrite: false })
+  );
+  plain.rotation.x = -Math.PI / 2;
+  plain.position.set(0, -5.2, 0);
+  plain.scale.z = 0.72;
+  plain.frustumCulled = true;
+  city.add(plain);
+
+  const horizon = new THREE.Mesh(
+    new THREE.PlaneGeometry(720, QUALITY.low ? 130 : 170),
+    new THREE.MeshBasicMaterial({ map: createLunarHorizonTexture(), transparent: true, opacity: 0.92, depthWrite: false })
+  );
+  horizon.position.set(0, 9, -350);
+  city.add(horizon);
+
+  const farCraterMat = new THREE.MeshBasicMaterial({ color: 0x2f3948, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide });
+  const farCraterGeo = new THREE.RingGeometry(0.72, 1, QUALITY.low ? 30 : 46);
+  const farCraters = new THREE.InstancedMesh(farCraterGeo, farCraterMat, QUALITY.low ? 4 : 8);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < farCraters.count; i += 1) {
+    const angle = -Math.PI * 0.95 + i * (Math.PI * 1.8 / Math.max(1, farCraters.count - 1));
+    const radius = 176 + rand() * 130;
+    dummy.position.set(Math.cos(angle) * radius, -4.85, Math.sin(angle) * radius);
+    dummy.rotation.set(-Math.PI / 2, 0, angle + rand() * 0.5);
+    const size = 15 + rand() * 26;
+    dummy.scale.set(size * 1.8, size * 0.62, 1);
+    dummy.updateMatrix();
+    farCraters.setMatrixAt(i, dummy.matrix);
+  }
+  farCraters.castShadow = false;
+  farCraters.receiveShadow = false;
+  city.add(farCraters);
+}
+
 function buildEnvironment() {
   const city = new THREE.Group();
   const course = activeCourse();
@@ -2416,35 +2723,36 @@ function buildEnvironment() {
   const theme = courseTheme(course);
   applyCourseAtmosphere(theme);
 
-  addStarDustSea(city, theme);
-  addCourseLightPoles(city, theme);
-
   if (courseId === "lunar-crater-run") {
+    addLunarSurfaceBackdrop(city, theme);
+    addCourseLightPoles(city, theme);
     addLunarCourseSet(city, theme);
-    addNeonGate(city, 54, theme.boostColor, "MOON");
-  } else if (courseId === "meteor-mining-belt") {
-    addMeteorMiningSet(city, theme);
-    addNeonGate(city, 54, theme.warningColor, "DANGER");
-    if (!QUALITY.low) addNeonGate(city, 308, theme.warningColor, "ROCK");
-  } else if (courseId === "nebula-drift-stream") {
-    addNebulaDriftSet(city, theme);
-    addNeonGate(city, 118, theme.railLeft, "FLOW");
-    if (!QUALITY.low) addNeonGate(city, 308, theme.railRight, "DRIFT");
   } else {
-    addSpaceGrandPrixSet(city, theme);
-    addOrbitVenueDetails(city, theme);
-    addOrbitTubeSection(city, theme);
-    addLandmarkSpire(city, 126, 48, theme.accentColor);
-    addNeonGate(city, 54, theme.boostColor, "WARP");
-    if (!QUALITY.low) addNeonGate(city, 232, theme.railRight, "BOOST");
-    if (!QUALITY.low) addAdPanels(city);
+    addStarDustSea(city, theme);
+    addCourseLightPoles(city, theme);
+    if (courseId === "meteor-mining-belt") {
+      addMeteorMiningSet(city, theme);
+      addNeonGate(city, 54, theme.warningColor, "DANGER");
+      if (!QUALITY.low) addNeonGate(city, 308, theme.warningColor, "ROCK");
+    } else if (courseId === "nebula-drift-stream") {
+      addNebulaDriftSet(city, theme);
+      addNeonGate(city, 118, theme.railLeft, "FLOW");
+      if (!QUALITY.low) addNeonGate(city, 308, theme.railRight, "DRIFT");
+    } else {
+      addSpaceGrandPrixSet(city, theme);
+      addOrbitVenueDetails(city, theme);
+      addOrbitTubeSection(city, theme);
+      addLandmarkSpire(city, 126, 48, theme.accentColor);
+      addNeonGate(city, 54, theme.boostColor, "WARP");
+      if (!QUALITY.low) addNeonGate(city, 232, theme.railRight, "BOOST");
+      if (!QUALITY.low) addAdPanels(city);
+    }
   }
 
   scene.add(city);
   environmentGroup = city;
   return city;
 }
-
 function addCourseLightPoles(city, theme) {
   const step = theme.id === "lunar-crater-run" ? (QUALITY.low ? 96 : 54) : QUALITY.venueStep;
   const samples = [];
@@ -2560,108 +2868,266 @@ function createTextSprite(label, color = 0xffffff, opacity = 0.9) {
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, opacity, depthWrite: false }));
 }
 function addLunarCourseSet(city, theme = courseTheme()) {
-  const moonMat = new THREE.MeshStandardMaterial({ color: 0x9fa9b8, emissive: 0x263449, emissiveIntensity: 0.22, roughness: 0.9, metalness: 0.03 });
-  const craterMat = new THREE.MeshBasicMaterial({ color: 0x0f1728, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(220, 220, 2.2, QUALITY.low ? 36 : 64), moonMat);
-  base.position.set(0, -30, 0);
-  base.scale.z = 0.72;
-  city.add(base);
-
-  const craterCount = QUALITY.low ? 8 : 18;
-  const craterGeo = new THREE.TorusGeometry(1, 0.055, 6, QUALITY.low ? 28 : 40);
+  const craterMat = new THREE.MeshBasicMaterial({ color: 0x1e2632, transparent: true, opacity: 0.28, depthWrite: false, side: THREE.DoubleSide });
+  const craterCount = QUALITY.low ? 16 : 34;
+  const craterGeo = new THREE.RingGeometry(0.66, 1, QUALITY.low ? 28 : 42);
   const craters = new THREE.InstancedMesh(craterGeo, craterMat, craterCount);
   const rockGeo = new THREE.DodecahedronGeometry(1, 0);
-  const rockMat = new THREE.MeshStandardMaterial({ color: 0x8792a3, emissive: 0x182235, emissiveIntensity: 0.12, roughness: 0.82, metalness: 0.04 });
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x8e98a6, emissive: 0x151b25, emissiveIntensity: 0.08, roughness: 0.88, metalness: 0.03 });
   const rocks = new THREE.InstancedMesh(rockGeo, rockMat, craterCount);
   const dummy = new THREE.Object3D();
   for (let i = 0; i < craterCount; i += 1) {
-    const sample = track.samples[Math.floor(rand() * TRACK_STEPS)];
+    const sample = track.samples[(i * 37 + 23) % TRACK_STEPS];
     const side = i % 2 ? 1 : -1;
-    const size = 5 + rand() * 12;
-    dummy.position.copy(sample.point).addScaledVector(sample.normal, side * (30 + rand() * 96));
-    dummy.position.y = -27.8 + rand() * 2.0;
-    dummy.rotation.set(Math.PI / 2, 0, rand() * Math.PI);
-    dummy.scale.set(size, size * (0.48 + rand() * 0.28), size);
+    const lateral = side * (24 + rand() * 86);
+    const size = 3.2 + rand() * (i % 7 === 0 ? 14 : 7);
+    dummy.position.copy(sample.point).addScaledVector(sample.normal, lateral);
+    dummy.position.y = sample.point.y + 0.035;
+    dummy.rotation.set(-Math.PI / 2, 0, rand() * Math.PI);
+    dummy.scale.set(size * 1.6, size * (0.58 + rand() * 0.24), 1);
     dummy.updateMatrix();
     craters.setMatrixAt(i, dummy.matrix);
 
-    dummy.position.addScaledVector(sample.normal, side * (8 + rand() * 22));
-    dummy.position.y += 2.2 + rand() * 2;
+    const rockSize = 0.55 + rand() * 2.0;
+    dummy.position.addScaledVector(sample.normal, side * (6 + rand() * 18));
+    dummy.position.y = sample.point.y + 0.25 + rand() * 0.45;
     dummy.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
-    const rockSize = 1.2 + rand() * 2.4;
-    dummy.scale.set(rockSize * 1.2, rockSize * 0.72, rockSize);
+    dummy.scale.set(rockSize * 1.35, rockSize * 0.62, rockSize);
     dummy.updateMatrix();
     rocks.setMatrixAt(i, dummy.matrix);
   }
   craters.castShadow = false;
+  craters.receiveShadow = false;
   rocks.castShadow = false;
+  rocks.receiveShadow = false;
   city.add(craters, rocks);
+  addLunarHeroCrater(city, 34, -54, 15.5);
+  addLunarHeroCrater(city, 68, 60, 12.5);
 
   const earth = new THREE.Mesh(
-    new THREE.SphereGeometry(22, QUALITY.low ? 20 : 32, QUALITY.low ? 10 : 16),
-    new THREE.MeshStandardMaterial({ color: 0x4aa5ff, emissive: 0x174d8a, emissiveIntensity: 0.62, roughness: 0.36 })
+    new THREE.SphereGeometry(30, QUALITY.low ? 24 : 38, QUALITY.low ? 12 : 18),
+    new THREE.MeshStandardMaterial({ color: 0x4ca7ff, emissive: 0x174d8a, emissiveIntensity: 0.7, roughness: 0.34, metalness: 0.02 })
   );
-  earth.position.set(-190, 104, -245);
+  const startView = track.samples[layoutIndex(18)];
+  earth.position.copy(startView.point).addScaledVector(startView.tangent, 218).addScaledVector(startView.normal, -64);
+  earth.position.y += 118;
   city.add(earth);
-  const earthGlow = new THREE.Mesh(new THREE.SphereGeometry(23.2, QUALITY.low ? 16 : 24, QUALITY.low ? 8 : 12), new THREE.MeshBasicMaterial({ color: 0xcfe7ff, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false }));
-  earthGlow.position.copy(earth.position);
-  city.add(earthGlow);
+  const earthCloud = new THREE.Mesh(
+    new THREE.SphereGeometry(30.7, QUALITY.low ? 18 : 28, QUALITY.low ? 10 : 14),
+    new THREE.MeshBasicMaterial({ color: 0xdff6ff, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  earthCloud.position.copy(earth.position);
+  city.add(earthCloud);
 
-  [42, 182, 318].forEach((index, i) => {
-    const sample = track.samples[layoutIndex(index)];
-    const dome = new THREE.Group();
-    const shell = new THREE.Mesh(new THREE.SphereGeometry(7 + i * 1.4, QUALITY.low ? 16 : 22, 10), new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }));
-    shell.scale.y = 0.48;
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.36, 10, 8), new THREE.MeshStandardMaterial({ color: 0x596579, emissive: 0x31435f, emissiveIntensity: 0.28 }));
-    mast.position.y = 4.6;
-    dome.add(shell, mast);
-    dome.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -42 : 42);
-    dome.position.y = -4 + i;
-    city.add(dome);
-  });
+  addLunarEarthBillboard(city, theme);
+  addLunarBaseCluster(city, theme, 38, 52, true);
+  addLunarBaseCluster(city, theme, 220, -62, false);
+  addLunarLander(city, theme, 72, -46);
+  addLunarRover(city, theme, 330, 44);
 
-  const dishSample = track.samples[layoutIndex(210)];
-  const dish = new THREE.Group();
-  const dishMat = new THREE.MeshStandardMaterial({ color: 0xcfd9e8, emissive: theme.centerLine, emissiveIntensity: 0.18, roughness: 0.42, metalness: 0.42 });
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 9, 8), dishMat);
-  mast.position.y = 4.5;
-  const bowl = new THREE.Mesh(new THREE.ConeGeometry(4.8, 1.2, QUALITY.low ? 18 : 28, 1, true), dishMat);
-  bowl.position.y = 9.4;
-  bowl.rotation.x = 68 * DEG;
-  const signal = new THREE.Mesh(new THREE.TorusGeometry(5.6, 0.045, 6, 28), new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.36, blending: THREE.AdditiveBlending, depthWrite: false }));
-  signal.position.y = 10.0;
-  signal.rotation.x = 68 * DEG;
-  dish.add(mast, bowl, signal);
-  dish.position.copy(dishSample.point).addScaledVector(dishSample.normal, -56);
-  dish.position.y -= 4;
-  city.add(dish);
-
-  const roverSample = track.samples[layoutIndex(332)];
-  const rover = new THREE.Group();
-  const roverMat = new THREE.MeshStandardMaterial({ color: 0xd6dee8, emissive: 0x2d4058, emissiveIntensity: 0.16, roughness: 0.5, metalness: 0.34 });
-  const roverBody = new THREE.Mesh(new THREE.BoxGeometry(5.8, 1.5, 3.2), roverMat);
-  roverBody.position.y = 1.8;
-  rover.add(roverBody);
-  [-1, 1].forEach((x) => [-1, 1].forEach((z) => {
-    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.54, 0.42, 10), new THREE.MeshBasicMaterial({ color: 0x273244 }));
-    wheel.rotation.z = Math.PI / 2;
-    wheel.position.set(x * 2.6, 0.8, z * 1.35);
-    rover.add(wheel);
-  }));
-  rover.position.copy(roverSample.point).addScaledVector(roverSample.normal, 48);
-  rover.position.y -= 3.2;
-  rover.rotation.y = Math.atan2(roverSample.tangent.x, roverSample.tangent.z) + Math.PI * 0.4;
-  city.add(rover);
-
-  const signs = QUALITY.low ? [[24, "MOON"], [286, "BASE"]] : [[24, "MOON"], [154, "HOP"], [286, "BASE"]];
+  const signs = QUALITY.low ? [[26, "MOON"], [96, "LOW-G"], [246, "BASE"]] : [[26, "MOON"], [96, "LOW-G"], [176, "CRATER"], [246, "BASE"], [330, "ROVER"]];
   signs.forEach(([index, label], i) => {
     const sample = track.samples[layoutIndex(index)];
-    const sign = createTextSprite(label, i % 2 ? theme.warningColor : theme.centerLine, 0.82);
+    const sign = createTextSprite(label, i % 2 ? theme.warningColor : theme.centerLine, 0.7);
     sign.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -34 : 34);
-    sign.position.y += 12;
-    sign.scale.set(12, 4.8, 1);
+    sign.position.y += 8.5;
+    sign.scale.set(10.5, 3.8, 1);
     city.add(sign);
   });
+}
+
+function createLunarEarthTexture() {
+  const key = `lunar-earth-billboard-${QUALITY.low ? "low" : "hi"}`;
+  if (roadSurfaceTextureCache.has(key)) return roadSurfaceTextureCache.get(key);
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, 256, 256);
+  const glow = ctx.createRadialGradient(128, 128, 54, 128, 128, 128);
+  glow.addColorStop(0, "rgba(94,178,255,0.82)");
+  glow.addColorStop(0.62, "rgba(55,135,220,0.74)");
+  glow.addColorStop(1, "rgba(94,178,255,0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, 256, 256);
+  const sphere = ctx.createRadialGradient(104, 86, 14, 128, 128, 80);
+  sphere.addColorStop(0, "#dff6ff");
+  sphere.addColorStop(0.28, "#5bb6ff");
+  sphere.addColorStop(1, "#174d8a");
+  ctx.fillStyle = sphere;
+  ctx.beginPath();
+  ctx.arc(128, 128, 74, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(70,178,132,0.52)";
+  [[86,116,34,14],[132,88,28,13],[150,150,42,16],[105,166,26,11]].forEach(([x, y, w, h]) => {
+    ctx.beginPath();
+    ctx.ellipse(x, y, w, h, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.strokeStyle = "rgba(255,255,255,0.62)";
+  ctx.lineWidth = 6;
+  [[98,104,70],[110,138,82],[88,164,54]].forEach(([x, y, w]) => {
+    ctx.beginPath();
+    ctx.ellipse(x, y, w, 10, -0.18, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+  ctx.strokeStyle = "rgba(255,255,255,0.86)";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(128, 128, 76, -1.9, 1.9);
+  ctx.stroke();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.userData.sharedCache = true;
+  roadSurfaceTextureCache.set(key, texture);
+  return texture;
+}
+
+function addLunarEarthBillboard(city, theme) {
+  const sample = track.samples[layoutIndex(26)];
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: createLunarEarthTexture(),
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.94,
+    depthWrite: false,
+    depthTest: false
+  }));
+  sprite.position.copy(sample.point).addScaledVector(sample.tangent, -6).addScaledVector(sample.normal, 22);
+  sprite.position.y += 30;
+  sprite.scale.set(42, 42, 1);
+  city.add(sprite);
+}
+function addLunarHeroCrater(city, index, offset, size) {
+  const sample = track.samples[layoutIndex(index)];
+  const crater = new THREE.Group();
+  const shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(1, QUALITY.low ? 30 : 48),
+    new THREE.MeshBasicMaterial({ color: 0x202936, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide })
+  );
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.scale.set(size * 1.8, size * 0.7, 1);
+  const rim = new THREE.Mesh(
+    new THREE.RingGeometry(0.66, 1, QUALITY.low ? 34 : 52),
+    new THREE.MeshBasicMaterial({ color: 0xe6edf5, transparent: true, opacity: 0.26, depthWrite: false, side: THREE.DoubleSide })
+  );
+  rim.rotation.x = -Math.PI / 2;
+  rim.scale.set(size * 1.9, size * 0.74, 1);
+  crater.add(shadow, rim);
+  crater.position.copy(sample.point).addScaledVector(sample.normal, offset);
+  crater.position.y = sample.point.y + 0.05;
+  crater.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z) + 0.2;
+  city.add(crater);
+}
+function addLunarBaseCluster(city, theme, layout, offset, primary) {
+  const sample = track.samples[layoutIndex(layout)];
+  const group = new THREE.Group();
+  const baseMat = new THREE.MeshStandardMaterial({ color: primary ? 0xd9e1eb : 0xaeb8c6, emissive: 0x1d2a3a, emissiveIntensity: 0.14, roughness: 0.62, metalness: 0.16 });
+  const darkMat = new THREE.MeshBasicMaterial({ color: 0x202a38 });
+  const glassMat = new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false });
+
+  const moduleCount = primary ? 3 : 2;
+  for (let i = 0; i < moduleCount; i += 1) {
+    const module = new THREE.Mesh(new THREE.BoxGeometry(8.5, 3.2, 6.4), baseMat);
+    module.position.set((i - (moduleCount - 1) * 0.5) * 8.2, 1.6, 0);
+    group.add(module);
+    const viewStrip = new THREE.Mesh(new THREE.BoxGeometry(5.2, 0.48, 0.08), glassMat);
+    viewStrip.position.set(module.position.x, 2.4, -3.24);
+    group.add(viewStrip);
+  }
+
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(primary ? 5.2 : 4.2, QUALITY.low ? 16 : 24, 10), glassMat.clone());
+  dome.scale.y = 0.48;
+  dome.position.set(primary ? -10 : 8, 3.2, 5.8);
+  group.add(dome);
+
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, primary ? 13 : 9, 8), baseMat);
+  mast.position.set(primary ? 13 : -9, primary ? 6.5 : 4.5, 2.0);
+  group.add(mast);
+  const dish = new THREE.Mesh(new THREE.ConeGeometry(primary ? 3.4 : 2.6, 0.95, QUALITY.low ? 16 : 24, 1, true), baseMat);
+  dish.position.set(mast.position.x, mast.position.y + (primary ? 6.6 : 4.7), mast.position.z);
+  dish.rotation.x = 62 * DEG;
+  group.add(dish);
+  const signal = new THREE.Mesh(new THREE.TorusGeometry(primary ? 4.4 : 3.4, 0.04, 6, 28), glassMat.clone());
+  signal.position.copy(dish.position);
+  signal.rotation.x = 62 * DEG;
+  group.add(signal);
+
+  const pad = new THREE.Mesh(new THREE.CylinderGeometry(primary ? 16 : 12, primary ? 17 : 13, 0.16, QUALITY.low ? 24 : 40), darkMat);
+  pad.position.y = 0.04;
+  group.add(pad);
+
+  group.position.copy(sample.point).addScaledVector(sample.normal, offset);
+  group.position.y = sample.point.y - 1.1;
+  group.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z) + (offset > 0 ? -Math.PI * 0.5 : Math.PI * 0.5);
+  city.add(group);
+}
+
+function addLunarLander(city, theme, layout, offset) {
+  const sample = track.samples[layoutIndex(layout)];
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xcdd7e3, emissive: 0x1c2d42, emissiveIntensity: 0.16, roughness: 0.48, metalness: 0.34 });
+  const foil = new THREE.MeshBasicMaterial({ color: theme.warningColor, transparent: true, opacity: 0.62, depthWrite: false });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 3.4, 4.8, QUALITY.low ? 10 : 14), mat);
+  body.position.y = 5.4;
+  group.add(body);
+  const top = new THREE.Mesh(new THREE.ConeGeometry(2.3, 2.0, QUALITY.low ? 10 : 14), mat);
+  top.position.y = 8.8;
+  group.add(top);
+  const foilBand = new THREE.Mesh(new THREE.CylinderGeometry(3.48, 3.48, 0.38, QUALITY.low ? 10 : 14), foil);
+  foilBand.position.y = 4.4;
+  group.add(foilBand);
+  for (let i = 0; i < 4; i += 1) {
+    const angle = i * Math.PI * 0.5 + Math.PI * 0.25;
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 5.6, 6), mat);
+    leg.position.set(Math.cos(angle) * 2.9, 2.5, Math.sin(angle) * 2.9);
+    leg.rotation.z = Math.cos(angle) * 0.45;
+    leg.rotation.x = -Math.sin(angle) * 0.45;
+    group.add(leg);
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.72, 0.9, 0.18, 10), mat);
+    foot.position.set(Math.cos(angle) * 5.0, 0.18, Math.sin(angle) * 5.0);
+    foot.scale.z = 0.55;
+    group.add(foot);
+  }
+  group.position.copy(sample.point).addScaledVector(sample.normal, offset);
+  group.position.y = sample.point.y - 0.4;
+  group.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z) + 0.5;
+  city.add(group);
+}
+
+function addLunarRover(city, theme, layout, offset) {
+  const sample = track.samples[layoutIndex(layout)];
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd6dee8, emissive: 0x2d4058, emissiveIntensity: 0.16, roughness: 0.5, metalness: 0.34 });
+  const wheelMat = new THREE.MeshBasicMaterial({ color: 0x273244 });
+  const panelMat = new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false });
+  const roverBody = new THREE.Mesh(new THREE.BoxGeometry(6.2, 1.5, 3.2), bodyMat);
+  roverBody.position.y = 1.8;
+  group.add(roverBody);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.12, 2.4), panelMat);
+  panel.position.set(0.2, 2.72, 0.1);
+  panel.rotation.z = -0.12;
+  group.add(panel);
+  [-1, 1].forEach((x) => [-1, 1].forEach((z) => {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.54, 0.42, 10), wheelMat);
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(x * 2.7, 0.8, z * 1.42);
+    group.add(wheel);
+  }));
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.08, 3.2, 6), bodyMat);
+  antenna.position.set(-2.6, 3.4, -1.0);
+  antenna.rotation.z = 0.22;
+  group.add(antenna);
+  const dish = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.36, 12, 1, true), bodyMat);
+  dish.position.set(-3.0, 5.0, -1.1);
+  dish.rotation.x = 70 * DEG;
+  group.add(dish);
+  group.position.copy(sample.point).addScaledVector(sample.normal, offset);
+  group.position.y = sample.point.y - 0.2;
+  group.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z) + Math.PI * 0.38;
+  city.add(group);
 }
 function addMeteorMiningSet(city, theme = courseTheme()) {
   const rockMat = new THREE.MeshStandardMaterial({ color: 0x3c332c, emissive: 0x3f1e12, emissiveIntensity: 0.3, roughness: 0.84, metalness: 0.06 });
@@ -4842,11 +5308,12 @@ function updateRacer(racer, dt) {
     controls.steer = Math.abs(controls.steer) < 0.01 && Math.abs(racer.controlSteer) < 0.015 ? 0 : racer.controlSteer;
   }
   const stats = combinedStats(racer);
+  const lunarSurface = track?.theme?.id === "lunar-crater-run";
   const maxSpeed = (34 + stats.speed * 3.4) * (racer.isPlayer ? 1 : difficulty().speed);
   const accel = 15 + stats.accel * 2.1;
   const brake = 28 + stats.weight * 0.8;
-  const handling = 1.3 + stats.handling * 0.11;
-  const grip = 0.88 + stats.handling * 0.018 - stats.weight * 0.012;
+  const handling = (1.3 + stats.handling * 0.11) * (lunarSurface ? 0.96 : 1);
+  const grip = (0.88 + stats.handling * 0.018 - stats.weight * 0.012) * (lunarSurface ? 0.93 : 1);
   const boostPower = 1 + stats.boost * 0.045;
   const stunned = racer.stunTimer > 0;
 
@@ -4923,8 +5390,14 @@ function updateRacer(racer, dt) {
   }
   racer.wasAirborne = racer.jumpHeight > 0.08 || racer.verticalSpeed > 0;
   if (wasAirborne && !racer.wasAirborne) {
-    spawnShockwave(racer.position, racer.kart.colors.accent || racer.character.colors.accent, racer.isPlayer ? 4.5 : 3.2);
-    if (racer.isPlayer) cameraShake = Math.max(cameraShake, 0.28);
+    if (lunarSurface) {
+      spawnMoonDust(racer.position, racer.isPlayer ? 12 : 6, racer.isPlayer ? 1.15 : 0.78);
+      spawnShockwave(racer.position, 0xdde8f2, racer.isPlayer ? 3.2 : 2.2);
+      racer.wobble = Math.max(racer.wobble, 0.34);
+    } else {
+      spawnShockwave(racer.position, racer.kart.colors.accent || racer.character.colors.accent, racer.isPlayer ? 4.5 : 3.2);
+    }
+    if (racer.isPlayer) cameraShake = Math.max(cameraShake, lunarSurface ? 0.18 : 0.28);
   }
 
   if (racer.driftActive && Math.random() < effectChance(0.45)) {
@@ -5147,7 +5620,8 @@ function handleCourseAssist(racer, nearest, controls, dt) {
     racer.speed = Math.max(racer.speed * (1 - 0.08 * dt), 13);
   }
   if (amount > 0.62 && rand() < effectChance(0.08)) {
-    spawnBurst(racer.position, 0x7df9ff, 2, 0.42);
+    if (track?.theme?.id === "lunar-crater-run") spawnMoonDust(racer.position, 2, 0.36);
+    else spawnBurst(racer.position, 0x7df9ff, 2, 0.42);
   }
   return true;
 }
@@ -5168,6 +5642,8 @@ function stabilizeRacerGrounding(racer, nearest, dt) {
 }
 
 function handleSurface(racer, nearest, dt) {
+  const theme = track?.theme || courseTheme();
+  const lunarSurface = theme.id === "lunar-crater-run";
   const offTrack = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.52;
   const hardWall = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.72;
   const rescueZone = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.95;
@@ -5183,7 +5659,7 @@ function handleSurface(racer, nearest, dt) {
 
   if ((offTrack && !shortcut) || dirt) {
     const offAmount = clamp((Math.abs(nearest.lateral) - TRACK_WIDTH * 0.52) / (TRACK_WIDTH * 0.58), 0, 1);
-    const speedLoss = dirt ? 0.7 : 0.55 + offAmount * 0.75;
+    const speedLoss = dirt ? (lunarSurface ? 0.52 : 0.7) : 0.55 + offAmount * 0.75;
     racer.speed *= 1 - speedLoss * dt;
 
     if (offTrack && !shortcut) {
@@ -5196,9 +5672,13 @@ function handleSurface(racer, nearest, dt) {
       racer.yaw += shortestAngle(racer.yaw, desiredYaw) * clamp(dt * (1.8 + offAmount * 3.2), 0, 0.22);
       racer.velocity.addScaledVector(nearest.sample.normal, -Math.sign(nearest.lateral) * offAmount * 12 * dt);
 
-      if (racer.isPlayer && Math.random() < 0.12) spawnBurst(racer.position, 0x9ee7ff, 2, 0.55);
+      if (racer.isPlayer && Math.random() < 0.12) {
+        if (lunarSurface) spawnMoonDust(racer.position, 2, 0.48);
+        else spawnBurst(racer.position, 0x9ee7ff, 2, 0.55);
+      }
     } else if (racer.isPlayer && Math.random() < 0.08) {
-      spawnBurst(racer.position, 0x80624e, 2, 0.75);
+      if (lunarSurface) spawnMoonDust(racer.position, 2, 0.42);
+      else spawnBurst(racer.position, 0x80624e, 2, 0.75);
     }
   }
 
@@ -5220,7 +5700,8 @@ function handleSurface(racer, nearest, dt) {
     racer.verticalSpeed = 0;
     racer.jumpHeight = 0;
     racer.wobble = 0.45;
-    spawnShockwave(racer.position, racer.kart.colors.accent || racer.character.colors.accent, racer.isPlayer ? 3.8 : 2.8);
+    if (lunarSurface) spawnMoonDust(racer.position, racer.isPlayer ? 10 : 5, 0.72);
+    spawnShockwave(racer.position, lunarSurface ? 0xdde8f2 : (racer.kart.colors.accent || racer.character.colors.accent), racer.isPlayer ? 3.8 : 2.8);
     if (racer.isPlayer) cameraShake = Math.max(cameraShake, 0.22);
   }
 }
@@ -5753,6 +6234,20 @@ function spawnGoalLightShow(racer) {
   addParticle({ mesh: light, velocity: new THREE.Vector3(), life: 0.85, maxLife: 0.85 });
 }
 
+function spawnMoonDust(origin, count = 6, power = 0.8) {
+  const safeCount = burstLimit(count);
+  for (let i = 0; i < safeCount; i += 1) {
+    const mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.1 + rand() * 0.16, 6, 4),
+      new THREE.MeshBasicMaterial({ color: 0xdde6ef, transparent: true, opacity: 0.46, depthWrite: false })
+    );
+    mesh.position.copy(origin);
+    mesh.position.y += 0.12 + rand() * 0.42;
+    const velocity = new THREE.Vector3(rand() - 0.5, 0.08 + rand() * 0.22, rand() - 0.5).normalize().multiplyScalar(power * (1.2 + rand() * 2.6));
+    scene.add(mesh);
+    addParticle({ mesh, velocity, life: 0.45 + rand() * 0.35, maxLife: 0.82 });
+  }
+}
 function spawnBurst(origin, color, count, power) {
   const safeCount = burstLimit(count);
   for (let i = 0; i < safeCount; i += 1) {
