@@ -64,9 +64,9 @@ const fallbackData = {
     ]
   },
   difficulties: {
-    Easy: { precision: 0.72, speed: 0.86, reaction: 0.8 },
-    Normal: { precision: 0.92, speed: 0.98, reaction: 1 },
-    Hard: { precision: 1.12, speed: 1.08, reaction: 1.2 }
+    Easy: { precision: 0.78, speed: 0.86, reaction: 0.82, maxSpeed: 0.88, acceleration: 0.86, cornerSpeed: 0.72, steeringSkill: 0.82, recoverySpeed: 0.82, boostUsageRate: 0.34, itemUsageSkill: 0.42, mistakeRate: 0.16, avoidanceStrength: 0.78, rubberBanding: 0.06 },
+    Normal: { precision: 1.0, speed: 1.0, reaction: 1.0, maxSpeed: 1.0, acceleration: 1.0, cornerSpeed: 0.9, steeringSkill: 1.0, recoverySpeed: 1.05, boostUsageRate: 0.62, itemUsageSkill: 0.62, mistakeRate: 0.08, avoidanceStrength: 1.0, rubberBanding: 0.11 },
+    Hard: { precision: 1.22, speed: 1.14, reaction: 1.24, maxSpeed: 1.16, acceleration: 1.2, cornerSpeed: 1.08, steeringSkill: 1.24, recoverySpeed: 1.38, boostUsageRate: 0.88, itemUsageSkill: 0.84, mistakeRate: 0.03, avoidanceStrength: 1.3, rubberBanding: 0.18 }
   },
   characters: [
     {
@@ -1550,8 +1550,11 @@ function courseTheme(course = activeCourse()) {
   return {
     id,
     surfaceType: course?.surfaceType || "metal-ring",
+    backgroundType: course?.backgroundType || course?.background?.kind || "space",
     gravityFeel: course?.gravityFeel || "stable",
     boostStyle: course?.boostStyle || "standard",
+    jumpStyle: course?.jumpStyle || "standard",
+    gripModifier: Number.isFinite(course?.gripModifier) ? course.gripModifier : 1,
     roadColor: hexColor(palette.road, 0x1b2d3d),
     roadEmissive: hexColor(palette.roadEmissive, 0x2c5968),
     railLeft: hexColor(palette.railLeft, primary),
@@ -1565,10 +1568,10 @@ function courseTheme(course = activeCourse()) {
     fogColor: hexColor(palette.fog || palette.sky, 0x11243d),
     skyColor: hexColor(palette.sky || palette.fog, 0x07111f),
     accentColor: accent,
-    roadOpacity: id === "lunar-crater-run" ? 0.94 : id === "nebula-drift-stream" ? 0.91 : 0.97,
-    railOpacity: id === "lunar-crater-run" ? 0.42 : id === "meteor-mining-belt" ? 0.76 : 0.84,
-    fogDensity: id === "nebula-drift-stream" ? 0.009 : id === "meteor-mining-belt" ? 0.0078 : id === "lunar-crater-run" ? 0.0038 : 0.0062,
-    structureStep: id === "lunar-crater-run" ? (QUALITY.low ? 58 : 34) : id === "starlight-orbit-ring" ? (QUALITY.low ? 42 : 16) : (QUALITY.low ? 56 : 26)
+    roadOpacity: id === "lunar-crater-run" ? 0.94 : id === "nebula-drift-stream" ? 0.9 : id === "starlight-orbit-ring" ? 0.96 : 0.97,
+    railOpacity: id === "lunar-crater-run" ? 0.42 : id === "meteor-mining-belt" ? 0.58 : id === "nebula-drift-stream" ? 0.62 : 0.76,
+    fogDensity: id === "nebula-drift-stream" ? 0.0072 : id === "meteor-mining-belt" ? 0.009 : id === "lunar-crater-run" ? 0.0038 : 0.0056,
+    structureStep: id === "lunar-crater-run" ? (QUALITY.low ? 58 : 34) : id === "starlight-orbit-ring" ? (QUALITY.low ? 46 : 20) : (QUALITY.low ? 58 : 30)
   };
 }
 
@@ -2156,11 +2159,44 @@ function addLunarObstacle(trackInfo, sample, index, offset, type) {
   trackInfo.group.add(mesh);
   obstacles.push({ mesh, radius: type === "crate" ? 2.8 : 1.55, type, index, normal: sample.normal.clone(), tangent: sample.tangent.clone() });
 }
-function addObstacles(trackInfo) {
+function addThemedObstacle(trackInfo, sample, index, offset, type) {
+  const theme = trackInfo.theme || courseTheme();
+  let mesh;
+  let radius;
+  if (theme.id === "meteor-mining-belt") {
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x9b4728, emissive: 0x351207, emissiveIntensity: 0.18, roughness: 0.88, metalness: 0.03 });
+    const beaconMat = new THREE.MeshStandardMaterial({ color: 0xd77a44, emissive: theme.warningColor, emissiveIntensity: 0.34, roughness: 0.56, metalness: 0.12 });
+    mesh = type === "crate" ? new THREE.Mesh(new THREE.DodecahedronGeometry(2.5, 0), rockMat) : new THREE.Mesh(new THREE.ConeGeometry(1.25, 3.2, 7), beaconMat);
+    mesh.scale.y = type === "crate" ? 0.62 + rand() * 0.28 : 1;
+    radius = type === "crate" ? 3.0 : 1.65;
+  } else if (theme.id === "starlight-orbit-ring") {
+    const ringMat = new THREE.MeshStandardMaterial({ color: 0xdbeeff, emissive: 0x557da8, emissiveIntensity: 0.22, roughness: 0.32, metalness: 0.1 });
+    const guardMat = new THREE.MeshBasicMaterial({ color: theme.warningColor, transparent: true, opacity: 0.72, blending: THREE.AdditiveBlending, depthWrite: false });
+    mesh = type === "crate" ? new THREE.Mesh(new THREE.DodecahedronGeometry(2.1, 0), ringMat) : new THREE.Mesh(new THREE.OctahedronGeometry(1.35, 0), guardMat);
+    mesh.scale.set(type === "crate" ? 1.45 : 1, type === "crate" ? 0.72 : 1.4, 1);
+    radius = type === "crate" ? 2.7 : 1.75;
+  } else if (theme.id === "nebula-drift-stream") {
+    const iceMat = new THREE.MeshStandardMaterial({ color: 0xd8fbff, emissive: 0x7df9ff, emissiveIntensity: 0.36, roughness: 0.16, metalness: 0.04, transparent: true, opacity: 0.82 });
+    mesh = type === "crate" ? new THREE.Mesh(new THREE.ConeGeometry(1.5, 4.4, 5), iceMat) : new THREE.Mesh(new THREE.ConeGeometry(1.0, 3.2, 5), iceMat.clone());
+    mesh.rotation.z = (rand() - 0.5) * 0.28;
+    radius = type === "crate" ? 2.35 : 1.55;
+  } else {
+    return null;
+  }
+  mesh.position.copy(sample.point).addScaledVector(sample.normal, offset);
+  mesh.position.y += type === "crate" ? 1.5 : 1.8;
+  mesh.rotation.y = rand() * Math.PI;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  trackInfo.group.add(mesh);
+  obstacles.push({ mesh, radius, type, index, normal: sample.normal.clone(), tangent: sample.tangent.clone() });
+  return mesh;
+}function addObstacles(trackInfo) {
   const theme = trackInfo.theme || courseTheme();
   (trackInfo.layout || courseLayout()).obstacles.forEach(([index, offset, type]) => {
     const sample = trackInfo.samples[index];
     if (theme.id === "lunar-crater-run") return addLunarObstacle(trackInfo, sample, index, offset, type);
+    if (["meteor-mining-belt", "starlight-orbit-ring", "nebula-drift-stream"].includes(theme.id)) return addThemedObstacle(trackInfo, sample, index, offset, type);
     const mesh =
       type === "crate"
         ? new THREE.Mesh(
@@ -2241,8 +2277,45 @@ function addLunarRoadDetails(trackInfo) {
     trackInfo.group.add(arrow);
   });
 }
-function addRoadDetails(trackInfo) {
-  if ((trackInfo.theme || courseTheme()).id === "lunar-crater-run") return addLunarRoadDetails(trackInfo);
+function addThemedRoadDetails(trackInfo) {
+  const theme = trackInfo.theme || courseTheme();
+  const isMars = theme.id === "meteor-mining-belt";
+  const isRing = theme.id === "starlight-orbit-ring";
+  const isIce = theme.id === "nebula-drift-stream";
+  const laneColor = isMars ? theme.warningColor : isRing ? theme.warningColor : 0xffffff;
+  const laneMat = new THREE.MeshBasicMaterial({ color: laneColor, transparent: true, opacity: isIce ? 0.34 : 0.42, blending: isMars ? THREE.NormalBlending : THREE.AdditiveBlending, depthWrite: false });
+  const scuffMat = new THREE.MeshBasicMaterial({ color: isMars ? 0x5b2112 : isIce ? 0xffffff : 0xbfd7ff, transparent: true, opacity: isMars ? 0.2 : 0.24, depthWrite: false });
+  for (let i = 8; i < TRACK_STEPS; i += (QUALITY.low ? 42 : 18)) {
+    const sample = trackInfo.samples[i];
+    const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
+    const center = new THREE.Mesh(new THREE.BoxGeometry(isRing ? 0.2 : 0.14, 0.035, isRing ? 5.8 : 4.2), laneMat);
+    center.position.copy(sample.point);
+    center.position.y += 0.13;
+    center.rotation.y = yaw;
+    trackInfo.group.add(center);
+    [-1, 1].forEach((side) => {
+      const mark = new THREE.Mesh(new THREE.BoxGeometry(isIce ? 0.12 : 2.2 + rand() * 2.6, 0.026, isIce ? 3.4 + rand() * 3 : 0.18), scuffMat.clone());
+      mark.position.copy(sample.point).addScaledVector(sample.normal, side * (TRACK_WIDTH * 0.38 + rand() * 2.4));
+      mark.position.y += 0.12;
+      mark.rotation.y = yaw + (isIce ? side * 0.75 : (rand() - 0.5) * 0.28);
+      trackInfo.group.add(mark);
+    });
+  }
+  const highlights = isMars ? [64, 154, 292] : isRing ? [92, 174, 286] : [70, 198, 328];
+  highlights.forEach((index, n) => {
+    const sample = trackInfo.samples[layoutIndex(index)];
+    const arrow = new THREE.Mesh(new THREE.ConeGeometry(isRing ? 1.2 : 0.9, isIce ? 2.4 : 2.8, 3), laneMat.clone());
+    arrow.position.copy(sample.point).addScaledVector(sample.tangent, -2.2).addScaledVector(sample.normal, n % 2 ? -2.2 : 2.2);
+    arrow.position.y += 0.16;
+    arrow.rotation.x = Math.PI / 2;
+    arrow.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+    arrow.scale.set(isMars ? 1.2 : 1.45, 0.62, 1);
+    trackInfo.group.add(arrow);
+  });
+}function addRoadDetails(trackInfo) {
+  const theme = trackInfo.theme || courseTheme();
+  if (theme.id === "lunar-crater-run") return addLunarRoadDetails(trackInfo);
+  if (["meteor-mining-belt", "starlight-orbit-ring", "nebula-drift-stream"].includes(theme.id)) return addThemedRoadDetails(trackInfo);
   const arrowMat = new THREE.MeshStandardMaterial({ color: 0xffd166, emissive: 0xff9f1c, emissiveIntensity: 0.95, roughness: 0.2, metalness: 0.22 });
   const laneMat = new THREE.MeshBasicMaterial({ color: 0xbefbff, transparent: true, opacity: 0.48, blending: THREE.AdditiveBlending, depthWrite: false });
   addRoadDecalRuns(trackInfo);
@@ -2425,6 +2498,61 @@ function createRoadSurfaceTexture(surfaceType = "metal-ring", theme = null) {
       ctx.lineTo(size, y + 8 * Math.sin(y));
       ctx.stroke();
     }
+  } else if (surfaceType.startsWith("mars")) {
+    ctx.fillStyle = "rgba(255, 211, 150, 0.08)";
+    for (let i = 0; i < (QUALITY.low ? 90 : 220); i += 1) {
+      ctx.fillRect(rand() * size, rand() * size, 3 + rand() * 18, 1 + rand() * 2);
+    }
+    ctx.strokeStyle = toCss(glow, 0.18);
+    ctx.lineWidth = 2;
+    for (let y = 0; y < size; y += QUALITY.low ? 34 : 48) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + rand() * 8);
+      ctx.bezierCurveTo(size * 0.28, y + 12, size * 0.72, y - 10, size, y + rand() * 14);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(70,24,12,0.18)";
+    for (let i = 0; i < (QUALITY.low ? 16 : 42); i += 1) {
+      const r = 4 + rand() * 18;
+      ctx.beginPath();
+      ctx.ellipse(rand() * size, rand() * size, r * 1.8, r * 0.55, rand() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (surfaceType.startsWith("ring")) {
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    for (let y = 0; y < size; y += QUALITY.low ? 22 : 28) ctx.fillRect(0, y, size, 2);
+    ctx.fillStyle = toCss(theme?.warningColor || 0xe8c66a, 0.2);
+    for (let x = 0; x < size; x += QUALITY.low ? 42 : 56) ctx.fillRect(x, 0, 2, size);
+    ctx.strokeStyle = toCss(glow, 0.28);
+    ctx.lineWidth = QUALITY.low ? 2 : 3;
+    for (let i = 0; i < (QUALITY.low ? 8 : 18); i += 1) {
+      const y = rand() * size;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y + (rand() - 0.5) * 34);
+      ctx.stroke();
+    }
+  } else if (surfaceType.startsWith("comet")) {
+    for (let i = 0; i < (QUALITY.low ? 22 : 54); i += 1) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const radius = 10 + rand() * 28;
+      const shine = ctx.createRadialGradient(x, y, 1, x, y, radius);
+      shine.addColorStop(0, "rgba(255,255,255,0.24)");
+      shine.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = shine;
+      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    }
+    ctx.strokeStyle = "rgba(255,255,255,0.46)";
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < (QUALITY.low ? 18 : 46); i += 1) {
+      const x = rand() * size;
+      const y = rand() * size;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (rand() - 0.5) * 90, y + 18 + rand() * 60);
+      ctx.stroke();
+    }
   } else if (surfaceType === "asteroid-rock") {
     ctx.strokeStyle = toCss(theme?.warningColor || 0xff9f5a, 0.18);
     for (let y = 0; y < size; y += QUALITY.low ? 28 : 36) {
@@ -2485,7 +2613,7 @@ function createRoadRoughnessTexture(surfaceType = "metal-ring") {
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = surfaceType.startsWith("lunar") ? "#c7ccd4" : surfaceType === "nebula-glass" ? "#777" : "#999";
+  ctx.fillStyle = surfaceType.startsWith("lunar") ? "#c7ccd4" : surfaceType.startsWith("mars") ? "#9c4d2e" : surfaceType.startsWith("comet") ? "#d8f8ff" : surfaceType.startsWith("ring") ? "#d8e8f7" : surfaceType === "nebula-glass" ? "#777" : "#999";
   ctx.fillRect(0, 0, size, size);
   const noiseCount = QUALITY.low ? 70 : 180;
   for (let i = 0; i < noiseCount; i += 1) {
@@ -2716,6 +2844,306 @@ function addLunarSurfaceBackdrop(city, theme) {
   city.add(farCraters);
 }
 
+function createMarsPlainTexture(theme) {
+  const key = `mars-plain-${QUALITY.low ? "low" : "hi"}`;
+  if (roadSurfaceTextureCache.has(key)) return roadSurfaceTextureCache.get(key);
+  const canvas = document.createElement("canvas");
+  const size = QUALITY.low ? 256 : 512;
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, "#c56a3e");
+  grad.addColorStop(0.52, "#8e3e25");
+  grad.addColorStop(1, "#4b2115");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = "rgba(255,204,144,0.08)";
+  for (let i = 0; i < (QUALITY.low ? 700 : 1700); i += 1) ctx.fillRect(rand() * size, rand() * size, 1 + rand() * 2, 1);
+  ctx.strokeStyle = "rgba(80,28,14,0.28)";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < (QUALITY.low ? 18 : 42); i += 1) {
+    const y = rand() * size;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.bezierCurveTo(size * 0.25, y + rand() * 34, size * 0.65, y - rand() * 34, size, y + rand() * 22);
+    ctx.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(3.4, 3.4);
+  texture.generateMipmaps = !QUALITY.low;
+  texture.userData.sharedCache = true;
+  roadSurfaceTextureCache.set(key, texture);
+  return texture;
+}
+
+function createIcePlainTexture() {
+  const key = `ice-plain-${QUALITY.low ? "low" : "hi"}`;
+  if (roadSurfaceTextureCache.has(key)) return roadSurfaceTextureCache.get(key);
+  const canvas = document.createElement("canvas");
+  const size = QUALITY.low ? 256 : 512;
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, "#f4feff");
+  grad.addColorStop(0.45, "#9edff2");
+  grad.addColorStop(1, "#23557a");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  ctx.strokeStyle = "rgba(255,255,255,0.48)";
+  for (let i = 0; i < (QUALITY.low ? 30 : 76); i += 1) {
+    const x = rand() * size;
+    const y = rand() * size;
+    ctx.lineWidth = 1 + rand() * 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (rand() - 0.5) * 90, y + (rand() - 0.5) * 120);
+    ctx.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2.8, 2.8);
+  texture.generateMipmaps = !QUALITY.low;
+  texture.userData.sharedCache = true;
+  roadSurfaceTextureCache.set(key, texture);
+  return texture;
+}
+
+function addMarsSurfaceBackdrop(city, theme) {
+  const plain = new THREE.Mesh(
+    new THREE.CircleGeometry(450, QUALITY.low ? 72 : 128),
+    new THREE.MeshBasicMaterial({ map: createMarsPlainTexture(theme), color: 0xffa06a, transparent: true, opacity: 0.86, depthWrite: false })
+  );
+  plain.rotation.x = -Math.PI / 2;
+  plain.position.y = -6.2;
+  city.add(plain);
+
+  const canyonMat = new THREE.MeshStandardMaterial({ color: 0x7a321f, emissive: 0x2a0f08, emissiveIntensity: 0.16, roughness: 0.9, metalness: 0.02 });
+  const count = QUALITY.low ? 10 : 20;
+  const geo = new THREE.ConeGeometry(1, 1, 6);
+  const cliffs = new THREE.InstancedMesh(geo, canyonMat, count);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < count; i += 1) {
+    const angle = rand() * Math.PI * 2;
+    const radius = 165 + rand() * 190;
+    const height = 28 + rand() * 56;
+    dummy.position.set(Math.cos(angle) * radius, -6 + height * 0.42, Math.sin(angle) * radius);
+    dummy.rotation.set(0, rand() * Math.PI, 0);
+    dummy.scale.set(14 + rand() * 32, height, 12 + rand() * 24);
+    dummy.updateMatrix();
+    cliffs.setMatrixAt(i, dummy.matrix);
+  }
+  cliffs.castShadow = false;
+  cliffs.receiveShadow = false;
+  city.add(cliffs);
+}
+
+function addRingPlanetBackdrop(city, theme) {
+  const planet = new THREE.Mesh(
+    new THREE.SphereGeometry(94, QUALITY.low ? 32 : 56, QUALITY.low ? 16 : 26),
+    new THREE.MeshStandardMaterial({ color: 0x4f79b6, emissive: 0x1d3f74, emissiveIntensity: 0.52, roughness: 0.55, metalness: 0.02 })
+  );
+  planet.position.set(0, -96, -235);
+  city.add(planet);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xf5d77a, transparent: true, opacity: 0.34, side: THREE.DoubleSide, depthWrite: false });
+  [132, 166, 206].forEach((radius, i) => {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(radius, radius + 5 + i, QUALITY.low ? 96 : 160), ringMat.clone());
+    ring.position.copy(planet.position);
+    ring.rotation.set(1.18, 0.08, -0.24);
+    ring.material.opacity = 0.18 + i * 0.06;
+    city.add(ring);
+  });
+}
+
+function addIceCometBackdrop(city, theme) {
+  const plain = new THREE.Mesh(
+    new THREE.CircleGeometry(420, QUALITY.low ? 72 : 128),
+    new THREE.MeshBasicMaterial({ map: createIcePlainTexture(), color: 0xd8fbff, transparent: true, opacity: 0.74, depthWrite: false })
+  );
+  plain.rotation.x = -Math.PI / 2;
+  plain.position.y = -6.4;
+  city.add(plain);
+  const tailMat = new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: QUALITY.low ? 0.12 : 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const tails = QUALITY.low ? 3 : 6;
+  for (let i = 0; i < tails; i += 1) {
+    const tail = new THREE.Mesh(new THREE.PlaneGeometry(320 + i * 44, 18 + i * 5), tailMat.clone());
+    tail.position.set(-120 + i * 38, 38 + i * 7, -245 + i * 42);
+    tail.rotation.set(0.3, 0.5 - i * 0.08, 0.08 + i * 0.06);
+    tail.material.opacity *= 1 - i * 0.08;
+    city.add(tail);
+  }
+}
+
+function addMarsCourseSet(city, theme = courseTheme()) {
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x8e3f25, emissive: 0x2b1008, emissiveIntensity: 0.16, roughness: 0.88, metalness: 0.03 });
+  const count = QUALITY.low ? 22 : 46;
+  const rocks = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(1, 0), rockMat, count);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < count; i += 1) {
+    const sample = track.samples[(i * 29 + 11) % TRACK_STEPS];
+    const side = i % 2 ? 1 : -1;
+    const size = 0.9 + rand() * (i % 5 === 0 ? 6.5 : 2.8);
+    dummy.position.copy(sample.point).addScaledVector(sample.normal, side * (22 + rand() * 88));
+    dummy.position.y = sample.point.y + size * 0.36;
+    dummy.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
+    dummy.scale.set(size * 1.5, size * 0.76, size);
+    dummy.updateMatrix();
+    rocks.setMatrixAt(i, dummy.matrix);
+  }
+  rocks.castShadow = false;
+  rocks.receiveShadow = false;
+  city.add(rocks);
+
+  addMarsBaseCluster(city, theme, 48, 48);
+  addMarsRover(city, theme, 326, -42);
+  const dustMat = new THREE.MeshBasicMaterial({ color: 0xffb16a, transparent: true, opacity: QUALITY.low ? 0.08 : 0.13, depthWrite: false, side: THREE.DoubleSide });
+  [72, 168, 286].forEach((index, i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const dust = new THREE.Mesh(new THREE.PlaneGeometry(46 + i * 14, 15 + i * 4), dustMat.clone());
+    dust.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -28 : 32);
+    dust.position.y += 8 + i * 3;
+    dust.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z) + (i % 2 ? -0.5 : 0.5);
+    city.add(dust);
+  });
+  [[36, "MARS"], [154, "DUST"], [300, "ROCK"]].forEach(([index, label], i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const sign = createTextSprite(label, i % 2 ? theme.warningColor : theme.railLeft, 0.72);
+    sign.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -34 : 34);
+    sign.position.y += 9.5;
+    sign.scale.set(11, 4, 1);
+    city.add(sign);
+  });
+}
+
+function addMarsBaseCluster(city, theme, layout, offset) {
+  const sample = track.samples[layoutIndex(layout)];
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xb86a42, emissive: 0x3a170d, emissiveIntensity: 0.18, roughness: 0.62, metalness: 0.16 });
+  const glass = new THREE.MeshBasicMaterial({ color: theme.warningColor, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false });
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(6.2, QUALITY.low ? 16 : 24, 10), glass);
+  dome.scale.y = 0.48;
+  dome.position.y = 3.2;
+  const moduleA = new THREE.Mesh(new THREE.BoxGeometry(12, 3.4, 7), mat);
+  moduleA.position.set(-6, 1.7, 0);
+  const moduleB = new THREE.Mesh(new THREE.BoxGeometry(8, 3.0, 6), mat);
+  moduleB.position.set(6, 1.5, 2.5);
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 9, 8), mat);
+  antenna.position.set(10, 4.5, -3.2);
+  const dish = new THREE.Mesh(new THREE.ConeGeometry(2.4, 0.74, 18, 1, true), mat);
+  dish.position.set(10, 9.3, -3.2);
+  dish.rotation.x = 62 * DEG;
+  group.add(moduleA, moduleB, dome, antenna, dish);
+  group.position.copy(sample.point).addScaledVector(sample.normal, offset);
+  group.position.y = sample.point.y - 0.8;
+  group.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z) + (offset > 0 ? -Math.PI * 0.5 : Math.PI * 0.5);
+  city.add(group);
+}
+
+function addMarsRover(city, theme, layout, offset) {
+  const sample = track.samples[layoutIndex(layout)];
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xd79a69, emissive: 0x4b1d0d, emissiveIntensity: 0.14, roughness: 0.52, metalness: 0.28 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(6.5, 1.6, 3.4), mat);
+  body.position.y = 1.8;
+  group.add(body);
+  [-1, 1].forEach((x) => [-1, 1].forEach((z) => {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.46, 10), new THREE.MeshBasicMaterial({ color: 0x2d1710 }));
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(x * 2.8, 0.75, z * 1.45);
+    group.add(wheel);
+  }));
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 3.6, 6), mat);
+  mast.position.set(-2.6, 3.4, -1.0);
+  group.add(mast);
+  group.position.copy(sample.point).addScaledVector(sample.normal, offset);
+  group.position.y = sample.point.y - 0.1;
+  group.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z) + Math.PI * 0.32;
+  city.add(group);
+}
+
+function addRingPlanetSet(city, theme = courseTheme()) {
+  const debrisCount = QUALITY.low ? 24 : 56;
+  const debrisGeo = new THREE.DodecahedronGeometry(1, 0);
+  const iceMat = new THREE.MeshStandardMaterial({ color: 0xdcefff, emissive: 0x315d75, emissiveIntensity: 0.16, roughness: 0.36, metalness: 0.08 });
+  const debris = new THREE.InstancedMesh(debrisGeo, iceMat, debrisCount);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < debrisCount; i += 1) {
+    const sample = track.samples[(i * 17 + 9) % TRACK_STEPS];
+    const side = i % 2 ? 1 : -1;
+    const size = 0.45 + rand() * 1.8;
+    dummy.position.copy(sample.point).addScaledVector(sample.normal, side * (28 + rand() * 94));
+    dummy.position.y += -2 + rand() * 18;
+    dummy.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
+    dummy.scale.set(size * 1.4, size * 0.62, size);
+    dummy.updateMatrix();
+    debris.setMatrixAt(i, dummy.matrix);
+  }
+  debris.castShadow = false;
+  debris.receiveShadow = false;
+  city.add(debris);
+  [92, 174, 286].forEach((index, i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(TRACK_WIDTH * 0.7, 0.08, 8, QUALITY.low ? 36 : 64), new THREE.MeshBasicMaterial({ color: i % 2 ? theme.warningColor : theme.centerLine, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false }));
+    arch.position.copy(sample.point);
+    arch.position.y += 6.2;
+    arch.rotation.x = Math.PI / 2;
+    arch.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+    city.add(arch);
+  });
+  [[28, "PLANET"], [126, "RING"], [276, "GAP"]].forEach(([index, label], i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const sign = createTextSprite(label, i % 2 ? theme.warningColor : theme.centerLine, 0.76);
+    sign.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -34 : 34);
+    sign.position.y += 10.5;
+    sign.scale.set(12, 4.2, 1);
+    city.add(sign);
+  });
+}
+
+function addIceCometSet(city, theme = courseTheme()) {
+  const crystalMat = new THREE.MeshStandardMaterial({ color: 0xcff8ff, emissive: 0x7df9ff, emissiveIntensity: 0.42, roughness: 0.18, metalness: 0.08, transparent: true, opacity: 0.78 });
+  const count = QUALITY.low ? 18 : 38;
+  const geo = new THREE.ConeGeometry(1, 1, 5);
+  const crystals = new THREE.InstancedMesh(geo, crystalMat, count);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < count; i += 1) {
+    const sample = track.samples[(i * 23 + 13) % TRACK_STEPS];
+    const side = i % 2 ? 1 : -1;
+    const h = 4 + rand() * (i % 6 === 0 ? 14 : 7);
+    dummy.position.copy(sample.point).addScaledVector(sample.normal, side * (24 + rand() * 72));
+    dummy.position.y = sample.point.y + h * 0.48;
+    dummy.rotation.set((rand() - 0.5) * 0.32, rand() * Math.PI, (rand() - 0.5) * 0.4);
+    dummy.scale.set(1.1 + rand() * 1.8, h, 1.1 + rand() * 1.8);
+    dummy.updateMatrix();
+    crystals.setMatrixAt(i, dummy.matrix);
+  }
+  crystals.castShadow = false;
+  crystals.receiveShadow = false;
+  city.add(crystals);
+  [70, 198, 328].forEach((index, i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(TRACK_WIDTH * 0.62, 0.07, 8, QUALITY.low ? 32 : 56), new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false }));
+    ring.position.copy(sample.point);
+    ring.position.y += 5.4 + i * 0.4;
+    ring.rotation.x = Math.PI / 2;
+    ring.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+    city.add(ring);
+  });
+  [[40, "ICE"], [184, "DRIFT"], [314, "COMET"]].forEach(([index, label], i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const sign = createTextSprite(label, i % 2 ? 0xffffff : theme.centerLine, 0.78);
+    sign.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -34 : 34);
+    sign.position.y += 10.2;
+    sign.scale.set(12, 4.4, 1);
+    city.add(sign);
+  });
+}
 function buildEnvironment() {
   const city = new THREE.Group();
   const course = activeCourse();
@@ -2727,26 +3155,22 @@ function buildEnvironment() {
     addLunarSurfaceBackdrop(city, theme);
     addCourseLightPoles(city, theme);
     addLunarCourseSet(city, theme);
-  } else {
-    addStarDustSea(city, theme);
+  } else if (courseId === "meteor-mining-belt") {
+    addMarsSurfaceBackdrop(city, theme);
     addCourseLightPoles(city, theme);
-    if (courseId === "meteor-mining-belt") {
-      addMeteorMiningSet(city, theme);
-      addNeonGate(city, 54, theme.warningColor, "DANGER");
-      if (!QUALITY.low) addNeonGate(city, 308, theme.warningColor, "ROCK");
-    } else if (courseId === "nebula-drift-stream") {
-      addNebulaDriftSet(city, theme);
-      addNeonGate(city, 118, theme.railLeft, "FLOW");
-      if (!QUALITY.low) addNeonGate(city, 308, theme.railRight, "DRIFT");
-    } else {
-      addSpaceGrandPrixSet(city, theme);
-      addOrbitVenueDetails(city, theme);
-      addOrbitTubeSection(city, theme);
-      addLandmarkSpire(city, 126, 48, theme.accentColor);
-      addNeonGate(city, 54, theme.boostColor, "WARP");
-      if (!QUALITY.low) addNeonGate(city, 232, theme.railRight, "BOOST");
-      if (!QUALITY.low) addAdPanels(city);
-    }
+    addMarsCourseSet(city, theme);
+    addNeonGate(city, 54, theme.warningColor, "MARS");
+  } else if (courseId === "nebula-drift-stream") {
+    addIceCometBackdrop(city, theme);
+    addCourseLightPoles(city, theme);
+    addIceCometSet(city, theme);
+    addNeonGate(city, 118, theme.centerLine, "ICE");
+  } else {
+    addRingPlanetBackdrop(city, theme);
+    addCourseLightPoles(city, theme);
+    addRingPlanetSet(city, theme);
+    addNeonGate(city, 54, theme.boostColor, "RING");
+    if (!QUALITY.low) addNeonGate(city, 232, theme.railRight, "JUMP");
   }
 
   scene.add(city);
@@ -3694,6 +4118,7 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     obstacleCooldown: 0,
     unstuckCooldown: 0,
     stuckTimer: 0,
+    ghostTimer: 0,
     controlSteer: 0,
     boostPanelLock: 0,
     impactPose: 0,
@@ -3706,7 +4131,11 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     ai: {
       targetOffset: laneOffset,
       noise: rand() * 10,
-      useTimer: 1 + rand() * 2
+      useTimer: 1 + rand() * 2,
+      stallTimer: 0,
+      lastIndex: nearest.index,
+      laneShift: 0,
+      recoveryTimer: 0
     },
     isPlayer
   };
@@ -5295,6 +5724,7 @@ function updateRacer(racer, dt) {
   racer.stunTimer = Math.max(0, racer.stunTimer - dt);
   racer.obstacleCooldown = Math.max(0, (racer.obstacleCooldown || 0) - dt);
   racer.unstuckCooldown = Math.max(0, (racer.unstuckCooldown || 0) - dt);
+  racer.ghostTimer = Math.max(0, (racer.ghostTimer || 0) - dt);
   racer.boostPanelLock = Math.max(0, (racer.boostPanelLock || 0) - dt);
   racer.impactPose = Math.max(0, (racer.impactPose || 0) - dt * 2.4);
   racer.miniTurboTimer = Math.max(0, racer.miniTurboTimer - dt);
@@ -5308,12 +5738,18 @@ function updateRacer(racer, dt) {
     controls.steer = Math.abs(controls.steer) < 0.01 && Math.abs(racer.controlSteer) < 0.015 ? 0 : racer.controlSteer;
   }
   const stats = combinedStats(racer);
-  const lunarSurface = track?.theme?.id === "lunar-crater-run";
-  const maxSpeed = (34 + stats.speed * 3.4) * (racer.isPlayer ? 1 : difficulty().speed);
-  const accel = 15 + stats.accel * 2.1;
+  const theme = track?.theme || courseTheme();
+  const lunarSurface = theme.id === "lunar-crater-run";
+  const diff = difficulty();
+  const surfaceGrip = Number.isFinite(theme.gripModifier) ? theme.gripModifier : lunarSurface ? 0.93 : 1;
+  const cpuMaxMul = racer.isPlayer ? 1 : (diff.maxSpeed || diff.speed || 1);
+  const cpuAccelMul = racer.isPlayer ? 1 : (diff.acceleration || diff.reaction || 1);
+  const maxSpeed = (34 + stats.speed * 3.4) * cpuMaxMul;
+  const accel = (15 + stats.accel * 2.1) * cpuAccelMul;
   const brake = 28 + stats.weight * 0.8;
-  const handling = (1.3 + stats.handling * 0.11) * (lunarSurface ? 0.96 : 1);
-  const grip = (0.88 + stats.handling * 0.018 - stats.weight * 0.012) * (lunarSurface ? 0.93 : 1);
+  const handling = (1.3 + stats.handling * 0.11) * (lunarSurface ? 0.96 : 1) * (racer.isPlayer ? 1 : (diff.steeringSkill || diff.precision || 1));
+  const cpuGripHelp = racer.isPlayer ? 0 : clamp(((diff.steeringSkill || 1) - 1) * 0.08, -0.04, 0.08);
+  const grip = (0.88 + stats.handling * 0.018 - stats.weight * 0.012) * clamp(surfaceGrip + cpuGripHelp, 0.74, 1.08);
   const boostPower = 1 + stats.boost * 0.045;
   const stunned = racer.stunTimer > 0;
 
@@ -5332,7 +5768,14 @@ function updateRacer(racer, dt) {
   if (!boosting && !stunned && racer.shieldEnergy < MAX_SHIELD && (racer.shieldWarningTimer || 0) <= 0) adjustShield(racer, dt * 0.9, { silent: true });
   if (boosting && racer.speed > maxSpeed * 0.92) adjustShield(racer, -dt * (racer.isPlayer ? 1.45 : 0.85), { silent: true });
   const shieldSpeedLimit = (racer.shieldEnergy || MAX_SHIELD) < 18 ? 0.86 : 1;
-  const currentMax = maxSpeed * (boosting ? 1.32 * boostPower : 1) * shieldSpeedLimit;
+  let rubberBand = 1;
+  if (!racer.isPlayer && player && !player.finished) {
+    const gap = (player.progress || 0) - (racer.progress || 0);
+    const band = diff.rubberBanding || 0;
+    if (gap > TRACK_STEPS * 0.22) rubberBand += clamp(gap / (TRACK_STEPS * 1.2), 0, 1) * band;
+    if (gap < -TRACK_STEPS * 0.45) rubberBand -= clamp(Math.abs(gap) / (TRACK_STEPS * 1.4), 0, 1) * band * 0.45;
+  }
+  const currentMax = maxSpeed * (boosting ? 1.32 * boostPower : 1) * shieldSpeedLimit * rubberBand;
   racer.speed = clamp(racer.speed, -maxSpeed * 0.32, currentMax);
 
   const steer = controls.steer;
@@ -5394,6 +5837,12 @@ function updateRacer(racer, dt) {
       spawnMoonDust(racer.position, racer.isPlayer ? 12 : 6, racer.isPlayer ? 1.15 : 0.78);
       spawnShockwave(racer.position, 0xdde8f2, racer.isPlayer ? 3.2 : 2.2);
       racer.wobble = Math.max(racer.wobble, 0.34);
+    } else if (theme.id === "meteor-mining-belt") {
+      spawnBurst(racer.position, theme.dirtColor, racer.isPlayer ? 8 : 4, 0.68);
+      spawnShockwave(racer.position, theme.warningColor, racer.isPlayer ? 3.0 : 2.0);
+    } else if (theme.id === "nebula-drift-stream") {
+      spawnBurst(racer.position, theme.centerLine, racer.isPlayer ? 7 : 4, 0.54);
+      spawnShockwave(racer.position, 0xffffff, racer.isPlayer ? 3.4 : 2.2);
     } else {
       spawnShockwave(racer.position, racer.kart.colors.accent || racer.character.colors.accent, racer.isPlayer ? 4.5 : 3.2);
     }
@@ -5540,48 +5989,89 @@ function readPlayerControls() {
 
 function readCpuControls(racer, dt) {
   const diff = difficulty();
-  racer.ai.useTimer -= dt;
+  const steeringSkill = diff.steeringSkill || diff.precision || 1;
+  const avoidanceStrength = diff.avoidanceStrength || 1;
+  const mistakeRate = diff.mistakeRate || 0.08;
+  const boostUsage = diff.boostUsageRate || 0.55;
+  const itemSkill = diff.itemUsageSkill || 0.55;
+
+  racer.ai.useTimer -= dt * (0.85 + itemSkill * 0.45);
   if (racer.ai.useTimer <= 0 && racer.item) {
-    useItem(racer);
-    racer.ai.useTimer = 1.8 + rand() * 3.2;
+    if (rand() < itemSkill) useItem(racer);
+    racer.ai.useTimer = 1.25 + rand() * (3.0 - itemSkill * 1.2);
   }
 
-  const lookAhead = Math.floor(14 + clamp(racer.speed, 0, 70) * 0.45);
-  const targetIndex = (racer.trackIndex + lookAhead) % TRACK_STEPS;
+  const nearest = nearestTrackSample(racer.position, racer.trackIndex);
+  const stats = combinedStats(racer);
+  const baseMax = (34 + stats.speed * 3.4) * (diff.maxSpeed || diff.speed || 1);
+  const lookAhead = Math.floor(18 + clamp(racer.speed, 0, 80) * (0.46 + steeringSkill * 0.08));
+  const targetIndex = (nearest.index + lookAhead) % TRACK_STEPS;
+  const farIndex = (nearest.index + lookAhead + Math.floor(18 + steeringSkill * 10)) % TRACK_STEPS;
   const targetSample = track.samples[targetIndex];
-  const offsetNoise = Math.sin(state.time * 0.75 + racer.ai.noise) * (1.2 / diff.precision);
+  const farSample = track.samples[farIndex];
+  const futureA = track.samples[(nearest.index + 8) % TRACK_STEPS].tangent;
+  const futureB = track.samples[(nearest.index + 34) % TRACK_STEPS].tangent;
+  const futureC = track.samples[(nearest.index + 58) % TRACK_STEPS].tangent;
+  const curve = Math.max(1 - clamp(futureA.dot(futureB), -1, 1), (1 - clamp(futureB.dot(futureC), -1, 1)) * 0.82);
+
+  const offLine = Math.abs(nearest.lateral || 0);
+  const centralPull = clamp(offLine / (TRACK_WIDTH * 0.55), 0, 1) * -Math.sign(nearest.lateral || 0) * TRACK_WIDTH * 0.22;
+  let targetOffset = (racer.ai.targetOffset || 0) * (0.5 - clamp(steeringSkill - 1, 0, 0.4) * 0.28) + centralPull;
+  targetOffset += Math.sin(state.time * 0.65 + racer.ai.noise) * ((1.15 + mistakeRate * 4.2) / Math.max(0.7, diff.precision || 1));
+
+  const upcomingBoost = boostPanels.find((panel) => indexDistance(targetIndex, panel.userData.index) < 34 || indexDistance(nearest.index, panel.userData.index) < 38);
+  if (upcomingBoost && boostUsage > 0.5 && curve < 0.44) targetOffset *= 1 - boostUsage * 0.82;
+
   const target = targetSample.point
     .clone()
-    .addScaledVector(targetSample.normal, racer.ai.targetOffset + offsetNoise);
+    .addScaledVector(targetSample.normal, clamp(targetOffset, -TRACK_WIDTH * 0.3, TRACK_WIDTH * 0.3))
+    .lerp(farSample.point.clone().addScaledVector(farSample.normal, clamp(targetOffset * 0.7, -TRACK_WIDTH * 0.26, TRACK_WIDTH * 0.26)), 0.18);
   const toTarget = target.sub(racer.position);
   const desiredYaw = Math.atan2(toTarget.x, toTarget.z);
   const angle = shortestAngle(racer.yaw, desiredYaw);
+  let steer = angle * (1.35 + steeringSkill * 0.46);
 
-  const futureA = track.samples[(racer.trackIndex + 8) % TRACK_STEPS].tangent;
-  const futureB = track.samples[(racer.trackIndex + 30) % TRACK_STEPS].tangent;
-  const curve = 1 - clamp(futureA.dot(futureB), -1, 1);
-  let accel = curve < 0.18 || racer.speed < 24;
-  let brake = curve > 0.48 && racer.speed > 26 * diff.speed;
-  let steer = clamp(angle * 1.7 * diff.precision, -1, 1);
-
-  racers.forEach((other) => {
-    if (other === racer || other.finished) return;
-    const dist = other.position.distanceTo(racer.position);
-    if (dist < 8) {
-      const local = other.position.clone().sub(racer.position);
-      const right = new THREE.Vector3(Math.cos(racer.yaw), 0, -Math.sin(racer.yaw));
-      steer -= Math.sign(local.dot(right)) * (8 - dist) * 0.04;
+  const forward = forwardFromYaw(racer.yaw);
+  const right = new THREE.Vector3(forward.z, 0, -forward.x);
+  obstacles.forEach((obstacle) => {
+    if (obstacle.radius <= 0 || obstacle.type === "ramp") return;
+    if (indexDistance(nearest.index, obstacle.index) > 32) return;
+    const local = obstacle.mesh.position.clone().sub(racer.position);
+    const ahead = local.dot(forward);
+    const side = local.dot(right);
+    if (ahead > -2 && ahead < 34 && Math.abs(side) < 8.2) {
+      steer -= Math.sign(side || (nearest.lateral || 1)) * clamp((8.2 - Math.abs(side)) / 8.2, 0, 1) * 0.55 * avoidanceStrength;
     }
   });
 
-  if (racer.stunTimer > 0) {
-    accel = false;
-    brake = true;
-  }
-  const drift = curve > 0.24 && Math.abs(steer) > 0.32 && racer.speed > 22;
-  return { accel, brake, steer: clamp(steer, -1, 1), drift };
-}
+  racers.forEach((other) => {
+    if (other === racer || other.finished) return;
+    const local = other.position.clone().sub(racer.position);
+    const ahead = local.dot(forward);
+    const side = local.dot(right);
+    if (ahead > -1 && ahead < 15 && Math.abs(side) < 5.4) {
+      const escapeSide = Math.sign(side || racer.ai.targetOffset || 1);
+      steer -= escapeSide * clamp((5.4 - Math.abs(side)) / 5.4, 0, 1) * 0.42 * avoidanceStrength;
+      if (ahead > 0 && Math.abs(other.speed) < Math.abs(racer.speed) * 0.75) racer.ai.laneShift = -escapeSide * TRACK_WIDTH * 0.16;
+    }
+  });
+  racer.ai.laneShift = approach(racer.ai.laneShift || 0, 0, dt * 1.2);
+  steer += clamp((racer.ai.laneShift || 0) / TRACK_WIDTH, -0.22, 0.22);
 
+  if (rand() < mistakeRate * dt * 0.34) steer += (rand() - 0.5) * mistakeRate * 1.2;
+  steer = clamp(steer, -1, 1);
+
+  const cornerSlowdown = clamp(curve * (0.58 - (diff.cornerSpeed || 0.9) * 0.2), 0.02, 0.5);
+  let targetSpeed = baseMax * (1 - cornerSlowdown);
+  if (offLine > TRACK_WIDTH * 0.38) targetSpeed *= 0.78;
+  if (upcomingBoost && boostUsage > 0.62) targetSpeed *= 1.08;
+  const accel = racer.speed < targetSpeed * (0.97 + boostUsage * 0.04) || (upcomingBoost && racer.speed < baseMax * 1.12);
+  const brake = racer.speed > targetSpeed * (1.04 + (diff.cornerSpeed || 1) * 0.06) && curve > 0.12;
+  const drift = curve > (0.2 + mistakeRate * 0.18) && Math.abs(steer) > 0.28 && racer.speed > baseMax * 0.36;
+
+  if (racer.stunTimer > 0) return { accel: false, brake: true, steer: clamp(steer * 0.5, -1, 1), drift: false };
+  return { accel, brake, steer, drift };
+}
 function difficulty() {
   return DATA.difficulties[state.difficulty] || DATA.difficulties.Normal || fallbackData.difficulties.Normal;
 }
@@ -5674,10 +6164,15 @@ function handleSurface(racer, nearest, dt) {
 
       if (racer.isPlayer && Math.random() < 0.12) {
         if (lunarSurface) spawnMoonDust(racer.position, 2, 0.48);
+        else if (theme.id === "meteor-mining-belt") spawnBurst(racer.position, theme.dirtColor, 2, 0.56);
+        else if (theme.id === "nebula-drift-stream") spawnBurst(racer.position, theme.centerLine, 2, 0.48);
+        else if (theme.id === "starlight-orbit-ring") spawnBurst(racer.position, theme.warningColor, 2, 0.48);
         else spawnBurst(racer.position, 0x9ee7ff, 2, 0.55);
       }
     } else if (racer.isPlayer && Math.random() < 0.08) {
       if (lunarSurface) spawnMoonDust(racer.position, 2, 0.42);
+      else if (theme.id === "meteor-mining-belt") spawnBurst(racer.position, theme.dirtColor, 2, 0.68);
+      else if (theme.id === "nebula-drift-stream") spawnBurst(racer.position, theme.centerLine, 2, 0.46);
       else spawnBurst(racer.position, 0x80624e, 2, 0.75);
     }
   }
@@ -5826,14 +6321,22 @@ function handleObstacleCollisions(racer, nearest) {
       const tangent = obstacle.tangent || nearest?.sample?.tangent || forwardFromYaw(racer.yaw);
       const overlap = hitRadius - dist;
       const slideSign = Math.sign(racer.velocity.dot(tangent) || racer.speed || 1);
-      const slideStrength = obstacle.type === "pylon" ? 1.25 : 0.34;
-      racer.position.addScaledVector(away, overlap * (obstacle.type === "pylon" ? 0.92 : 0.52));
+      const cpuRecovery = !racer.isPlayer;
+      const diff = difficulty();
+      const recovery = diff.recoverySpeed || 1;
+      const slideStrength = obstacle.type === "pylon" ? (cpuRecovery ? 1.7 : 1.25) : (cpuRecovery ? 0.9 : 0.34);
+      racer.position.addScaledVector(away, overlap * (cpuRecovery ? 0.72 : obstacle.type === "pylon" ? 0.92 : 0.52));
       racer.position.addScaledVector(tangent, slideSign * overlap * slideStrength);
       if (nearest?.sample?.point) racer.position.y = nearest.sample.point.y;
-      if (obstacle.type === "pylon") {
+      if (cpuRecovery) {
+        const desiredYaw = Math.atan2(tangent.x, tangent.z);
+        racer.yaw += shortestAngle(racer.yaw, desiredYaw) * 0.38;
+        racer.speed = Math.max(Math.abs(racer.speed) * (obstacle.type === "pylon" ? 0.72 : 0.44), obstacle.type === "pylon" ? 12 * recovery : 9 * recovery);
+        racer.ai.stallTimer = Math.max(racer.ai.stallTimer || 0, 0.35);
+      } else if (obstacle.type === "pylon") {
         racer.speed = racer.speed >= 0
-          ? Math.max(racer.speed * 0.66, racer.isPlayer ? 15 : 8)
-          : Math.min(racer.speed * 0.4, racer.isPlayer ? -5 : -3);
+          ? Math.max(racer.speed * 0.66, 15)
+          : Math.min(racer.speed * 0.4, -5);
         const desiredYaw = Math.atan2(tangent.x, tangent.z);
         racer.yaw += shortestAngle(racer.yaw, desiredYaw) * 0.18;
       } else {
@@ -5846,7 +6349,7 @@ function handleObstacleCollisions(racer, nearest) {
         spawnBurst(racer.position, 0xff7a5c, obstacle.type === "pylon" ? 5 : 10, obstacle.type === "pylon" ? 0.7 : 1.1);
         spawnShockwave(racer.position, racer.kart.colors.accent || racer.character.colors.accent, obstacle.type === "pylon" ? 2.6 : 4.4);
         adjustShield(racer, obstacle.type === "pylon" ? -7 : -16, { big: obstacle.type !== "pylon" });
-        playAudio("collision", obstacle.type === "pylon" ? 0.28 : 0.55);
+        if (racer.isPlayer) playAudio("collision", obstacle.type === "pylon" ? 0.28 : 0.55);
       }
       racer.obstacleCooldown = obstacle.type === "pylon" ? 0.28 : 0.42;
     }
@@ -5857,39 +6360,70 @@ function handleStuckAssist(racer, nearest, controls, dt) {
   const movingIntent = controls.accel || controls.brake || Math.abs(controls.steer || 0) > 0.22;
   if (!movingIntent || racer.unstuckCooldown > 0 || racer.jumpHeight > 0.2) {
     racer.stuckTimer = Math.max(0, (racer.stuckTimer || 0) - dt * 1.8);
+    if (racer.ai) racer.ai.stallTimer = Math.max(0, (racer.ai.stallTimer || 0) - dt * 1.8);
     return;
   }
-  const offLine = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.42;
+
+  const diff = difficulty();
+  const recovery = racer.isPlayer ? 1 : (diff.recoverySpeed || 1);
+  const desiredYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
+  const yawError = Math.abs(shortestAngle(racer.yaw, desiredYaw));
+  const offLine = Math.abs(nearest.lateral) > TRACK_WIDTH * (racer.isPlayer ? 0.42 : 0.34);
   const nearObstacle = obstacles.some((obstacle) => {
     if (obstacle.radius <= 0 || obstacle.type === "ramp") return false;
-    if (indexDistance(nearest.index, obstacle.index) > 6) return false;
+    if (indexDistance(nearest.index, obstacle.index) > (racer.isPlayer ? 6 : 10)) return false;
     const dx = racer.position.x - obstacle.mesh.position.x;
     const dz = racer.position.z - obstacle.mesh.position.z;
-    const radius = obstacle.radius + (obstacle.type === "pylon" ? 4.2 : 3.4);
+    const radius = obstacle.radius + (obstacle.type === "pylon" ? 4.2 : 3.6);
     return dx * dx + dz * dz < radius * radius;
   });
-  const trapped = Math.abs(racer.speed) < (racer.isPlayer ? 5.2 : 3.8) && (nearObstacle || offLine || racer.obstacleCooldown > 0.18);
+
+  let notProgressing = false;
+  if (!racer.isPlayer) {
+    const lastIndex = racer.ai.lastIndex ?? nearest.index;
+    const moved = indexDistance(nearest.index, lastIndex);
+    notProgressing = moved < 2 && Math.abs(racer.speed) < 8.5;
+    racer.ai.lastIndex = nearest.index;
+  }
+  const trapped = Math.abs(racer.speed) < (racer.isPlayer ? 5.2 : 8.5) && (nearObstacle || offLine || yawError > 1.15 || racer.obstacleCooldown > 0.18 || notProgressing);
   if (!trapped) {
     racer.stuckTimer = Math.max(0, (racer.stuckTimer || 0) - dt * 2.2);
+    if (racer.ai) racer.ai.stallTimer = Math.max(0, (racer.ai.stallTimer || 0) - dt * 2.5);
     return;
   }
-  racer.stuckTimer = (racer.stuckTimer || 0) + dt;
-  const limit = racer.isPlayer ? 0.55 : 1.0;
-  if (racer.stuckTimer < limit) return;
 
-  const targetIndex = (nearest.index + (racer.isPlayer ? 7 : 5)) % TRACK_STEPS;
+  racer.stuckTimer = (racer.stuckTimer || 0) + dt;
+  if (racer.ai) racer.ai.stallTimer = (racer.ai.stallTimer || 0) + dt * (nearObstacle ? 1.35 : 1);
+  const softLimit = racer.isPlayer ? 0.55 : 0.45 / recovery;
+  if (racer.stuckTimer < softLimit && (!racer.ai || racer.ai.stallTimer < softLimit)) return;
+
+  const inward = -Math.sign(nearest.lateral || 0);
+  racer.position.addScaledVector(nearest.sample.normal, inward * clamp(Math.abs(nearest.lateral) / TRACK_WIDTH, 0.1, 0.8) * 1.6 * recovery);
+  racer.yaw += shortestAngle(racer.yaw, desiredYaw) * clamp(dt * (4.2 + recovery * 2.4), 0, 0.32);
+  racer.velocity.copy(nearest.sample.tangent).multiplyScalar(Math.max(10 * recovery, Math.abs(racer.speed)));
+  racer.speed = Math.max(Math.abs(racer.speed), racer.isPlayer ? 17 : 16 * recovery);
+
+  const hardLimit = racer.isPlayer ? 1.15 : 1.05 / recovery;
+  if (racer.stuckTimer < hardLimit && (!racer.ai || racer.ai.stallTimer < hardLimit)) return;
+
+  const targetIndex = (nearest.index + (racer.isPlayer ? 7 : 10)) % TRACK_STEPS;
   const sample = track.samples[targetIndex] || nearest.sample;
-  const safeLateral = clamp(nearest.lateral || 0, -TRACK_WIDTH * 0.24, TRACK_WIDTH * 0.24);
+  const safeLateral = clamp(nearest.lateral || 0, -TRACK_WIDTH * (racer.isPlayer ? 0.24 : 0.16), TRACK_WIDTH * (racer.isPlayer ? 0.24 : 0.16));
   racer.position.copy(sample.point).addScaledVector(sample.normal, safeLateral);
   racer.position.y = sample.point.y;
   racer.yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
-  racer.velocity.copy(sample.tangent).multiplyScalar(racer.isPlayer ? 12 : 8);
-  racer.speed = Math.max(Math.abs(racer.speed), racer.isPlayer ? 17 : 10);
+  racer.velocity.copy(sample.tangent).multiplyScalar(racer.isPlayer ? 12 : 16 * recovery);
+  racer.speed = Math.max(Math.abs(racer.speed), racer.isPlayer ? 17 : 20 * recovery);
   racer.verticalSpeed = 0;
   racer.jumpHeight = 0;
   racer.stuckTimer = 0;
+  if (racer.ai) {
+    racer.ai.stallTimer = 0;
+    racer.ai.lastIndex = targetIndex;
+  }
   racer.obstacleCooldown = 0;
-  racer.unstuckCooldown = 1.35;
+  racer.unstuckCooldown = racer.isPlayer ? 1.35 : 0.72;
+  racer.ghostTimer = racer.isPlayer ? 0 : 0.55;
   racer.wobble = Math.max(racer.wobble, 0.45);
   racer.impactPose = Math.max(racer.impactPose, 0.45);
   if (racer.isPlayer) {
@@ -5897,24 +6431,39 @@ function handleStuckAssist(racer, nearest, controls, dt) {
     spawnBurst(racer.position, racer.kart.colors.accent || racer.character.colors.accent || 0x9ee7ff, 7, 0.82);
   }
 }
-
 function handleRacerContacts(racer, dt) {
   racers.forEach((other) => {
     if (other === racer || other.finished) return;
+    const bothCpu = !racer.isPlayer && !other.isPlayer;
+    if (bothCpu && ((racer.ghostTimer || 0) > 0 || (other.ghostTimer || 0) > 0)) return;
     const dist = racer.position.distanceTo(other.position);
     if (dist > 0 && dist < 4.1) {
-      const push = racer.position.clone().sub(other.position).normalize().multiplyScalar((4.1 - dist) * 0.5);
+      const pushDir = racer.position.clone().sub(other.position).normalize();
+      const pushScale = bothCpu ? 0.28 : 0.5;
+      const push = pushDir.multiplyScalar((4.1 - dist) * pushScale);
       racer.position.add(push);
       other.position.sub(push);
-      const speedSwap = racer.speed;
-      racer.speed = racer.speed * 0.75 + other.speed * 0.18;
-      other.speed = other.speed * 0.75 + speedSwap * 0.18;
+      if (bothCpu) {
+        const tangent = track?.samples?.[racer.trackIndex]?.tangent || forwardFromYaw(racer.yaw);
+        racer.position.addScaledVector(tangent, 0.18);
+        other.position.addScaledVector(tangent, -0.12);
+        racer.speed = Math.max(racer.speed * 0.92, 10);
+        other.speed = Math.max(other.speed * 0.92, 10);
+        if (Math.abs(racer.speed) < 12 && Math.abs(other.speed) < 12) {
+          racer.ghostTimer = 0.45;
+          other.ghostTimer = 0.45;
+        }
+      } else {
+        const speedSwap = racer.speed;
+        racer.speed = racer.speed * 0.75 + other.speed * 0.18;
+        other.speed = other.speed * 0.75 + speedSwap * 0.18;
+        adjustShield(racer, -4, { silent: true });
+        adjustShield(other, -4, { silent: true });
+      }
       racer.wobble = 0.7;
       other.wobble = 0.7;
       racer.impactPose = 0.8;
       other.impactPose = 0.8;
-      adjustShield(racer, -4, { silent: true });
-      adjustShield(other, -4, { silent: true });
       if (racer.isPlayer || other.isPlayer) {
         cameraShake = Math.max(cameraShake, 0.35);
         playAudio("collision", 0.25);
@@ -5922,7 +6471,6 @@ function handleRacerContacts(racer, dt) {
     }
   });
 }
-
 function idleRacer(racer, dt) {
   const victory = racer.group.userData.victoryPose;
   const t = performance.now() * 0.001;

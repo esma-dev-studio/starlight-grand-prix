@@ -4165,3 +4165,83 @@ button,
   color: #fff0c8;
   background: rgba(26, 30, 38, 0.58);
 }
+.course-meteor-mining-belt {
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 184, 106, 0.22), transparent 24%),
+    radial-gradient(ellipse at 72% 70%, rgba(92, 34, 18, 0.5), transparent 36%),
+    linear-gradient(145deg, rgba(44, 16, 8, 0.94), rgba(165, 78, 43, 0.32) 56%, rgba(255, 208, 138, 0.12)),
+    rgba(18, 8, 4, 0.94);
+}
+
+.course-meteor-mining-belt .course-orbit {
+  clip-path: polygon(50% 0, 90% 18%, 100% 58%, 68% 100%, 23% 88%, 0 42%);
+  border-radius: 10px;
+  background:
+    radial-gradient(ellipse at 40% 60%, rgba(76, 28, 12, 0.72) 0 18%, transparent 19%),
+    radial-gradient(circle at 58% 45%, rgba(232, 117, 58, 0.88), rgba(89, 35, 18, 0.72) 62%, transparent 68%);
+  box-shadow: 0 0 18px rgba(232, 117, 58, 0.36), inset 0 -10px 18px rgba(45, 16, 8, 0.48);
+}
+
+.course-meteor-mining-belt .course-orbit::before {
+  border-color: rgba(255, 208, 138, 0.76);
+  transform: rotate(-20deg) scaleX(1.35);
+}
+
+.course-meteor-mining-belt .course-orbit::after {
+  background: #ffd08a;
+  box-shadow: 0 0 14px rgba(255, 176, 92, 0.86);
+}
+
+.course-starlight-orbit-ring {
+  background:
+    radial-gradient(circle at 76% 24%, rgba(248, 253, 255, 0.24), transparent 22%),
+    radial-gradient(circle at 26% 60%, rgba(79, 121, 182, 0.34), transparent 34%),
+    linear-gradient(145deg, rgba(7, 19, 38, 0.95), rgba(47, 77, 121, 0.34) 52%, rgba(232, 198, 106, 0.16)),
+    rgba(3, 8, 18, 0.92);
+}
+
+.course-starlight-orbit-ring .course-orbit {
+  border-color: rgba(248, 253, 255, 0.9);
+  background: radial-gradient(circle at 50% 55%, rgba(79, 121, 182, 0.86), rgba(20, 39, 69, 0.82) 58%, transparent 62%);
+  box-shadow: 0 0 18px rgba(248, 253, 255, 0.3), inset 0 0 18px rgba(232, 198, 106, 0.24);
+}
+
+.course-starlight-orbit-ring .course-orbit::before {
+  border-color: rgba(232, 198, 106, 0.86);
+  transform: rotate(-18deg) scaleX(1.9);
+}
+
+.course-starlight-orbit-ring .course-orbit::after {
+  width: 9px;
+  height: 9px;
+  background: #f8fdff;
+  box-shadow: 0 0 13px rgba(248, 253, 255, 0.9);
+}
+
+.course-nebula-drift-stream {
+  background:
+    radial-gradient(circle at 18% 20%, rgba(191, 247, 255, 0.2), transparent 28%),
+    radial-gradient(ellipse at 72% 62%, rgba(125, 249, 255, 0.16), transparent 36%),
+    linear-gradient(145deg, rgba(5, 16, 30, 0.95), rgba(18, 55, 93, 0.36) 52%, rgba(234, 251, 255, 0.12)),
+    rgba(2, 8, 18, 0.94);
+}
+
+.course-nebula-drift-stream .course-orbit {
+  clip-path: polygon(50% 0, 78% 24%, 100% 50%, 74% 76%, 50% 100%, 25% 76%, 0 50%, 24% 24%);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.72), rgba(126,203,229,0.42) 45%, rgba(18,55,93,0.1)),
+    radial-gradient(circle at 50% 50%, rgba(191,247,255,0.84), transparent 68%);
+  box-shadow: 0 0 20px rgba(125, 249, 255, 0.34), inset 0 0 22px rgba(255,255,255,0.28);
+}
+
+.course-nebula-drift-stream .course-orbit::before {
+  border-color: rgba(255, 255, 255, 0.78);
+  transform: rotate(34deg) scaleX(1.22);
+}
+
+.course-nebula-drift-stream .course-orbit::after {
+  inset: 14px;
+  background: #ffffff;
+  box-shadow: 0 0 16px rgba(191, 247, 255, 0.95);
+}
