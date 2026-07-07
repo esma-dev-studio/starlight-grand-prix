@@ -4459,3 +4459,121 @@ button,
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+/* Next polish: lightweight IP marks and stronger course identity without new images. */
+.racer-set-card.choice-card.rich-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.racer-set-card.choice-card.rich-card > :not(.racer-ip-mark) {
+  position: relative;
+  z-index: 1;
+}
+
+.racer-ip-mark {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  width: 96px;
+  height: 96px;
+  opacity: 0.34;
+  z-index: 0;
+  pointer-events: none;
+  color: var(--accent, #ffd166);
+}
+
+.racer-ip-mark i,
+.racer-ip-mark b,
+.racer-ip-mark em {
+  position: absolute;
+  display: block;
+  background: currentColor;
+  border: 1px solid color-mix(in srgb, currentColor 72%, #ffffff 12%);
+  box-shadow: none;
+}
+
+.racer-luna-mimi .racer-ip-mark i {
+  inset: 18px 25px 22px 25px;
+  border-radius: 50%;
+  background: transparent;
+  border-width: 7px;
+  border-left-color: transparent;
+  transform: rotate(-18deg);
+}
+.racer-luna-mimi .racer-ip-mark b,
+.racer-luna-mimi .racer-ip-mark em {
+  top: 0;
+  width: 12px;
+  height: 58px;
+  border-radius: 12px 12px 3px 3px;
+}
+.racer-luna-mimi .racer-ip-mark b { left: 31px; transform: rotate(-16deg); }
+.racer-luna-mimi .racer-ip-mark em { right: 31px; transform: rotate(16deg); }
+
+.racer-gamma-bolt .racer-ip-mark i {
+  inset: 18px;
+  clip-path: polygon(16% 0, 100% 0, 70% 42%, 98% 42%, 32% 100%, 48% 54%, 10% 54%);
+}
+.racer-gamma-bolt .racer-ip-mark b {
+  left: 12px;
+  top: 22px;
+  width: 72px;
+  height: 52px;
+  background: transparent;
+  border-width: 8px;
+  clip-path: polygon(0 0, 100% 0, 100% 72%, 82% 100%, 0 100%);
+}
+
+.racer-nebi-mist .racer-ip-mark i,
+.racer-nebi-mist .racer-ip-mark b,
+.racer-nebi-mist .racer-ip-mark em {
+  width: 32px;
+  height: 32px;
+  clip-path: polygon(50% 0, 62% 36%, 100% 50%, 62% 64%, 50% 100%, 38% 64%, 0 50%, 38% 36%);
+}
+.racer-nebi-mist .racer-ip-mark i { left: 31px; top: 8px; }
+.racer-nebi-mist .racer-ip-mark b { left: 8px; top: 48px; transform: scale(0.74); }
+.racer-nebi-mist .racer-ip-mark em { right: 8px; top: 50px; transform: scale(0.56); }
+
+.racer-sora-ranger .racer-ip-mark i {
+  inset: 14px;
+  border-radius: 50%;
+  background: transparent;
+  border-width: 6px;
+}
+.racer-sora-ranger .racer-ip-mark b {
+  left: 45px;
+  top: 4px;
+  width: 8px;
+  height: 86px;
+  transform: rotate(42deg);
+}
+.racer-sora-ranger .racer-ip-mark em {
+  left: 28px;
+  top: 36px;
+  width: 42px;
+  height: 20px;
+  clip-path: polygon(50% 0, 100% 100%, 50% 72%, 0 100%);
+}
+
+.racer-comet-rin .racer-ip-mark i {
+  left: 12px;
+  top: 40px;
+  width: 76px;
+  height: 14px;
+  clip-path: polygon(0 38%, 72% 0, 100% 50%, 72% 100%, 0 62%);
+}
+.racer-comet-rin .racer-ip-mark b,
+.racer-comet-rin .racer-ip-mark em {
+  left: 2px;
+  width: 44px;
+  height: 7px;
+  opacity: 0.8;
+}
+.racer-comet-rin .racer-ip-mark b { top: 31px; transform: rotate(-14deg); }
+.racer-comet-rin .racer-ip-mark em { top: 58px; transform: rotate(14deg); }
+
+.low-quality #app.is-menu .racer-ip-mark {
+  opacity: 0.22;
+}

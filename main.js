@@ -1081,6 +1081,7 @@ function populateChoices() {
     button.style.setProperty("--machine-secondary", machine?.colors?.secondary || machine?.colors?.trim || character.colors.secondary || "#14233b");
     button.style.setProperty("--machine-accent", machine?.colors?.accent || machine?.colors?.glow || character.colors.accent || "#ffd166");
     button.innerHTML =
+      '<span class="racer-ip-mark" aria-hidden="true"><i></i><b></b><em></em></span>' +
       '<span class="racer-set-visuals">' +
         '<span class="set-character-slot">' + characterVisualMarkup(character, "set-character") + '</span>' +
         '<span class="set-machine-slot">' + kartVisualMarkup(machine) + '</span>' +
@@ -2082,24 +2083,29 @@ function addStartLine(trackInfo) {
     flatShading: true
   });
   const accentMat = new THREE.MeshBasicMaterial({ color: theme.warningColor || theme.centerLine });
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH * 1.22, 0.95, 1.05), gateMat);
-  beam.position.y = 12.8;
-  const lowerBeam = new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH * 0.72, 0.42, 0.72), gateMat);
-  lowerBeam.position.y = 9.6;
-  const badge = new THREE.Mesh(new THREE.OctahedronGeometry(1.15, 0), accentMat);
-  badge.position.y = 11.3;
-  const finGeo = new THREE.BoxGeometry(4.2, 0.54, 0.64);
+  const beamGeo = new THREE.BoxGeometry(TRACK_WIDTH * 0.34, 0.76, 1.0);
+  [-1, 1].forEach((side) => {
+    const beam = new THREE.Mesh(beamGeo, gateMat);
+    beam.position.set(side * (TRACK_WIDTH * 0.34), 11.7, 0);
+    beam.rotation.z = side * 0.05;
+    gate.add(beam);
+  });
+  const lowerBeam = new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH * 0.34, 0.38, 0.66), gateMat);
+  lowerBeam.position.y = 8.5;
+  const badge = new THREE.Mesh(new THREE.OctahedronGeometry(1.05, 0), accentMat);
+  badge.position.y = 10.7;
+  const finGeo = new THREE.BoxGeometry(3.6, 0.5, 0.58);
   [-1, 1].forEach((side) => {
     const fin = new THREE.Mesh(finGeo, gateMat);
-    fin.position.set(side * (TRACK_WIDTH * 0.44), 11.35, 0);
+    fin.position.set(side * (TRACK_WIDTH * 0.44), 10.9, 0);
     fin.rotation.z = side * 0.42;
     gate.add(fin);
   });
   const label = theme.id === "meteor-mining-belt" ? "MARS" : theme.id === "starlight-orbit-ring" ? "RING" : "ICE";
   const sign = createTextSprite(label, theme.centerLine, 0.68);
-  sign.position.y = 14.4;
-  sign.scale.set(9.5, 3.4, 1);
-  gate.add(beam, lowerBeam, badge, sign);
+  sign.position.y = 13.2;
+  sign.scale.set(8.2, 3.0, 1);
+  gate.add(lowerBeam, badge, sign);
   gate.position.copy(sample.point).addScaledVector(sample.tangent, 3.0);
   gate.rotation.y = yaw;
   trackInfo.group.add(gate);
@@ -3300,6 +3306,121 @@ function addIceCometSet(city, theme = courseTheme()) {
     city.add(sign);
   });
 }
+function addCourseHeroLandmark(city, theme, courseId) {
+  if (!track?.samples?.length) return;
+  if (courseId === "lunar-crater-run") return addLunarHeroLandmark(city, theme);
+  if (courseId === "meteor-mining-belt") return addMarsHeroLandmark(city, theme);
+  if (courseId === "nebula-drift-stream") return addIceHeroLandmark(city, theme);
+  return addRingHeroLandmark(city, theme);
+}
+
+function placeHeroGroup(group, index, offset, lift = 0, yawOffset = 0) {
+  const sample = track.samples[layoutIndex(index)] || track.samples[0];
+  group.position.copy(sample.point).addScaledVector(sample.normal, offset);
+  group.position.y += lift;
+  group.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z) + (offset > 0 ? -Math.PI * 0.5 : Math.PI * 0.5) + yawOffset;
+}
+
+function addLunarHeroLandmark(city, theme) {
+  const group = new THREE.Group();
+  const rimMat = new THREE.MeshBasicMaterial({ color: 0x151a22, transparent: true, opacity: 0.62, side: THREE.DoubleSide, depthWrite: false });
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0xd6dde6, emissive: 0x6e8298, emissiveIntensity: 0.1, roughness: 0.86, metalness: 0.04, flatShading: true });
+  const rim = new THREE.Mesh(new THREE.RingGeometry(19, 26, QUALITY.low ? 18 : 28), rimMat);
+  rim.rotation.x = -Math.PI / 2;
+  rim.scale.set(1.42, 0.74, 1);
+  group.add(rim);
+  const dome = new THREE.Mesh(new THREE.DodecahedronGeometry(5.6, 0), baseMat);
+  dome.scale.set(1.25, 0.48, 1.25);
+  dome.position.set(-8, 2.4, -5);
+  group.add(dome);
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 12, 6), baseMat);
+  antenna.position.set(7, 6, 3);
+  group.add(antenna);
+  const dish = new THREE.Mesh(new THREE.ConeGeometry(3.6, 0.9, QUALITY.low ? 12 : 18, 1, true), baseMat);
+  dish.position.set(7, 12.2, 3);
+  dish.rotation.x = 58 * DEG;
+  group.add(dish);
+  placeHeroGroup(group, 148, -96, -1.2, 0.08);
+  city.add(group);
+}
+
+function addMarsHeroLandmark(city, theme) {
+  const group = new THREE.Group();
+  const cliffMat = new THREE.MeshStandardMaterial({ color: 0x6b2719, emissive: 0x260b05, emissiveIntensity: 0.16, roughness: 0.92, metalness: 0.02, flatShading: true });
+  const edgeMat = new THREE.MeshBasicMaterial({ color: theme.warningColor || 0xffb16a });
+  [-1, 1].forEach((side) => {
+    const tower = new THREE.Mesh(new THREE.ConeGeometry(5.8, 30, 6), cliffMat);
+    tower.position.set(side * 14, 12, 0);
+    tower.rotation.z = side * 0.08;
+    tower.scale.set(1.0, 1.0 + (side > 0 ? 0.16 : 0), 0.72);
+    group.add(tower);
+    const cap = new THREE.Mesh(new THREE.DodecahedronGeometry(3.8, 0), cliffMat);
+    cap.position.set(side * 14, 26 + (side > 0 ? 3 : 0), 0);
+    cap.scale.set(1.5, 0.56, 1.1);
+    group.add(cap);
+  });
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(18, 1.4, 3.2), cliffMat);
+  bridge.position.set(0, 7.2, 0);
+  bridge.rotation.z = -0.04;
+  group.add(bridge);
+  const slit = new THREE.Mesh(new THREE.BoxGeometry(12, 0.34, 0.54), edgeMat);
+  slit.position.set(0, 8.5, 1.8);
+  group.add(slit);
+  placeHeroGroup(group, 218, 210, -12, -0.1);
+  city.add(group);
+}
+
+function addRingHeroLandmark(city, theme) {
+  const group = new THREE.Group();
+  const slabMat = new THREE.MeshStandardMaterial({ color: 0xd6b95f, emissive: 0x594917, emissiveIntensity: 0.18, roughness: 0.5, metalness: 0.18, flatShading: true });
+  const iceMat = new THREE.MeshStandardMaterial({ color: 0xeaf8ff, emissive: 0x6da3ba, emissiveIntensity: 0.14, roughness: 0.42, metalness: 0.08, flatShading: true });
+  [-1, 0, 1].forEach((row) => {
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(74 - Math.abs(row) * 12, 1.05, 8.5), slabMat);
+    slab.position.set(row * 14, 5 + Math.abs(row) * 1.4, row * 9);
+    slab.rotation.set(0.08, row * 0.05, -0.17 + row * 0.06);
+    group.add(slab);
+  });
+  [-1, 1].forEach((side) => {
+    const chunk = new THREE.Mesh(new THREE.DodecahedronGeometry(5.2, 0), iceMat);
+    chunk.position.set(side * 34, 10 + side * 1.5, 12 - side * 6);
+    chunk.scale.set(1.7, 0.62, 1.1);
+    chunk.rotation.set(0.3, side * 0.7, 0.2);
+    group.add(chunk);
+  });
+  const planetHint = new THREE.Mesh(new THREE.DodecahedronGeometry(18, 1), new THREE.MeshBasicMaterial({ color: 0x415f95 }));
+  planetHint.position.set(-48, -22, -34);
+  planetHint.scale.set(1.4, 0.62, 1.4);
+  group.add(planetHint);
+  placeHeroGroup(group, 96, -118, 14, 0.14);
+  city.add(group);
+}
+
+function addIceHeroLandmark(city, theme) {
+  const group = new THREE.Group();
+  const iceMat = new THREE.MeshStandardMaterial({ color: 0xcff8ff, emissive: theme.centerLine, emissiveIntensity: 0.32, roughness: 0.2, metalness: 0.04, flatShading: true });
+  const darkIce = new THREE.MeshStandardMaterial({ color: 0x2d6b8a, emissive: 0x15364c, emissiveIntensity: 0.18, roughness: 0.34, metalness: 0.02, flatShading: true });
+  [-1, 1].forEach((side) => {
+    const pillar = new THREE.Mesh(new THREE.ConeGeometry(6.8, 38, 5), side > 0 ? iceMat : darkIce);
+    pillar.position.set(side * 16, 18, 0);
+    pillar.rotation.z = side * -0.16;
+    group.add(pillar);
+  });
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(43, 3.6, 7), iceMat);
+  roof.position.set(0, 34, 0);
+  roof.rotation.z = 0.12;
+  group.add(roof);
+  const cometCore = new THREE.Mesh(new THREE.OctahedronGeometry(8, 0), iceMat);
+  cometCore.position.set(-30, 46, -22);
+  cometCore.scale.set(1.4, 0.7, 1.0);
+  group.add(cometCore);
+  const tailMat = new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: QUALITY.low ? 0.18 : 0.26, side: THREE.DoubleSide, depthWrite: false });
+  const tail = new THREE.Mesh(new THREE.PlaneGeometry(66, 9), tailMat);
+  tail.position.set(-58, 45, -26);
+  tail.rotation.set(0.2, 0.25, -0.08);
+  group.add(tail);
+  placeHeroGroup(group, 118, 104, -2.8, -0.18);
+  city.add(group);
+}
 function addIceTunnelSegments(city, theme) {
   const iceMat = new THREE.MeshStandardMaterial({ color: 0xdafcff, emissive: theme.centerLine, emissiveIntensity: 0.38, roughness: 0.14, metalness: 0.04, transparent: true, opacity: 0.56 });
   const glowMat = new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.24, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -3363,6 +3484,7 @@ function buildEnvironment() {
     if (!QUALITY.low) addNeonGate(city, 232, theme.railRight, "JUMP");
   }
 
+  addCourseHeroLandmark(city, theme, courseId);
   scene.add(city);
   environmentGroup = city;
   return city;
