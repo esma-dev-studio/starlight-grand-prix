@@ -1191,52 +1191,100 @@
     name: "Lunar Crater Run",
     jaName: "月面クレーターラン",
     kindLabel: "月面コース",
+    icon: "月",
+    shortCopy: "ふわっとジャンプする、月のコース",
+    difficultyLabel: "やさしい",
+    caution: "すこしすべる",
     theme: "月のクレーターと低重力ジャンプを走る月面グランプリコース",
     description: "白い月面、丸いクレーター、低重力ジャンプ台をぬける、軽くはねる月面コース。道は広めで、はじめてでも走りやすい。",
     colors: { primary: "#CFE7FF", secondary: "#43516A", accent: "#FFD166" },
-    features: ["月面クレーター", "低重力ジャンプ台", "広い道", "ムーンベース", "発光レール", "ブーストパネル", "どうぐボックス", "リペアリング", "月の砂", "地球の光"],
+    palette: { road: "#AEB9C9", roadEmissive: "#DDF5FF", railLeft: "#F7FBFF", railRight: "#CFE7FF", centerLine: "#FFFFFF", shortcut: "#607085", dust: "#D7E1EC", warning: "#FFD166", sky: "#080D19", fog: "#111827", structure: "#536276", boost: "#F9FAFF" },
+    surfaceType: "lunar-dust",
+    landmarks: ["大きな地球", "月面基地", "パラボラアンテナ", "月面ローバー"],
+    background: { kind: "moon", sky: "deep-space", horizon: "earth" },
+    hazards: ["月の岩", "クレーター", "低い発光ポール"],
+    gravityFeel: "low",
+    boostStyle: "few-strong",
+    roadFeel: "広め・すこしすべる・ジャンプが長い",
+    features: ["月面クレーター", "低重力ジャンプ台", "広い道", "ムーンベース", "白い発光ライン", "強いブーストパネル", "月の粉じん", "ローバー", "月の岩", "地球の光"],
     lapCount: 3,
     curveTension: 0.58,
-    backgroundEffects: ["月面の地平線", "遠くに見える地球", "クレーターの影", "白い星くず"]
+    backgroundEffects: ["月面の地平線", "遠くに見える地球", "クレーターの影", "白い粉じん"]
   };
 
   var spaceCourse = {
     id: "starlight-orbit-ring",
     name: "Orbit Station Ring",
-    jaName: "オービット・ステーションリング",
-    kindLabel: "宇宙コース",
-    theme: "惑星ステーションの外周を走る宇宙グランプリコース",
-    description: "大きな惑星、宇宙ステーション、ワープゲートを横目に走る、スピードを出しやすい宇宙軌道コース。",
+    jaName: "オービットリング",
+    kindLabel: "ステーションコース",
+    icon: "輪",
+    shortCopy: "長い直線をとばす、宇宙ステーションのコース",
+    difficultyLabel: "ふつう",
+    caution: "カーブがするどい",
+    theme: "巨大宇宙ステーションの外周リングを走る高速グランプリコース",
+    description: "金属のリング道路、青白い発光レール、ガラスチューブをぬける高速コース。直線が長く、ブーストをつなげると気持ちいい。",
     colors: { primary: "#7DF9FF", secondary: "#102846", accent: "#FF4FD8" },
-    features: ["ワープゲート", "発光レール", "大きな惑星", "宇宙ステーション", "ドッキングアーム", "流星", "ブーストパネル", "どうぐボックス", "リペアリング", "宇宙の看板"],
+    palette: { road: "#18283A", roadEmissive: "#315D75", railLeft: "#7DF9FF", railRight: "#B8F7FF", centerLine: "#7DF9FF", shortcut: "#1A3440", dust: "#274966", warning: "#FF4FD8", sky: "#07162B", fog: "#0C1E35", structure: "#152A44", boost: "#34F0FF" },
+    surfaceType: "metal-ring",
+    landmarks: ["巨大リング", "宇宙ステーション", "ガラスチューブ", "遠い惑星"],
+    background: { kind: "station", sky: "orbit", horizon: "planet" },
+    hazards: ["せまい鋭角コーナー", "ドッキングアーム"],
+    gravityFeel: "stable",
+    boostStyle: "many-fast",
+    roadFeel: "直線が長い・スピードが出る",
+    features: ["巨大ステーション", "金属路面", "ガラスチューブ", "青白い発光レール", "長い直線", "ブースト多め", "回転リング", "ドッキングアーム", "遠くの惑星", "高速区間"],
     lapCount: 3,
     curveTension: 0.42,
-    backgroundEffects: ["星が流れる背景", "遠くに見える惑星", "コース外に広がる宇宙", "ステーションライト"]
+    backgroundEffects: ["回転リング", "遠い惑星", "人工ライト", "ステーションの影"]
   };
 
   var meteorCourse = {
     id: "meteor-mining-belt",
     name: "Meteor Mining Belt",
-    jaName: "メテオ・こうざんベルト",
-    kindLabel: "隕石こうざんコース",
-    theme: "隕石こうざんのあいだをぬける力強い宇宙コース",
-    description: "大きな隕石、採掘ステーション、せまいコーナーをぬける、岩場スラロームのテクニカルコース。ぶつかりに注意。",
+    jaName: "隕石ベルト",
+    kindLabel: "危険コース",
+    icon: "岩",
+    shortCopy: "岩をよけて走る、きんちょうするコース",
+    difficultyLabel: "むずかしい",
+    caution: "岩とせまい道に注意",
+    theme: "隕石ベルトの採掘地帯をぬける危険な宇宙コース",
+    description: "浮かぶ隕石、採掘ライト、赤い警告マークの中を走るテクニカルコース。せまい区間と障害物が多く、ぶつからずに走るのが大事。",
     colors: { primary: "#FF9F5A", secondary: "#3A2419", accent: "#7DF9FF" },
-    features: ["隕石ベルト", "採掘ステーション", "岩場スラローム", "せまいカーブ", "発光レール", "低重力ジャンプ台", "ブーストパネル", "どうぐボックス", "リペアリング", "宇宙の看板"],
+    palette: { road: "#332821", roadEmissive: "#5A2E18", railLeft: "#FF9F5A", railRight: "#FF5F2E", centerLine: "#FFB86A", shortcut: "#412B22", dust: "#7A4A2B", warning: "#FF4B2E", sky: "#07080D", fog: "#170C08", structure: "#2A1A15", boost: "#FF9F5A" },
+    surfaceType: "asteroid-rock",
+    landmarks: ["浮遊隕石", "採掘リグ", "警告ビーコン", "近道ゲート"],
+    background: { kind: "asteroid", sky: "dark-belt", horizon: "ore-lights" },
+    hazards: ["浮遊岩", "岩の破片", "警告ゾーン", "近道"],
+    gravityFeel: "rough",
+    boostStyle: "risk-shortcut",
+    roadFeel: "せまい・カーブ多め・近道あり",
+    features: ["浮遊隕石", "岩の破片", "赤い警告ライト", "せまい道", "近道", "採掘ステーション", "岩場スラローム", "危険マーク", "強い影", "オレンジ発光"],
     lapCount: 3,
     curveTension: 0.64,
-    backgroundEffects: ["近くを流れる隕石", "遠くのこうざんライト", "コース下の宇宙空間", "オレンジの炉心発光"]
+    backgroundEffects: ["近くを流れる隕石", "遠くの採掘ライト", "コース下の暗い宇宙", "赤い警告発光"]
   };
 
   var nebulaCourse = {
     id: "nebula-drift-stream",
     name: "Nebula Drift Stream",
-    jaName: "ネビュラ・ドリフトストリーム",
-    kindLabel: "星雲ロングコース",
-    theme: "星雲の光の川にそって走るドリフト向けロングコース",
-    description: "むらさきの星雲、長いS字カーブ、連続ジャンプをぬける、少し長めの上級コース。ドリフトが気持ちいい。",
+    jaName: "星雲ドリフト",
+    kindLabel: "星雲コース",
+    icon: "星",
+    shortCopy: "光の雲をぬける、ふわふわしたコース",
+    difficultyLabel: "ふつう",
+    caution: "ジャンプで向きが変わりやすい",
+    theme: "星雲の光の川にそって走る幻想的なロングコース",
+    description: "むらさき、青、ピンクの星雲と光るクリスタルをぬけるロングコース。ゆるいカーブと浮遊ジャンプが多く、ドリフトが気持ちいい。",
     colors: { primary: "#A78BFA", secondary: "#15103A", accent: "#34F0B2" },
-    features: ["星雲の光", "長いS字カーブ", "ロングコース", "発光レール", "流星", "低重力ジャンプ台", "ブーストパネル", "どうぐボックス", "リペアリング", "星くず"],
+    palette: { road: "#231A4F", roadEmissive: "#5B35B8", railLeft: "#A78BFA", railRight: "#34F0B2", centerLine: "#F0B7FF", shortcut: "#292064", dust: "#6D4DE2", warning: "#F472B6", sky: "#130A2B", fog: "#1B103D", structure: "#211A55", boost: "#C084FC" },
+    surfaceType: "nebula-glass",
+    landmarks: ["星くずトンネル", "浮遊クリスタル", "発光ゲート", "星雲の光"],
+    background: { kind: "nebula", sky: "purple-cloud", horizon: "stardust" },
+    hazards: ["浮遊クリスタル", "視界が変わる光"],
+    gravityFeel: "floaty",
+    boostStyle: "flow-drift",
+    roadFeel: "ゆるいカーブ・浮遊区間多め",
+    features: ["星雲の光", "長い浮遊カーブ", "星くずトンネル", "透明クリスタル", "発光ゲート", "ドリフト向き", "ふわふわジャンプ", "光の粒子", "ピンクと青の空", "ロングコース"],
     lapCount: 4,
     curveTension: 0.34,
     backgroundEffects: ["むらさきの星雲", "光る星くず", "遠景ライト", "なめらかな発光レール"]
@@ -1244,7 +1292,7 @@
 
   var spaceCourses = [lunarCourse, spaceCourse, meteorCourse, nebulaCourse];
 
-  window.AURORA_GAME_DATA.version = "0.2.1-course-variety";
+  window.AURORA_GAME_DATA.version = "0.2.2-course-theme-performance";
   window.AURORA_GAME_DATA.selectedTitleId = "starlight-grand-prix";
   window.AURORA_GAME_DATA.selectedTitle = {
     id: "starlight-grand-prix",

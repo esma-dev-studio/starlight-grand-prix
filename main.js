@@ -18,23 +18,28 @@ const QUALITY = (() => {
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
   const width = typeof window !== "undefined" ? window.innerWidth || 1280 : 1280;
   const isTouch = typeof navigator !== "undefined" && Math.max(navigator.maxTouchPoints || 0, 0) > 0;
-  const low = dpr > 1.45 || width < 980 || isTouch;
+  const cappedDpr = Math.min(dpr, 1.5);
+  const smallTouch = isTouch || width < 900;
+  const low = dpr > 1.35 || width < 1024 || isTouch;
   return {
     low,
-    pixelRatio: Math.min(dpr, low ? 0.85 : 1.35),
-    shadowSize: low ? 384 : 1024,
-    environmentScale: low ? 0.12 : 0.62,
-    speedLineCount: low ? 7 : 24,
-    particleCap: low ? 52 : 180,
-    tireMarkCap: low ? 24 : 90,
-    maxBurst: low ? 4 : 14,
-    effectRate: low ? 0.26 : 0.68,
-    assistStrength: low ? 1.12 : 0.88,
-    guideStep: low ? 42 : 18,
-    minimapInterval: low ? 0.2 : 0.11,
-    hudInterval: low ? 0.1 : 0.05,
-    venueStep: low ? 150 : 46,
-    menuFrameInterval: low ? 1100 : 520
+    mode: smallTouch ? "かるい" : (width < 1280 || dpr > 1.15 ? "ふつう" : "きれい"),
+    pixelRatio: Math.min(cappedDpr, smallTouch ? 0.75 : low ? 0.95 : 1.5),
+    shadowSize: low ? 256 : 768,
+    environmentScale: low ? 0.07 : 0.32,
+    speedLineCount: low ? 5 : 18,
+    particleCap: low ? 36 : 130,
+    tireMarkCap: low ? 16 : 64,
+    maxBurst: low ? 3 : 10,
+    effectRate: low ? 0.18 : 0.52,
+    assistStrength: low ? 1.18 : 0.9,
+    guideStep: low ? 56 : 24,
+    minimapInterval: low ? 0.28 : 0.14,
+    hudInterval: low ? 0.14 : 0.07,
+    venueStep: low ? 180 : 78,
+    menuFrameInterval: low ? 1400 : 700,
+    trackStructureStep: low ? 44 : 18,
+    backgroundCullingDistance: low ? 360 : 620
   };
 })();
 
@@ -411,6 +416,8 @@ let speedLines = [];
 let audio = null;
 let generatedTextureAtlas = null;
 let kartLiveryAtlas = null;
+let roadSurfaceTextureCache = new Map();
+let roadRoughnessTextureCache = new Map();
 let minimapContext = null;
 let seed = 11;
 let lastHudRank = 1;
@@ -1104,14 +1111,19 @@ function populateCourse() {
       button.style.setProperty("--course-primary", course.colors?.primary || "#7df9ff");
       button.style.setProperty("--course-secondary", course.colors?.secondary || "#102846");
       button.style.setProperty("--course-accent", course.colors?.accent || "#ffd166");
-      const featureText = (course.features || []).slice(0, 4).map(friendlyFeature).join(" / ");
+      const featureText = (course.features || []).slice(0, 3).map(friendlyFeature).join(" / ");
+      const shortCopy = course.shortCopy || firstSentence(course.description) || course.theme || "宇宙を走るコース";
+      const difficultyText = course.difficultyLabel || "ふつう";
+      const cautionText = course.caution || "コースの外に注意";
+      const courseIcon = course.icon || "星";
       button.innerHTML =
-        '<span class="course-orbit" aria-hidden="true"></span>' +
-        '<span class="course-kind">' + escapeHtml(course.kindLabel || "うちゅうコース") + '</span>' +
+        '<span class="course-orbit" aria-hidden="true"><span class="course-icon">' + escapeHtml(courseIcon) + '</span></span>' +
+        '<span class="course-kind">' + escapeHtml(course.kindLabel || "コース") + '</span>' +
         '<strong>' + escapeHtml(displayName(course)) + '</strong>' +
-        '<small>' + escapeHtml(course.description || course.theme || "うちゅうコース") + '</small>' +
-        '<span class="course-lap-chip">' + escapeHtml(lapTotalForCourse(course)) + 'しゅう</span>' +
-        '<em>' + escapeHtml(featureText) + '</em>';
+        '<small class="course-one-line">' + escapeHtml(shortCopy) + '</small>' +
+        '<span class="course-meta-row"><span>むずかしさ ' + escapeHtml(difficultyText) + '</span><span>' + escapeHtml(lapTotalForCourse(course)) + 'しゅう</span></span>' +
+        '<span class="course-caution">ちゅうい ' + escapeHtml(cautionText) + '</span>' +
+        '<em><b>とくちょう</b> ' + escapeHtml(featureText) + '</em>';
       bindUiTap(button, () => selectCourse(index));
       grid.appendChild(button);
     });
@@ -1302,7 +1314,7 @@ function initThree() {
     antialias: !QUALITY.low,
     powerPreference: "high-performance"
   });
-  renderer.setPixelRatio(QUALITY.pixelRatio);
+  renderer.setPixelRatio(Math.min(QUALITY.pixelRatio, 1.5));
   renderer.shadowMap.enabled = !QUALITY.low;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1485,7 +1497,7 @@ function makeSkyDome() {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(720, 48, 24),
+    new THREE.SphereGeometry(720, QUALITY.low ? 24 : 36, QUALITY.low ? 12 : 18),
     new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, depthWrite: false })
   );
   dome.renderOrder = -10;
@@ -1494,104 +1506,103 @@ function makeSkyDome() {
 function makeGroundPlane() {
   const group = new THREE.Group();
   const plane = new THREE.Mesh(
-    new THREE.CircleGeometry(620, 96),
-    new THREE.MeshStandardMaterial({
-      color: 0x101929,
-      roughness: 0.92,
-      metalness: 0.08
-    })
+    new THREE.CircleGeometry(620, QUALITY.low ? 56 : 80),
+    new THREE.MeshBasicMaterial({ color: 0x101929 })
   );
   plane.rotation.x = -Math.PI / 2;
   plane.position.y = -7;
-  plane.receiveShadow = true;
+  plane.receiveShadow = false;
   group.add(plane);
 
-  for (let i = 0; i < 24; i += 1) {
+  const ringCount = QUALITY.low ? 7 : 14;
+  for (let i = 0; i < ringCount; i += 1) {
+    const radius = 92 + i * 32;
     const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(90 + i * 18, 0.15, 6, 160),
+      new THREE.RingGeometry(radius - 0.22, radius + 0.22, QUALITY.low ? 56 : 92),
       new THREE.MeshBasicMaterial({
         color: i % 2 ? 0x17365a : 0x273d61,
         transparent: true,
-        opacity: 0.3
+        opacity: QUALITY.low ? 0.18 : 0.26,
+        side: THREE.DoubleSide
       })
     );
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = -6.7;
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = -6.72;
     group.add(ring);
   }
   return group;
 }
+function hexColor(value, fallback = 0xffffff) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const clean = value.trim().replace(/^#/, "");
+    if (/^[0-9a-f]{6}$/i.test(clean)) return Number.parseInt(clean, 16);
+  }
+  return fallback;
+}
+
+function courseTheme(course = activeCourse()) {
+  const palette = course?.palette || {};
+  const colors = course?.colors || {};
+  const primary = hexColor(palette.railLeft || colors.primary, 0x7df9ff);
+  const accent = hexColor(palette.accent || colors.accent || palette.boost, 0xffd166);
+  const id = course?.id || "lunar-crater-run";
+  return {
+    id,
+    surfaceType: course?.surfaceType || "metal-ring",
+    gravityFeel: course?.gravityFeel || "stable",
+    boostStyle: course?.boostStyle || "standard",
+    roadColor: hexColor(palette.road, 0x1b2d3d),
+    roadEmissive: hexColor(palette.roadEmissive, 0x2c5968),
+    railLeft: hexColor(palette.railLeft, primary),
+    railRight: hexColor(palette.railRight, accent),
+    centerLine: hexColor(palette.centerLine, primary),
+    shortcutColor: hexColor(palette.shortcut, 0x1a3440),
+    dirtColor: hexColor(palette.dust, 0x705042),
+    warningColor: hexColor(palette.warning, accent),
+    boostColor: hexColor(palette.boost, accent),
+    structureColor: hexColor(palette.structure, 0x142334),
+    fogColor: hexColor(palette.fog || palette.sky, 0x11243d),
+    skyColor: hexColor(palette.sky || palette.fog, 0x07111f),
+    accentColor: accent,
+    roadOpacity: id === "nebula-drift-stream" ? 0.91 : 0.97,
+    railOpacity: id === "meteor-mining-belt" ? 0.76 : 0.84,
+    fogDensity: id === "nebula-drift-stream" ? 0.009 : id === "meteor-mining-belt" ? 0.0078 : id === "lunar-crater-run" ? 0.0048 : 0.0062,
+    structureStep: id === "starlight-orbit-ring" ? (QUALITY.low ? 42 : 16) : (QUALITY.low ? 56 : 26)
+  };
+}
+
+function applyCourseAtmosphere(theme) {
+  if (scene?.fog) {
+    scene.fog.color.setHex(theme.fogColor);
+    scene.fog.density = theme.fogDensity;
+  }
+  if (scene) scene.background = new THREE.Color(theme.skyColor);
+  if (renderer) renderer.toneMappingExposure = QUALITY.low ? 1.14 : 1.22;
+}
+
+const COURSE_PATHS = {
+  "lunar-crater-run": [
+    [0, 0, -118], [64, 5, -136], [124, 11, -86], [92, 5, -18], [142, 15, 42], [76, 19, 98], [18, 8, 66],
+    [-34, 16, 134], [-112, 10, 98], [-146, 2, 18], [-80, 8, -42], [-124, 4, -104], [-42, 0, -132]
+  ],
+  "starlight-orbit-ring": [
+    [0, 0, -168], [104, 4, -160], [184, 8, -92], [202, 12, -6], [144, 8, 88], [52, 4, 148],
+    [-62, 0, 166], [-160, 5, 124], [-204, 12, 30], [-170, 6, -70], [-96, 2, -148]
+  ],
+  "meteor-mining-belt": [
+    [0, 0, -144], [74, 6, -162], [154, 13, -96], [88, 2, -42], [168, 11, 18], [108, 18, 88], [26, 9, 148],
+    [-50, 0, 122], [-144, 8, 112], [-98, 17, 34], [-172, 7, -18], [-116, 3, -98], [-52, 0, -154]
+  ],
+  "nebula-drift-stream": [
+    [0, 0, -184], [92, 5, -164], [170, 10, -106], [136, 15, -40], [206, 9, 40], [132, 16, 120], [46, 8, 164],
+    [-50, 4, 184], [-138, 11, 126], [-194, 15, 40], [-152, 7, -34], [-212, 12, -98], [-120, 4, -164], [-34, 0, -146]
+  ]
+};
 
 function courseTrackPoints(course = activeCourse()) {
-  const id = course?.id || "lunar-crater-run";
-  if (id === "lunar-crater-run") {
-    return [
-      new THREE.Vector3(0, 0, -112),
-      new THREE.Vector3(58, 5, -128),
-      new THREE.Vector3(116, 11, -82),
-      new THREE.Vector3(86, 5, -22),
-      new THREE.Vector3(134, 15, 40),
-      new THREE.Vector3(70, 19, 92),
-      new THREE.Vector3(18, 8, 62),
-      new THREE.Vector3(-28, 16, 126),
-      new THREE.Vector3(-104, 10, 92),
-      new THREE.Vector3(-134, 2, 18),
-      new THREE.Vector3(-74, 8, -38),
-      new THREE.Vector3(-118, 4, -96),
-      new THREE.Vector3(-42, 0, -126)
-    ];
-  }
-  if (id === "starlight-orbit-ring") {
-    return [
-      new THREE.Vector3(0, 0, -152),
-      new THREE.Vector3(92, 4, -146),
-      new THREE.Vector3(168, 8, -86),
-      new THREE.Vector3(184, 12, -8),
-      new THREE.Vector3(132, 8, 78),
-      new THREE.Vector3(48, 4, 132),
-      new THREE.Vector3(-54, 0, 150),
-      new THREE.Vector3(-146, 5, 112),
-      new THREE.Vector3(-184, 12, 28),
-      new THREE.Vector3(-154, 6, -62),
-      new THREE.Vector3(-88, 2, -132)
-    ];
-  }
-  if (id === "meteor-mining-belt") {
-    return [
-      new THREE.Vector3(0, 0, -138),
-      new THREE.Vector3(72, 6, -154),
-      new THREE.Vector3(148, 13, -92),
-      new THREE.Vector3(88, 2, -44),
-      new THREE.Vector3(164, 11, 16),
-      new THREE.Vector3(106, 18, 86),
-      new THREE.Vector3(24, 9, 142),
-      new THREE.Vector3(-48, 0, 118),
-      new THREE.Vector3(-136, 8, 106),
-      new THREE.Vector3(-96, 17, 34),
-      new THREE.Vector3(-164, 7, -18),
-      new THREE.Vector3(-112, 3, -94),
-      new THREE.Vector3(-52, 0, -148)
-    ];
-  }
-  if (id === "nebula-drift-stream") {
-    return [
-      new THREE.Vector3(0, 0, -170),
-      new THREE.Vector3(84, 5, -154),
-      new THREE.Vector3(158, 10, -100),
-      new THREE.Vector3(126, 15, -38),
-      new THREE.Vector3(192, 9, 38),
-      new THREE.Vector3(122, 16, 110),
-      new THREE.Vector3(42, 8, 152),
-      new THREE.Vector3(-46, 4, 168),
-      new THREE.Vector3(-128, 11, 116),
-      new THREE.Vector3(-180, 15, 38),
-      new THREE.Vector3(-142, 7, -34),
-      new THREE.Vector3(-196, 12, -92),
-      new THREE.Vector3(-112, 4, -150),
-      new THREE.Vector3(-32, 0, -136)
-    ];
-  }
-  return courseTrackPoints({ id: "lunar-crater-run" });
+  const points = COURSE_PATHS[course?.id || "lunar-crater-run"] || COURSE_PATHS["lunar-crater-run"];
+  return points.map(([x, y, z]) => new THREE.Vector3(x, y, z));
 }
 
 function layoutIndex(index) {
@@ -1600,58 +1611,57 @@ function layoutIndex(index) {
 
 function scaledCourseLayout(layout) {
   return {
-    boostPanels: layout.boostPanels.map(layoutIndex),
-    dirtZones: layout.dirtZones.map(([start, end, offset]) => [layoutIndex(start), layoutIndex(end), offset]),
-    jumpRamps: layout.jumpRamps.map(layoutIndex),
-    itemBoxes: layout.itemBoxes.map(([index, offset]) => [layoutIndex(index), offset]),
+    boostPanels: (layout.boostPanels || []).map(layoutIndex),
+    dirtZones: (layout.dirtZones || []).map(([start, end, offset]) => [layoutIndex(start), layoutIndex(end), offset]),
+    jumpRamps: (layout.jumpRamps || []).map(layoutIndex),
+    itemBoxes: (layout.itemBoxes || []).map(([index, offset]) => [layoutIndex(index), offset]),
     repairPads: (layout.repairPads || []).map(([index, offset]) => [layoutIndex(index), offset]),
-    obstacles: layout.obstacles.map(([index, offset, type]) => [layoutIndex(index), offset, type])
+    obstacles: (layout.obstacles || []).map(([index, offset, type]) => [layoutIndex(index), offset, type]),
+    shortcuts: (layout.shortcuts || []).map(([start, end, offset, width]) => [layoutIndex(start), layoutIndex(end), offset, width])
   };
 }
 
+const COURSE_LAYOUTS = {
+  "lunar-crater-run": {
+    boostPanels: [58, 176, 322],
+    dirtZones: [[74, 108, -TRACK_WIDTH * 0.34], [214, 252, TRACK_WIDTH * 0.36], [318, 344, -TRACK_WIDTH * 0.28]],
+    jumpRamps: [78, 176, 286, 360],
+    itemBoxes: [[54, -5], [54, 5], [148, 0], [232, -4], [232, 4], [326, -5], [326, 5]],
+    repairPads: [[24, 0], [188, 0], [350, 0]],
+    obstacles: [[112, TRACK_WIDTH * 0.62, "pylon"], [268, -TRACK_WIDTH * 0.6, "pylon"], [374, TRACK_WIDTH * 0.54, "crate"]],
+    shortcuts: []
+  },
+  "starlight-orbit-ring": {
+    boostPanels: [36, 94, 154, 226, 318, 372],
+    dirtZones: [[154, 180, TRACK_WIDTH * 0.42], [260, 288, -TRACK_WIDTH * 0.38]],
+    jumpRamps: [128, 274],
+    itemBoxes: [[58, -5], [58, 5], [145, -4], [145, 5], [224, -4], [224, 4], [312, -5], [312, 5], [374, 0]],
+    repairPads: [[28, 0], [198, 0], [342, 0]],
+    obstacles: [[94, -TRACK_WIDTH * 0.62, "crate"], [176, TRACK_WIDTH * 0.58, "pylon"], [284, -TRACK_WIDTH * 0.62, "crate"], [350, TRACK_WIDTH * 0.58, "pylon"]],
+    shortcuts: [[186, 228, -TRACK_WIDTH * 0.72, TRACK_WIDTH * 0.42]]
+  },
+  "meteor-mining-belt": {
+    boostPanels: [34, 122, 214, 304, 374],
+    dirtZones: [[78, 116, -TRACK_WIDTH * 0.38], [178, 206, TRACK_WIDTH * 0.36], [280, 318, -TRACK_WIDTH * 0.34]],
+    jumpRamps: [150, 332],
+    itemBoxes: [[50, -5], [50, 5], [136, 0], [198, -4], [198, 4], [286, -5], [286, 5], [362, 0]],
+    repairPads: [[26, 0], [190, 0], [346, 0]],
+    obstacles: [[72, -TRACK_WIDTH * 0.66, "pylon"], [118, TRACK_WIDTH * 0.62, "crate"], [166, -TRACK_WIDTH * 0.64, "crate"], [238, TRACK_WIDTH * 0.64, "pylon"], [318, -TRACK_WIDTH * 0.62, "crate"]],
+    shortcuts: [[244, 292, TRACK_WIDTH * 0.76, TRACK_WIDTH * 0.38]]
+  },
+  "nebula-drift-stream": {
+    boostPanels: [48, 146, 256, 348],
+    dirtZones: [[118, 170, TRACK_WIDTH * 0.38], [286, 338, -TRACK_WIDTH * 0.36]],
+    jumpRamps: [96, 224, 304, 382],
+    itemBoxes: [[62, -5], [62, 5], [166, -4], [166, 4], [246, 0], [324, -5], [324, 5], [392, 0]],
+    repairPads: [[34, 0], [218, 0], [372, 0]],
+    obstacles: [[106, TRACK_WIDTH * 0.6, "crate"], [196, -TRACK_WIDTH * 0.62, "pylon"], [282, TRACK_WIDTH * 0.62, "pylon"], [360, -TRACK_WIDTH * 0.62, "crate"]],
+    shortcuts: []
+  }
+};
+
 function courseLayout(course = activeCourse()) {
-  const id = course?.id || "lunar-crater-run";
-  if (id === "lunar-crater-run") {
-    return scaledCourseLayout({
-      boostPanels: [44, 132, 246, 338],
-      dirtZones: [[74, 104, -TRACK_WIDTH * 0.34], [214, 252, TRACK_WIDTH * 0.36], [318, 344, -TRACK_WIDTH * 0.28]],
-      jumpRamps: [78, 176, 286, 360],
-      itemBoxes: [[54, -5], [54, 5], [148, 0], [232, -4], [232, 4], [326, -5], [326, 5]],
-      repairPads: [[24, 0], [188, 0], [350, 0]],
-      obstacles: [[112, TRACK_WIDTH * 0.58, "pylon"], [268, -TRACK_WIDTH * 0.56, "pylon"], [374, TRACK_WIDTH * 0.5, "crate"]]
-    });
-  }
-  if (id === "starlight-orbit-ring") {
-    return scaledCourseLayout({
-      boostPanels: [36, 112, 206, 318, 372],
-      dirtZones: [[154, 180, TRACK_WIDTH * 0.42], [260, 288, -TRACK_WIDTH * 0.38]],
-      jumpRamps: [128, 274],
-      itemBoxes: [[58, -5], [58, 5], [145, -4], [145, 5], [224, -4], [224, 4], [312, -5], [312, 5], [374, 0]],
-      repairPads: [[28, 0], [198, 0], [342, 0]],
-      obstacles: [[94, -TRACK_WIDTH * 0.58, "crate"], [176, TRACK_WIDTH * 0.56, "pylon"], [284, -TRACK_WIDTH * 0.6, "crate"], [350, TRACK_WIDTH * 0.56, "pylon"]]
-    });
-  }
-  if (id === "meteor-mining-belt") {
-    return scaledCourseLayout({
-      boostPanels: [34, 122, 214, 304, 374],
-      dirtZones: [[78, 116, -TRACK_WIDTH * 0.38], [178, 206, TRACK_WIDTH * 0.36], [280, 318, -TRACK_WIDTH * 0.34]],
-      jumpRamps: [150, 332],
-      itemBoxes: [[50, -5], [50, 5], [136, 0], [198, -4], [198, 4], [286, -5], [286, 5], [362, 0]],
-      repairPads: [[26, 0], [190, 0], [346, 0]],
-      obstacles: [[72, -TRACK_WIDTH * 0.62, "pylon"], [118, TRACK_WIDTH * 0.58, "crate"], [166, -TRACK_WIDTH * 0.6, "crate"], [238, TRACK_WIDTH * 0.6, "pylon"], [318, -TRACK_WIDTH * 0.58, "crate"]]
-    });
-  }
-  if (id === "nebula-drift-stream") {
-    return scaledCourseLayout({
-      boostPanels: [48, 146, 256, 348],
-      dirtZones: [[118, 170, TRACK_WIDTH * 0.38], [286, 338, -TRACK_WIDTH * 0.36]],
-      jumpRamps: [96, 224, 304, 382],
-      itemBoxes: [[62, -5], [62, 5], [166, -4], [166, 4], [246, 0], [324, -5], [324, 5], [392, 0]],
-      repairPads: [[34, 0], [218, 0], [372, 0]],
-      obstacles: [[106, TRACK_WIDTH * 0.56, "crate"], [196, -TRACK_WIDTH * 0.58, "pylon"], [282, TRACK_WIDTH * 0.58, "pylon"], [360, -TRACK_WIDTH * 0.58, "crate"]]
-    });
-  }
-  return courseLayout({ id: "lunar-crater-run" });
+  return scaledCourseLayout(COURSE_LAYOUTS[course?.id || "lunar-crater-run"] || COURSE_LAYOUTS["lunar-crater-run"]);
 }
 function buildTrack() {
   const course = activeCourse();
@@ -1672,14 +1682,18 @@ function buildTrack() {
     sample.segmentLength = sample.point.distanceTo(next.point);
   });
 
-  const trackInfo = { curve, samples, width: TRACK_WIDTH, group: new THREE.Group(), layout: courseLayout(course) };
+  const theme = courseTheme(course);
+  applyCourseAtmosphere(theme);
+  const trackInfo = { curve, samples, width: TRACK_WIDTH, group: new THREE.Group(), layout: courseLayout(course), theme };
   scene.add(trackInfo.group);
 
-  createTrackRibbon(trackInfo, 0, TRACK_WIDTH, 0x1b2d3d, 0x2c5968, 0.97, true);
-  createTrackRibbon(trackInfo, -TRACK_WIDTH * 0.5 - 0.55, 1.1, 0x5de7ff, 0x5de7ff, 0.82, false);
-  createTrackRibbon(trackInfo, TRACK_WIDTH * 0.5 + 0.55, 1.1, 0xffc857, 0xffc857, 0.7, false);
-  createTrackRibbon(trackInfo, 0, 0.2, 0x9ee7ff, 0x7fe8ff, 0.2, false, 14);
-  createTrackRibbon(trackInfo, -13.5, 7, 0x1a3440, 0x72f6ff, 0.58, false, 1, 186, 228);
+  createTrackRibbon(trackInfo, 0, TRACK_WIDTH, theme.roadColor, theme.roadEmissive, theme.roadOpacity, !QUALITY.low);
+  createTrackRibbon(trackInfo, -TRACK_WIDTH * 0.5 - 0.55, 1.1, theme.railLeft, theme.railLeft, theme.railOpacity, false);
+  createTrackRibbon(trackInfo, TRACK_WIDTH * 0.5 + 0.55, 1.1, theme.railRight, theme.railRight, theme.railOpacity, false);
+  createTrackRibbon(trackInfo, 0, theme.id === "meteor-mining-belt" ? 0.34 : 0.22, theme.centerLine, theme.centerLine, theme.id === "lunar-crater-run" ? 0.34 : 0.24, false, theme.id === "starlight-orbit-ring" ? 10 : 14);
+  (trackInfo.layout.shortcuts || []).forEach(([start, end, offset, width]) => {
+    createTrackRibbon(trackInfo, offset, width, theme.shortcutColor, theme.boostColor, 0.42, false, 1, start, end);
+  });
   addTrackStructure(trackInfo);
 
   addStartLine(trackInfo);
@@ -1735,8 +1749,8 @@ function createTrackRibbon(trackInfo, offset, width, color, emissive, opacity, r
     side: THREE.DoubleSide
   };
   if (receiveShadow && width > 8) {
-    materialOptions.map = createRoadSurfaceTexture();
-    materialOptions.roughnessMap = createRoadRoughnessTexture();
+    materialOptions.map = createRoadSurfaceTexture(trackInfo.theme?.surfaceType || "metal-ring", trackInfo.theme);
+    materialOptions.roughnessMap = createRoadRoughnessTexture(trackInfo.theme?.surfaceType || "metal-ring");
   }
   const material = new THREE.MeshStandardMaterial(materialOptions);
   const mesh = new THREE.Mesh(geometry, material);
@@ -1746,49 +1760,54 @@ function createTrackRibbon(trackInfo, offset, width, color, emissive, opacity, r
 }
 
 function addTrackStructure(trackInfo) {
-  const sideMat = new THREE.MeshStandardMaterial({ color: 0x142334, emissive: 0x173b52, emissiveIntensity: 0.32, roughness: 0.42, metalness: 0.55 });
-  const beamMat = new THREE.MeshStandardMaterial({ color: 0x0b1220, emissive: 0x31536d, emissiveIntensity: 0.26, roughness: 0.5, metalness: 0.65 });
-  const cyanGlow = new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.58, blending: THREE.AdditiveBlending, depthWrite: false });
-  const amberGlow = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.52, blending: THREE.AdditiveBlending, depthWrite: false });
+  const theme = trackInfo.theme || courseTheme();
+  const sideMat = new THREE.MeshStandardMaterial({ color: theme.structureColor, emissive: theme.roadEmissive, emissiveIntensity: QUALITY.low ? 0.16 : 0.26, roughness: 0.48, metalness: 0.52 });
+  const beamMat = new THREE.MeshStandardMaterial({ color: 0x08111f, emissive: theme.structureColor, emissiveIntensity: 0.2, roughness: 0.56, metalness: 0.58 });
+  const leftGlow = new THREE.MeshBasicMaterial({ color: theme.railLeft, transparent: true, opacity: QUALITY.low ? 0.36 : 0.52, blending: THREE.AdditiveBlending, depthWrite: false });
+  const rightGlow = new THREE.MeshBasicMaterial({ color: theme.railRight, transparent: true, opacity: QUALITY.low ? 0.32 : 0.48, blending: THREE.AdditiveBlending, depthWrite: false });
+  const edgeGeo = new THREE.BoxGeometry(0.56, 1.05, 5.2);
+  const slitGeo = new THREE.BoxGeometry(0.08, 0.07, 4.8);
+  const ribGeo = new THREE.BoxGeometry(TRACK_WIDTH * 1.04, 0.2, 0.34);
+  const step = theme.structureStep || QUALITY.trackStructureStep;
 
-  for (let i = 0; i < TRACK_STEPS; i += (QUALITY.low ? 24 : 8)) {
+  for (let i = 0; i < TRACK_STEPS; i += step) {
     const sample = trackInfo.samples[i];
     const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
     [-1, 1].forEach((side) => {
-      const edge = new THREE.Mesh(new THREE.BoxGeometry(0.64, 1.25, 5.8), sideMat);
+      const edge = new THREE.Mesh(edgeGeo, sideMat);
       edge.position.copy(sample.point).addScaledVector(sample.normal, side * (TRACK_WIDTH * 0.54 + 0.32));
-      edge.position.y -= 0.55;
+      edge.position.y -= 0.54;
       edge.rotation.y = yaw;
-      edge.castShadow = true;
-      edge.receiveShadow = true;
+      edge.castShadow = false;
+      edge.receiveShadow = false;
       trackInfo.group.add(edge);
 
-      const slit = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.08, 5.4), side > 0 ? cyanGlow : amberGlow);
+      const slit = new THREE.Mesh(slitGeo, side > 0 ? leftGlow : rightGlow);
       slit.position.copy(sample.point).addScaledVector(sample.normal, side * (TRACK_WIDTH * 0.53 + 0.68));
       slit.position.y += 0.28;
       slit.rotation.y = yaw;
       trackInfo.group.add(slit);
     });
 
-    if (i % (QUALITY.low ? 48 : 16) === 0) {
-      const rib = new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH * 1.08, 0.24, 0.42), beamMat);
+    if (i % (step * 3) === 0) {
+      const rib = new THREE.Mesh(ribGeo, beamMat);
       rib.position.copy(sample.point);
-      rib.position.y -= 1.24;
+      rib.position.y -= 1.18;
       rib.rotation.y = yaw;
-      rib.castShadow = true;
+      rib.castShadow = false;
       trackInfo.group.add(rib);
     }
 
-    if (i % (QUALITY.low ? 96 : 32) === 0) {
+    if (!QUALITY.low && i % (step * 5) === 0) {
       const pylon = new THREE.Group();
-      const drop = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.34, 18 + rand() * 18, 8), beamMat);
-      drop.position.y = -8;
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.045, 8, 24), cyanGlow.clone());
+      const drop = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.28, 13 + rand() * 12, 6), beamMat);
+      drop.position.y = -6.8;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.82, 0.035, 6, 18), (i / step) % 2 ? leftGlow : rightGlow);
       ring.rotation.x = Math.PI / 2;
-      ring.position.y = -16.2;
+      ring.position.y = -13.5;
       pylon.add(drop, ring);
-      pylon.position.copy(sample.point).addScaledVector(sample.normal, (i / 32) % 2 ? TRACK_WIDTH * 0.74 : -TRACK_WIDTH * 0.74);
-      pylon.position.y -= 1.8;
+      pylon.position.copy(sample.point).addScaledVector(sample.normal, (i / step) % 2 ? TRACK_WIDTH * 0.72 : -TRACK_WIDTH * 0.72);
+      pylon.position.y -= 1.6;
       trackInfo.group.add(pylon);
     }
   }
@@ -1841,41 +1860,43 @@ function addStartLine(trackInfo) {
 }
 
 function addBoostPanels(trackInfo) {
+  const theme = trackInfo.theme || courseTheme();
+  const panelMap = createAtlasTileTexture(1, 0) || createRoadDecalTexture("arrow");
+  const panelGeo = new THREE.BoxGeometry(10.2, 0.28, 7.8);
+  const glowGeo = new THREE.PlaneGeometry(11.8, 9.2);
+  const chevronGeo = new THREE.ConeGeometry(1.4, 3.2, 3);
+  const panelMat = new THREE.MeshStandardMaterial({
+    map: panelMap,
+    color: 0xffffff,
+    emissive: theme.boostColor,
+    emissiveMap: panelMap,
+    emissiveIntensity: theme.boostStyle === "few-strong" ? 2.2 : 1.55,
+    roughness: 0.1,
+    metalness: 0.42
+  });
+  const glowMat = new THREE.MeshBasicMaterial({ color: theme.boostColor, transparent: true, opacity: QUALITY.low ? 0.16 : 0.24, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const chevronMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.78, blending: THREE.AdditiveBlending, depthWrite: false });
+
   (trackInfo.layout || courseLayout()).boostPanels.forEach((index, i) => {
     const sample = trackInfo.samples[index];
-    const panelMap = createAtlasTileTexture(1, 0) || createRoadDecalTexture("arrow");
-    const panel = new THREE.Mesh(
-      new THREE.BoxGeometry(10.2, 0.28, 7.8),
-      new THREE.MeshStandardMaterial({
-        map: panelMap,
-        color: 0xffffff,
-        emissive: 0x20ffd6,
-        emissiveMap: panelMap,
-        emissiveIntensity: 1.85,
-        roughness: 0.08,
-        metalness: 0.46
-      })
-    );
+    const panel = new THREE.Mesh(panelGeo, panelMat);
     panel.position.copy(sample.point);
     panel.position.y += 0.16;
     panel.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
-    panel.userData = { index, radius: 9 };
+    panel.userData = { index, radius: theme.boostStyle === "few-strong" ? 10.5 : 9 };
+    panel.castShadow = false;
     trackInfo.group.add(panel);
 
-    const glowPlate = new THREE.Mesh(
-      new THREE.PlaneGeometry(11.8, 9.2),
-      new THREE.MeshBasicMaterial({ color: i % 2 ? 0xffd166 : 0x7df9ff, transparent: true, opacity: 0.24, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
-    );
-    glowPlate.position.copy(sample.point);
-    glowPlate.position.y += 0.2;
-    glowPlate.rotation.x = -Math.PI / 2;
-    glowPlate.rotation.z = -Math.atan2(sample.tangent.x, sample.tangent.z);
-    trackInfo.group.add(glowPlate);
+    if (!QUALITY.low || i % 2 === 0) {
+      const glowPlate = new THREE.Mesh(glowGeo, glowMat);
+      glowPlate.position.copy(sample.point);
+      glowPlate.position.y += 0.2;
+      glowPlate.rotation.x = -Math.PI / 2;
+      glowPlate.rotation.z = -Math.atan2(sample.tangent.x, sample.tangent.z);
+      trackInfo.group.add(glowPlate);
+    }
 
-    const chevron = new THREE.Mesh(
-      new THREE.ConeGeometry(1.4, 3.2, 3),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.82, blending: THREE.AdditiveBlending, depthWrite: false })
-    );
+    const chevron = new THREE.Mesh(chevronGeo, chevronMat);
     chevron.position.copy(sample.point).addScaledVector(sample.tangent, 0.4);
     chevron.position.y += 0.34;
     chevron.rotation.x = Math.PI / 2;
@@ -1884,50 +1905,54 @@ function addBoostPanels(trackInfo) {
     trackInfo.group.add(chevron);
 
     boostPanels.push(panel);
-    addBeacon(sample.point, i % 2 ? 0xffc857 : 0x5de7ff);
+    addBeacon(sample.point, theme.boostColor);
   });
 }
 
 function addDirtZones(trackInfo) {
+  const theme = trackInfo.theme || courseTheme();
+  const width = theme.id === "meteor-mining-belt" ? 6.6 : theme.id === "lunar-crater-run" ? 8.2 : 7.2;
+  const opacity = theme.id === "nebula-drift-stream" ? 0.44 : theme.id === "lunar-crater-run" ? 0.52 : 0.66;
   (trackInfo.layout || courseLayout()).dirtZones.forEach(([start, end, offset]) => {
-    createTrackRibbon(trackInfo, offset, 7.5, 0x705042, 0x341a16, 0.72, true, 1, start, end);
+    createTrackRibbon(trackInfo, offset, width, theme.dirtColor, theme.warningColor, opacity, false, 1, start, end);
   });
 }
 
 function addJumpRamps(trackInfo) {
+  const theme = trackInfo.theme || courseTheme();
+  const rampGeo = new THREE.BoxGeometry(10, 1.3, 7);
+  const rampMat = new THREE.MeshStandardMaterial({
+    color: theme.structureColor,
+    emissive: theme.boostColor,
+    emissiveIntensity: theme.gravityFeel === "low" || theme.gravityFeel === "floaty" ? 0.48 : 0.28,
+    roughness: 0.34,
+    metalness: 0.38
+  });
+  const ringMat = new THREE.MeshBasicMaterial({ color: theme.boostColor, transparent: true, opacity: QUALITY.low ? 0.38 : 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
   (trackInfo.layout || courseLayout()).jumpRamps.forEach((index) => {
     const sample = trackInfo.samples[index];
-    const ramp = new THREE.Mesh(
-      new THREE.BoxGeometry(10, 1.3, 7),
-      new THREE.MeshStandardMaterial({
-        color: 0x2d3f55,
-        emissive: 0x355f7a,
-        emissiveIntensity: 0.35,
-        roughness: 0.35,
-        metalness: 0.4
-      })
-    );
+    const ramp = new THREE.Mesh(rampGeo, rampMat);
     ramp.position.copy(sample.point);
     ramp.position.y += 0.65;
     const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
     ramp.rotation.y = yaw;
-    ramp.rotation.x = -10 * DEG;
-    ramp.userData = { index, radius: 10 };
+    ramp.rotation.x = theme.gravityFeel === "low" ? -7 * DEG : -10 * DEG;
+    ramp.castShadow = !QUALITY.low;
+    ramp.userData = { index, radius: theme.gravityFeel === "low" ? 11 : 10 };
     trackInfo.group.add(ramp);
 
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x9ee7ff, transparent: true, opacity: 0.58, blending: THREE.AdditiveBlending, depthWrite: false });
-    [0, 1].forEach((step) => {
-      const lowGravityRing = new THREE.Mesh(new THREE.TorusGeometry(4.8 + step * 1.2, 0.07, 8, 64), ringMat.clone());
+    const ringCount = QUALITY.low ? 1 : theme.gravityFeel === "stable" ? 1 : 2;
+    for (let step = 0; step < ringCount; step += 1) {
+      const lowGravityRing = new THREE.Mesh(new THREE.TorusGeometry(4.8 + step * 1.2, 0.06, 8, QUALITY.low ? 28 : 52), ringMat);
       lowGravityRing.position.copy(sample.point).addScaledVector(sample.tangent, 2.4 + step * 2.2);
       lowGravityRing.position.y += 4.4 + step * 1.2;
       lowGravityRing.rotation.y = yaw;
       lowGravityRing.rotation.z = step * 0.34;
       trackInfo.group.add(lowGravityRing);
-    });
+    }
     obstacles.push({ mesh: ramp, radius: 0, type: "ramp", index });
   });
 }
-
 function addRepairPads(trackInfo) {
   const layout = trackInfo.layout || courseLayout();
   (layout.repairPads || []).forEach(([index, offset], i) => {
@@ -2174,57 +2199,120 @@ function addRoadPanelSeams(trackInfo) {
     }
   }
 }
-function createRoadSurfaceTexture() {
+function createRoadSurfaceTexture(surfaceType = "metal-ring", theme = null) {
+  const key = `${surfaceType}-${theme?.id || "default"}-${QUALITY.low ? "low" : "hi"}`;
+  if (roadSurfaceTextureCache.has(key)) return roadSurfaceTextureCache.get(key);
   const canvas = document.createElement("canvas");
-  const size = QUALITY.low ? 256 : 512;
+  const size = QUALITY.low ? 192 : 384;
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
+  const toCss = (hex, alpha = 1) => {
+    const color = new THREE.Color(hex);
+    const r = Math.round(color.r * 255);
+    const g = Math.round(color.g * 255);
+    const b = Math.round(color.b * 255);
+    return `rgba(${r},${g},${b},${alpha})`;
+  };
+  const road = theme?.roadColor || 0x1b2d3d;
+  const glow = theme?.centerLine || theme?.boostColor || 0x7df9ff;
+  const shade = theme?.structureColor || 0x101827;
   const gradient = ctx.createLinearGradient(0, 0, size, size);
-  gradient.addColorStop(0, "#203246");
-  gradient.addColorStop(0.5, "#111d2b");
-  gradient.addColorStop(1, "#293c52");
+  gradient.addColorStop(0, toCss(road, 0.95));
+  gradient.addColorStop(0.52, toCss(shade, 0.98));
+  gradient.addColorStop(1, toCss(road, 0.82));
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
-  for (let y = 0; y < size; y += QUALITY.low ? 24 : 32) {
-    ctx.fillStyle = "rgba(125, 249, 255, 0.08)";
-    ctx.fillRect(0, y, size, 2);
+
+  if (surfaceType === "lunar-dust") {
+    ctx.fillStyle = "rgba(255,255,255,0.08)";
+    for (let i = 0; i < (QUALITY.low ? 22 : 58); i += 1) {
+      const r = 2 + rand() * 12;
+      ctx.beginPath();
+      ctx.ellipse(rand() * size, rand() * size, r * 1.7, r * 0.62, rand() * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = toCss(glow, 0.16);
+    for (let y = 0; y < size; y += QUALITY.low ? 30 : 42) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y + 8 * Math.sin(y));
+      ctx.stroke();
+    }
+  } else if (surfaceType === "asteroid-rock") {
+    ctx.strokeStyle = toCss(theme?.warningColor || 0xff9f5a, 0.18);
+    for (let y = 0; y < size; y += QUALITY.low ? 28 : 36) {
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(size, y + 18);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    for (let i = 0; i < (QUALITY.low ? 28 : 80); i += 1) ctx.fillRect(rand() * size, rand() * size, 8 + rand() * 40, 2 + rand() * 4);
+  } else if (surfaceType === "nebula-glass") {
+    for (let i = 0; i < (QUALITY.low ? 16 : 38); i += 1) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const radius = 12 + rand() * 42;
+      const halo = ctx.createRadialGradient(x, y, 1, x, y, radius);
+      halo.addColorStop(0, toCss(glow, 0.22));
+      halo.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = halo;
+      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    }
+    ctx.strokeStyle = toCss(glow, 0.18);
+    for (let x = 0; x < size; x += QUALITY.low ? 44 : 58) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x + 34, size);
+      ctx.stroke();
+    }
+  } else {
+    ctx.fillStyle = toCss(glow, 0.08);
+    for (let y = 0; y < size; y += QUALITY.low ? 24 : 32) ctx.fillRect(0, y, size, 2);
+    ctx.fillStyle = "rgba(255,255,255,0.045)";
+    for (let x = 0; x < size; x += QUALITY.low ? 48 : 64) ctx.fillRect(x, 0, 1, size);
   }
-  for (let x = 0; x < size; x += QUALITY.low ? 48 : 64) {
-    ctx.fillStyle = "rgba(255, 255, 255, 0.045)";
-    ctx.fillRect(x, 0, 1, size);
-  }
-  const scratchCount = QUALITY.low ? 90 : 260;
+
+  const scratchCount = QUALITY.low ? 42 : 120;
   for (let i = 0; i < scratchCount; i += 1) {
-    const a = rand();
-    ctx.fillStyle = a > 0.5 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.12)";
-    ctx.fillRect(rand() * size, rand() * size, 4 + rand() * (QUALITY.low ? 24 : 42), 1 + rand() * 3);
+    ctx.fillStyle = rand() > 0.5 ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.11)";
+    ctx.fillRect(rand() * size, rand() * size, 4 + rand() * (QUALITY.low ? 18 : 34), 1 + rand() * 2);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(2, QUALITY.low ? 12 : 20);
+  texture.repeat.set(2, QUALITY.low ? 8 : 14);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 1;
+  texture.userData.sharedCache = true;
+  roadSurfaceTextureCache.set(key, texture);
   return texture;
 }
-function createRoadRoughnessTexture() {
+
+function createRoadRoughnessTexture(surfaceType = "metal-ring") {
+  const key = `${surfaceType}-${QUALITY.low ? "low" : "hi"}`;
+  if (roadRoughnessTextureCache.has(key)) return roadRoughnessTextureCache.get(key);
   const canvas = document.createElement("canvas");
-  const size = QUALITY.low ? 128 : 256;
+  const size = QUALITY.low ? 96 : 160;
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#999";
+  ctx.fillStyle = surfaceType === "lunar-dust" ? "#b8b8b8" : surfaceType === "nebula-glass" ? "#777" : "#999";
   ctx.fillRect(0, 0, size, size);
-  const noiseCount = QUALITY.low ? 140 : 400;
+  const noiseCount = QUALITY.low ? 70 : 180;
   for (let i = 0; i < noiseCount; i += 1) {
-    const value = Math.floor(95 + rand() * 95);
+    const value = Math.floor((surfaceType === "nebula-glass" ? 80 : 95) + rand() * 90);
     ctx.fillStyle = `rgb(${value},${value},${value})`;
-    ctx.fillRect(rand() * size, rand() * size, 1 + rand() * 8, 1 + rand() * 8);
+    ctx.fillRect(rand() * size, rand() * size, 1 + rand() * 6, 1 + rand() * 6);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(3, QUALITY.low ? 10 : 18);
+  texture.repeat.set(3, QUALITY.low ? 8 : 14);
+  texture.userData.sharedCache = true;
+  roadRoughnessTextureCache.set(key, texture);
   return texture;
 }
 function addRoadDecalRuns(trackInfo) {
@@ -2313,94 +2401,97 @@ function createRoadDecalTexture(kind) {
   return texture;
 }
 function addBeacon(position, color) {
-  const beacon = new THREE.PointLight(color, 20, 40, 2);
+  const lightLimit = QUALITY.low ? 6 : 14;
+  if (trackLights.length >= lightLimit) return;
+  const beacon = new THREE.PointLight(color, QUALITY.low ? 8 : 16, QUALITY.low ? 28 : 42, 2);
   beacon.position.copy(position);
   beacon.position.y += 6;
   scene.add(beacon);
   trackLights.push(beacon);
 }
-
 function buildEnvironment() {
   const city = new THREE.Group();
-  const courseId = activeCourse()?.id || "lunar-crater-run";
-  addStarDustSea(city);
+  const course = activeCourse();
+  const courseId = course?.id || "lunar-crater-run";
+  const theme = courseTheme(course);
+  applyCourseAtmosphere(theme);
 
-  const towerBase = courseId === "lunar-crater-run" ? 46 : courseId === "meteor-mining-belt" ? 74 : courseId === "nebula-drift-stream" ? 58 : 132;
-  const towerCount = QUALITY.low ? Math.max(8, Math.round(towerBase * 0.14)) : Math.round(towerBase * QUALITY.environmentScale);
-  for (let i = 0; i < towerCount; i += 1) {
-    const radius = 145 + rand() * 330;
-    const angle = rand() * Math.PI * 2;
-    const height = 18 + rand() * 125;
-    const width = 8 + rand() * 24;
-    const color = i % 4 === 0 ? 0x14243c : i % 4 === 1 ? 0x1c304b : i % 4 === 2 ? 0x25213b : 0x172a32;
-    const glow = i % 3 === 0 ? 0x173e5e : i % 3 === 1 ? 0x4c2449 : 0x3a3517;
-    const tower = new THREE.Mesh(
-      new THREE.BoxGeometry(width, height, width * (0.72 + rand() * 0.5)),
-      new THREE.MeshStandardMaterial({ color, emissive: glow, emissiveIntensity: 0.22, roughness: 0.62, metalness: 0.28 })
-    );
-    tower.position.set(Math.cos(angle) * radius, height * 0.5 - 22 - rand() * 18, Math.sin(angle) * radius);
-    tower.rotation.y = rand() * Math.PI;
-    tower.castShadow = !QUALITY.low && i % 9 === 0;
-    tower.receiveShadow = false;
-    city.add(tower);
-    addTowerWindows(city, tower, width, height, i);
-
-    if (i % 7 === 0) {
-      const crown = new THREE.Mesh(
-        new THREE.OctahedronGeometry(width * (0.32 + rand() * 0.18), 0),
-        new THREE.MeshStandardMaterial({ color: 0x6cf7ff, emissive: i % 2 ? 0x6cf7ff : 0xffc857, emissiveIntensity: 0.9, roughness: 0.18, metalness: 0.3 })
-      );
-      crown.position.copy(tower.position);
-      crown.position.y += height * 0.54 + 4;
-      crown.rotation.y = rand() * Math.PI;
-      city.add(crown);
-    }
-  }
-
-  const orbitRingCount = QUALITY.low ? 3 : Math.round(28 * QUALITY.environmentScale);
-  for (let i = 0; i < orbitRingCount; i += 1) {
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(8 + rand() * 18, 0.42, 8, 42),
-      new THREE.MeshStandardMaterial({ color: 0x1f3147, emissive: i % 2 ? 0x5ee7ff : 0xffc857, emissiveIntensity: 0.72, roughness: 0.25, metalness: 0.45 })
-    );
-    const s = track.samples[Math.floor(rand() * TRACK_STEPS)];
-    ring.position.copy(s.point).addScaledVector(s.normal, rand() > 0.5 ? 38 + rand() * 38 : -38 - rand() * 38);
-    ring.position.y += 14 + rand() * 34;
-    ring.rotation.set(rand() * 0.6, rand() * Math.PI, rand() * 0.6);
-    city.add(ring);
-  }
+  addStarDustSea(city, theme);
+  addCourseLightPoles(city, theme);
 
   if (courseId === "lunar-crater-run") {
-    addLunarCourseSet(city);
+    addLunarCourseSet(city, theme);
+    addNeonGate(city, 54, theme.boostColor, "MOON");
   } else if (courseId === "meteor-mining-belt") {
-    addMeteorMiningSet(city);
+    addMeteorMiningSet(city, theme);
+    addNeonGate(city, 54, theme.warningColor, "DANGER");
+    if (!QUALITY.low) addNeonGate(city, 308, theme.warningColor, "ROCK");
   } else if (courseId === "nebula-drift-stream") {
-    addNebulaDriftSet(city);
+    addNebulaDriftSet(city, theme);
+    addNeonGate(city, 118, theme.railLeft, "FLOW");
+    if (!QUALITY.low) addNeonGate(city, 308, theme.railRight, "DRIFT");
   } else {
-    addSpaceGrandPrixSet(city);
+    addSpaceGrandPrixSet(city, theme);
+    addOrbitVenueDetails(city, theme);
+    addOrbitTubeSection(city, theme);
+    addLandmarkSpire(city, 126, 48, theme.accentColor);
+    addNeonGate(city, 54, theme.boostColor, "WARP");
+    if (!QUALITY.low) addNeonGate(city, 232, theme.railRight, "BOOST");
+    if (!QUALITY.low) addAdPanels(city);
   }
-  addOrbitVenueDetails(city);
-  addAdPanels(city);
-  if (!QUALITY.low) {
-    addTracksideBillboards(city);
-    addFestivalRaceProps(city);
-    addDrones(city);
-    addSpaceDrones(city);
-    addSpectatorHolograms(city);
-  }
-  const gateLabel = courseId === "lunar-crater-run" ? "MOON" : courseId === "meteor-mining-belt" ? "MINE" : courseId === "nebula-drift-stream" ? "DRIFT" : "WARP";
-  addLandmarkSpire(city, 126, 48, courseId === "meteor-mining-belt" ? 0xff9f5a : 0xff5fa8);
-  addLandmarkSpire(city, 272, -52, courseId === "lunar-crater-run" ? 0xcfe7ff : 0x7df9ff);
-  addNeonGate(city, 54, 0xffd166, gateLabel);
-  if (!QUALITY.low) {
-    addNeonGate(city, 118, courseId === "nebula-drift-stream" ? 0x34f0b2 : 0x60e9ff, courseId === "lunar-crater-run" ? "HOP" : "JUMP");
-    addNeonGate(city, 308, courseId === "meteor-mining-belt" ? 0xff9f5a : 0xff5fa8, courseId === "meteor-mining-belt" ? "ROCK" : "ORBIT");
-  }
+
   scene.add(city);
   environmentGroup = city;
   return city;
 }
 
+function addCourseLightPoles(city, theme) {
+  const step = theme.id === "lunar-crater-run" ? (QUALITY.low ? 96 : 54) : QUALITY.venueStep;
+  const samples = [];
+  for (let i = 0; i < TRACK_STEPS; i += step) {
+    const sample = track.samples[i];
+    samples.push([sample, -1], [sample, 1]);
+  }
+  const poleGeo = new THREE.CylinderGeometry(0.06, 0.12, theme.id === "lunar-crater-run" ? 1.9 : 2.8, 6);
+  const capGeo = new THREE.OctahedronGeometry(theme.id === "lunar-crater-run" ? 0.26 : 0.34, 0);
+  const poleMat = new THREE.MeshBasicMaterial({ color: theme.structureColor });
+  const capMat = new THREE.MeshBasicMaterial({ color: theme.id === "meteor-mining-belt" ? theme.warningColor : theme.centerLine, transparent: true, opacity: QUALITY.low ? 0.62 : 0.82, blending: THREE.AdditiveBlending, depthWrite: false });
+  const poles = new THREE.InstancedMesh(poleGeo, poleMat, samples.length);
+  const caps = new THREE.InstancedMesh(capGeo, capMat, samples.length);
+  const dummy = new THREE.Object3D();
+  samples.forEach(([sample, side], index) => {
+    const lateral = side * (TRACK_WIDTH * 0.58 + (theme.id === "meteor-mining-belt" ? 3.0 : 2.2));
+    dummy.position.copy(sample.point).addScaledVector(sample.normal, lateral);
+    dummy.position.y += theme.id === "lunar-crater-run" ? 0.55 : 1.15;
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    poles.setMatrixAt(index, dummy.matrix);
+    dummy.position.y += theme.id === "lunar-crater-run" ? 1.1 : 1.55;
+    dummy.updateMatrix();
+    caps.setMatrixAt(index, dummy.matrix);
+  });
+  poles.castShadow = false;
+  poles.receiveShadow = false;
+  caps.castShadow = false;
+  caps.receiveShadow = false;
+  city.add(poles, caps);
+}
+
+function addOrbitTubeSection(city, theme) {
+  const indices = QUALITY.low ? [132, 152, 172] : [122, 136, 150, 164, 178, 192];
+  const ringMat = new THREE.MeshBasicMaterial({ color: theme.railLeft, transparent: true, opacity: QUALITY.low ? 0.26 : 0.34, blending: THREE.AdditiveBlending, depthWrite: false });
+  indices.forEach((index, i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(TRACK_WIDTH * 0.62, 0.055, 8, QUALITY.low ? 32 : 52), ringMat);
+    ring.position.copy(sample.point);
+    ring.position.y += 5.6;
+    ring.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+    ring.rotation.x = Math.PI / 2;
+    ring.scale.x = 1.0 + i * 0.01;
+    city.add(ring);
+  });
+}
 function addTowerWindows(city, tower, width, height, index) {
   if (height < 32) return;
   const material = new THREE.MeshBasicMaterial({ color: index % 2 ? 0x7df9ff : 0xffd166, transparent: true, opacity: 0.48, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -2415,134 +2506,204 @@ function addTowerWindows(city, tower, width, height, index) {
   }
 }
 
-function addStarDustSea(city) {
-  const dustMat = new THREE.MeshBasicMaterial({ color: 0x9ee7ff, transparent: true, opacity: 0.11, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
-  const dustCount = QUALITY.low ? 24 : 72;
+function addStarDustSea(city, theme = courseTheme()) {
+  const color = theme.id === "nebula-drift-stream" ? theme.railLeft : theme.id === "meteor-mining-belt" ? theme.warningColor : theme.centerLine;
+  const opacity = theme.id === "lunar-crater-run" ? 0.12 : theme.id === "meteor-mining-belt" ? 0.09 : 0.13;
+  const dustMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const dustCount = QUALITY.low ? 10 : 26;
+  const geo = new THREE.CircleGeometry(1, QUALITY.low ? 7 : 12);
+  const dustMesh = new THREE.InstancedMesh(geo, dustMat, dustCount);
+  const dummy = new THREE.Object3D();
   for (let i = 0; i < dustCount; i += 1) {
-    const dust = new THREE.Mesh(new THREE.CircleGeometry(10 + rand() * 38, QUALITY.low ? 8 : 18), dustMat);
     const angle = rand() * Math.PI * 2;
-    const radius = 82 + rand() * 480;
-    dust.position.set(Math.cos(angle) * radius, -24 - rand() * 42, Math.sin(angle) * radius);
-    dust.rotation.x = -Math.PI / 2;
-    dust.scale.set(1.2 + rand() * 2.8, 0.22 + rand() * 0.34, 1);
-    city.add(dust);
+    const radius = 95 + rand() * (theme.id === "meteor-mining-belt" ? 340 : 430);
+    const size = 10 + rand() * (theme.id === "nebula-drift-stream" ? 56 : 34);
+    dummy.position.set(Math.cos(angle) * radius, theme.id === "nebula-drift-stream" ? 18 + rand() * 72 : -24 - rand() * 32, Math.sin(angle) * radius);
+    dummy.rotation.set(-Math.PI / 2, 0, rand() * Math.PI);
+    dummy.scale.set(size * (1.4 + rand() * 2.2), size * (0.18 + rand() * 0.26), 1);
+    dummy.updateMatrix();
+    dustMesh.setMatrixAt(i, dummy.matrix);
   }
+  dustMesh.frustumCulled = true;
+  city.add(dustMesh);
 }
-
 function addCloudSea(city) {
   addStarDustSea(city);
 }
 
 function createTextSprite(label, color = 0xffffff, opacity = 0.9) {
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 192;
+  canvas.width = QUALITY.low ? 256 : 384;
+  canvas.height = QUALITY.low ? 96 : 144;
   const ctx = canvas.getContext("2d");
   const hex = "#" + Number(color).toString(16).padStart(6, "0");
   const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
   gradient.addColorStop(0, hex);
-  gradient.addColorStop(0.5, "#081226");
+  gradient.addColorStop(0.55, "#081226");
   gradient.addColorStop(1, "#ffffff");
   ctx.fillStyle = "rgba(3, 8, 20, 0.72)";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = hex;
-  ctx.lineWidth = 8;
-  ctx.strokeRect(18, 18, canvas.width - 36, canvas.height - 36);
+  ctx.lineWidth = QUALITY.low ? 4 : 6;
+  ctx.strokeRect(14, 14, canvas.width - 28, canvas.height - 28);
   ctx.fillStyle = gradient;
-  ctx.font = "bold 58px Arial, sans-serif";
+  ctx.font = `bold ${QUALITY.low ? 34 : 44}px Arial, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(String(label || "STAR"), canvas.width / 2, canvas.height / 2 + 4);
-  ctx.fillStyle = "rgba(255,255,255,0.18)";
-  for (let x = 36; x < canvas.width; x += 48) ctx.fillRect(x, 24, 18, 3);
+  ctx.fillText(String(label || "STAR"), canvas.width / 2, canvas.height / 2 + 3);
+  ctx.fillStyle = "rgba(255,255,255,0.16)";
+  for (let x = 28; x < canvas.width; x += 42) ctx.fillRect(x, 20, 14, 2);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, opacity, depthWrite: false }));
 }
-
-function addLunarCourseSet(city) {
-  const moonMat = new THREE.MeshStandardMaterial({ color: 0x9fa9b8, emissive: 0x263449, emissiveIntensity: 0.24, roughness: 0.86, metalness: 0.04 });
-  const craterMat = new THREE.MeshBasicMaterial({ color: 0x0f1728, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(220, 220, 2.2, QUALITY.low ? 48 : 96), moonMat);
+function addLunarCourseSet(city, theme = courseTheme()) {
+  const moonMat = new THREE.MeshStandardMaterial({ color: 0x9fa9b8, emissive: 0x263449, emissiveIntensity: 0.22, roughness: 0.9, metalness: 0.03 });
+  const craterMat = new THREE.MeshBasicMaterial({ color: 0x0f1728, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(220, 220, 2.2, QUALITY.low ? 36 : 64), moonMat);
   base.position.set(0, -30, 0);
   base.scale.z = 0.72;
   city.add(base);
 
-  const craterCount = QUALITY.low ? 7 : Math.round(34 * QUALITY.environmentScale);
+  const craterCount = QUALITY.low ? 8 : 18;
+  const craterGeo = new THREE.TorusGeometry(1, 0.055, 6, QUALITY.low ? 28 : 40);
+  const craters = new THREE.InstancedMesh(craterGeo, craterMat, craterCount);
+  const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x8792a3, emissive: 0x182235, emissiveIntensity: 0.12, roughness: 0.82, metalness: 0.04 });
+  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, craterCount);
+  const dummy = new THREE.Object3D();
   for (let i = 0; i < craterCount; i += 1) {
     const sample = track.samples[Math.floor(rand() * TRACK_STEPS)];
     const side = i % 2 ? 1 : -1;
-    const crater = new THREE.Mesh(new THREE.TorusGeometry(5 + rand() * 11, 0.18 + rand() * 0.2, 8, QUALITY.low ? 28 : 56), craterMat.clone());
-    crater.position.copy(sample.point).addScaledVector(sample.normal, side * (28 + rand() * 92));
-    crater.position.y = -27.6 + rand() * 2.2;
-    crater.rotation.x = Math.PI / 2;
-    crater.scale.y = 0.46 + rand() * 0.34;
-    city.add(crater);
+    const size = 5 + rand() * 12;
+    dummy.position.copy(sample.point).addScaledVector(sample.normal, side * (30 + rand() * 96));
+    dummy.position.y = -27.8 + rand() * 2.0;
+    dummy.rotation.set(Math.PI / 2, 0, rand() * Math.PI);
+    dummy.scale.set(size, size * (0.48 + rand() * 0.28), size);
+    dummy.updateMatrix();
+    craters.setMatrixAt(i, dummy.matrix);
+
+    dummy.position.addScaledVector(sample.normal, side * (8 + rand() * 22));
+    dummy.position.y += 2.2 + rand() * 2;
+    dummy.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
+    const rockSize = 1.2 + rand() * 2.4;
+    dummy.scale.set(rockSize * 1.2, rockSize * 0.72, rockSize);
+    dummy.updateMatrix();
+    rocks.setMatrixAt(i, dummy.matrix);
   }
+  craters.castShadow = false;
+  rocks.castShadow = false;
+  city.add(craters, rocks);
 
   const earth = new THREE.Mesh(
-    new THREE.SphereGeometry(22, QUALITY.low ? 24 : 40, QUALITY.low ? 12 : 20),
+    new THREE.SphereGeometry(22, QUALITY.low ? 20 : 32, QUALITY.low ? 10 : 16),
     new THREE.MeshStandardMaterial({ color: 0x4aa5ff, emissive: 0x174d8a, emissiveIntensity: 0.62, roughness: 0.36 })
   );
   earth.position.set(-190, 104, -245);
   city.add(earth);
+  const earthGlow = new THREE.Mesh(new THREE.SphereGeometry(23.2, QUALITY.low ? 16 : 24, QUALITY.low ? 8 : 12), new THREE.MeshBasicMaterial({ color: 0xcfe7ff, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false }));
+  earthGlow.position.copy(earth.position);
+  city.add(earthGlow);
 
   [42, 182, 318].forEach((index, i) => {
     const sample = track.samples[layoutIndex(index)];
     const dome = new THREE.Group();
-    const shell = new THREE.Mesh(new THREE.SphereGeometry(7 + i * 1.4, 24, 12), new THREE.MeshBasicMaterial({ color: 0xcfe7ff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }));
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(7 + i * 1.4, QUALITY.low ? 16 : 22, 10), new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }));
     shell.scale.y = 0.48;
-    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.36, 12, 8), new THREE.MeshStandardMaterial({ color: 0x596579, emissive: 0x31435f, emissiveIntensity: 0.34 }));
-    mast.position.y = 5.2;
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.36, 10, 8), new THREE.MeshStandardMaterial({ color: 0x596579, emissive: 0x31435f, emissiveIntensity: 0.28 }));
+    mast.position.y = 4.6;
     dome.add(shell, mast);
     dome.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -42 : 42);
     dome.position.y = -4 + i;
     city.add(dome);
   });
 
-  const signs = [[24, "MOON"], [154, "HOP"], [286, "BASE"]];
+  const dishSample = track.samples[layoutIndex(210)];
+  const dish = new THREE.Group();
+  const dishMat = new THREE.MeshStandardMaterial({ color: 0xcfd9e8, emissive: theme.centerLine, emissiveIntensity: 0.18, roughness: 0.42, metalness: 0.42 });
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 9, 8), dishMat);
+  mast.position.y = 4.5;
+  const bowl = new THREE.Mesh(new THREE.ConeGeometry(4.8, 1.2, QUALITY.low ? 18 : 28, 1, true), dishMat);
+  bowl.position.y = 9.4;
+  bowl.rotation.x = 68 * DEG;
+  const signal = new THREE.Mesh(new THREE.TorusGeometry(5.6, 0.045, 6, 28), new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.36, blending: THREE.AdditiveBlending, depthWrite: false }));
+  signal.position.y = 10.0;
+  signal.rotation.x = 68 * DEG;
+  dish.add(mast, bowl, signal);
+  dish.position.copy(dishSample.point).addScaledVector(dishSample.normal, -56);
+  dish.position.y -= 4;
+  city.add(dish);
+
+  const roverSample = track.samples[layoutIndex(332)];
+  const rover = new THREE.Group();
+  const roverMat = new THREE.MeshStandardMaterial({ color: 0xd6dee8, emissive: 0x2d4058, emissiveIntensity: 0.16, roughness: 0.5, metalness: 0.34 });
+  const roverBody = new THREE.Mesh(new THREE.BoxGeometry(5.8, 1.5, 3.2), roverMat);
+  roverBody.position.y = 1.8;
+  rover.add(roverBody);
+  [-1, 1].forEach((x) => [-1, 1].forEach((z) => {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.54, 0.54, 0.42, 10), new THREE.MeshBasicMaterial({ color: 0x273244 }));
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(x * 2.6, 0.8, z * 1.35);
+    rover.add(wheel);
+  }));
+  rover.position.copy(roverSample.point).addScaledVector(roverSample.normal, 48);
+  rover.position.y -= 3.2;
+  rover.rotation.y = Math.atan2(roverSample.tangent.x, roverSample.tangent.z) + Math.PI * 0.4;
+  city.add(rover);
+
+  const signs = QUALITY.low ? [[24, "MOON"], [286, "BASE"]] : [[24, "MOON"], [154, "HOP"], [286, "BASE"]];
   signs.forEach(([index, label], i) => {
     const sample = track.samples[layoutIndex(index)];
-    const sign = createTextSprite(label, i % 2 ? 0xffd166 : 0xcfe7ff, 0.84);
+    const sign = createTextSprite(label, i % 2 ? theme.warningColor : theme.centerLine, 0.82);
     sign.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -34 : 34);
     sign.position.y += 12;
     sign.scale.set(12, 4.8, 1);
     city.add(sign);
   });
 }
-
-function addMeteorMiningSet(city) {
-  const rockMat = new THREE.MeshStandardMaterial({ color: 0x3c332c, emissive: 0x3f1e12, emissiveIntensity: 0.34, roughness: 0.82, metalness: 0.08 });
-  const oreGlow = new THREE.MeshBasicMaterial({ color: 0xff9f5a, transparent: true, opacity: 0.62, blending: THREE.AdditiveBlending, depthWrite: false });
-  const count = QUALITY.low ? 8 : Math.round(44 * QUALITY.environmentScale);
+function addMeteorMiningSet(city, theme = courseTheme()) {
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x3c332c, emissive: 0x3f1e12, emissiveIntensity: 0.3, roughness: 0.84, metalness: 0.06 });
+  const oreGlow = new THREE.MeshBasicMaterial({ color: theme.warningColor, transparent: true, opacity: 0.58, blending: THREE.AdditiveBlending, depthWrite: false });
+  const count = QUALITY.low ? 10 : 22;
+  const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+  const rocks = new THREE.InstancedMesh(rockGeo, rockMat, count);
+  const dummy = new THREE.Object3D();
+  const veinPositions = [];
   for (let i = 0; i < count; i += 1) {
     const sample = track.samples[Math.floor(rand() * TRACK_STEPS)];
     const side = i % 2 ? 1 : -1;
-    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(5 + rand() * 12, 0), rockMat.clone());
-    rock.position.copy(sample.point).addScaledVector(sample.normal, side * (42 + rand() * 120));
-    rock.position.y += -8 + rand() * 76;
-    rock.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
-    rock.scale.y = 0.55 + rand() * 1.4;
-    city.add(rock);
-    if (i % 3 === 0) {
-      const vein = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 7 + rand() * 8), oreGlow.clone());
-      vein.position.copy(rock.position);
-      vein.rotation.copy(rock.rotation);
-      city.add(vein);
-    }
+    dummy.position.copy(sample.point).addScaledVector(sample.normal, side * (38 + rand() * 118));
+    dummy.position.y += -6 + rand() * 70;
+    dummy.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
+    const size = 5 + rand() * 12;
+    dummy.scale.set(size, size * (0.55 + rand() * 1.1), size * (0.82 + rand() * 0.6));
+    dummy.updateMatrix();
+    rocks.setMatrixAt(i, dummy.matrix);
+    if (i % 4 === 0) veinPositions.push({ position: dummy.position.clone(), rotation: dummy.rotation.clone(), size });
   }
+  rocks.castShadow = false;
+  city.add(rocks);
+
+  veinPositions.forEach((entry) => {
+    const vein = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.12, 6 + rand() * 7), oreGlow);
+    vein.position.copy(entry.position);
+    vein.rotation.copy(entry.rotation);
+    city.add(vein);
+  });
 
   [68, 188, 316].forEach((index, i) => {
     const sample = track.samples[layoutIndex(index)];
     const rig = new THREE.Group();
-    const mat = new THREE.MeshStandardMaterial({ color: 0x241a16, emissive: 0x8a3518, emissiveIntensity: 0.48, roughness: 0.46, metalness: 0.42 });
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(4, 22, 4), mat);
-    tower.position.y = 10;
-    const drill = new THREE.Mesh(new THREE.ConeGeometry(3.2, 12, 6), new THREE.MeshBasicMaterial({ color: 0xff9f5a, transparent: true, opacity: 0.58, blending: THREE.AdditiveBlending }));
+    const mat = new THREE.MeshStandardMaterial({ color: 0x241a16, emissive: theme.warningColor, emissiveIntensity: 0.36, roughness: 0.48, metalness: 0.42 });
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(4, QUALITY.low ? 16 : 22, 4), mat);
+    tower.position.y = QUALITY.low ? 8 : 10;
+    const drill = new THREE.Mesh(new THREE.ConeGeometry(3.2, 12, 6), new THREE.MeshBasicMaterial({ color: theme.warningColor, transparent: true, opacity: 0.56, blending: THREE.AdditiveBlending }));
     drill.position.y = -2;
     drill.rotation.z = Math.PI;
-    const sign = createTextSprite(i === 1 ? "ORE" : "MINE", 0xff9f5a, 0.76);
-    sign.position.set(0, 24, 0);
+    const sign = createTextSprite(i === 1 ? "ORE" : "MINE", theme.warningColor, 0.72);
+    sign.position.set(0, QUALITY.low ? 18 : 24, 0);
     sign.scale.set(10, 4, 1);
     rig.add(tower, drill, sign);
     rig.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -54 : 54);
@@ -2550,7 +2711,6 @@ function addMeteorMiningSet(city) {
     city.add(rig);
   });
 }
-
 function addNebulaDriftSet(city) {
   const ribbonMatA = new THREE.MeshBasicMaterial({ color: 0xa78bfa, transparent: true, opacity: 0.17, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
   const ribbonMatB = new THREE.MeshBasicMaterial({ color: 0x34f0b2, transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
@@ -2780,8 +2940,8 @@ function addSpaceDrones(city) {
 }
 function createAdPanelTexture(label, index) {
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 192;
+  canvas.width = QUALITY.low ? 256 : 384;
+  canvas.height = QUALITY.low ? 96 : 144;
   const ctx = canvas.getContext("2d");
   const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
   gradient.addColorStop(0, index % 2 ? "#1de7ff" : "#ff5fa8");
@@ -2790,24 +2950,25 @@ function createAdPanelTexture(label, index) {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "rgba(5, 9, 20, 0.72)";
-  ctx.fillRect(18, 18, canvas.width - 36, canvas.height - 36);
+  ctx.fillRect(14, 14, canvas.width - 28, canvas.height - 28);
   ctx.strokeStyle = index % 2 ? "#7df9ff" : "#ffd166";
-  ctx.lineWidth = 6;
-  ctx.strokeRect(22, 22, canvas.width - 44, canvas.height - 44);
-  ctx.font = "bold 54px Arial, sans-serif";
+  ctx.lineWidth = QUALITY.low ? 4 : 5;
+  ctx.strokeRect(18, 18, canvas.width - 36, canvas.height - 36);
+  ctx.font = `bold ${QUALITY.low ? 34 : 42}px Arial, sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = "#f6fcff";
   ctx.fillText(label, canvas.width / 2, canvas.height / 2 + 2);
-  for (let y = 36; y < canvas.height; y += 22) {
-    ctx.fillStyle = "rgba(125, 249, 255, 0.16)";
-    ctx.fillRect(40, y, canvas.width - 80, 2);
+  for (let y = 28; y < canvas.height; y += 18) {
+    ctx.fillStyle = "rgba(125, 249, 255, 0.15)";
+    ctx.fillRect(30, y, canvas.width - 60, 2);
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
   return texture;
 }
-
 function addFestivalRaceProps(city) {
   const colors = [0xffd166, 0x7df9ff, 0xff5fa8, 0x7cff9b, 0xb38cff];
   [12, 28, 64, 104, 154, 202, 256, 314, 372].forEach((index, i) => {
@@ -2983,9 +3144,9 @@ function disposeObject3D(object) {
     child.geometry?.dispose?.();
     const materials = Array.isArray(child.material) ? child.material : child.material ? [child.material] : [];
     materials.forEach((material) => {
-      material.map?.dispose?.();
-      material.emissiveMap?.dispose?.();
-      material.roughnessMap?.dispose?.();
+      if (!material.map?.userData?.sharedCache) material.map?.dispose?.();
+      if (!material.emissiveMap?.userData?.sharedCache) material.emissiveMap?.dispose?.();
+      if (!material.roughnessMap?.userData?.sharedCache) material.roughnessMap?.dispose?.();
       material.dispose?.();
     });
   });
@@ -4756,7 +4917,7 @@ function updateRacer(racer, dt) {
 
   const wasAirborne = racer.wasAirborne;
   if (racer.jumpHeight > 0 || racer.verticalSpeed > 0) {
-    racer.verticalSpeed -= 34 * dt;
+    racer.verticalSpeed -= (track?.theme?.gravityFeel === "low" ? 24 : track?.theme?.gravityFeel === "floaty" ? 27 : 34) * dt;
     racer.jumpHeight = Math.max(0, racer.jumpHeight + racer.verticalSpeed * dt);
     if (racer.jumpHeight === 0) racer.verticalSpeed = 0;
   }
@@ -5015,9 +5176,10 @@ function handleSurface(racer, nearest, dt) {
     const sameSide = offset === 0 || Math.sign(nearest.lateral || offset) === Math.sign(offset);
     return isIndexBetween(nearest.index, start, end) && sameSide && Math.abs(nearest.lateral) > TRACK_WIDTH * 0.2;
   });
-  const shortcut =
-    activeCourse().id === "starlight-orbit-ring" &&
-    isIndexBetween(nearest.index, 186, 228) && nearest.lateral < -TRACK_WIDTH * 0.42 && nearest.lateral > -TRACK_WIDTH * 1.1;
+  const shortcut = (layout.shortcuts || []).some(([start, end, offset, width]) => {
+    const sideOk = offset === 0 || Math.sign(nearest.lateral || offset) === Math.sign(offset);
+    return sideOk && isIndexBetween(nearest.index, start, end) && Math.abs(nearest.lateral - offset) < width * 0.62;
+  });
 
   if ((offTrack && !shortcut) || dirt) {
     const offAmount = clamp((Math.abs(nearest.lateral) - TRACK_WIDTH * 0.52) / (TRACK_WIDTH * 0.58), 0, 1);
@@ -5159,9 +5321,9 @@ function handleJumpRamps(racer, nearest) {
   for (const obstacle of obstacles) {
     if (obstacle.type !== "ramp") continue;
     if (indexDistance(nearest.index, obstacle.index) < 3 && Math.abs(nearest.lateral) < TRACK_WIDTH * 0.34 && racer.jumpHeight < 0.1) {
-      racer.verticalSpeed = 12 + Math.max(racer.speed, 0) * 0.08;
+      racer.verticalSpeed = (track?.theme?.gravityFeel === "low" ? 14.5 : track?.theme?.gravityFeel === "floaty" ? 13.2 : 12) + Math.max(racer.speed, 0) * (track?.theme?.gravityFeel === "stable" ? 0.07 : 0.085);
       racer.jumpHeight = 0.2;
-      spawnBurst(racer.position, 0x9ee7ff, 10, 1);
+      spawnBurst(racer.position, track?.theme?.boostColor || 0x9ee7ff, QUALITY.low ? 5 : 10, 1);
       break;
     }
   }
