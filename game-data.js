@@ -1243,7 +1243,7 @@
     gravityFeel: "stable",
     boostStyle: "many-fast",
     jumpStyle: "ring-gap",
-    gripModifier: 1.02,
+    gripModifier: 1.06,
     visualSignature: "巨大な惑星、わっか、氷と岩の粒、リングジャンプ",
     roadFeel: "長い直線・高速・すきまジャンプ",
     features: ["巨大な惑星", "大きなわっか", "長い直線", "リングジャンプ", "氷と岩の粒", "白と金の路面", "発光ガード", "ブースト多め", "遠くの輪の層", "スピード重視"],
@@ -1276,7 +1276,7 @@
     gravityFeel: "rough",
     boostStyle: "few-strong",
     jumpStyle: "canyon-hop",
-    gripModifier: 0.9,
+    gripModifier: 0.86,
     visualSignature: "赤い砂、渓谷、赤い岩山、砂嵐、火星基地",
     roadFeel: "重め・砂で少しすべる・岩を避ける",
     features: ["赤い砂", "赤い岩山", "渓谷", "砂嵐", "火星基地", "探査ローバー", "岩を避ける", "砂ぼこり", "オレンジの空", "せまい区間"],
@@ -1309,7 +1309,7 @@
     gravityFeel: "floaty",
     boostStyle: "few-technical",
     jumpStyle: "comet-tail",
-    gripModifier: 0.78,
+    gripModifier: 0.68,
     visualSignature: "青白い氷、透明な結晶、すい星の尾、すべる道",
     roadFeel: "よくすべる・ドリフト向き・カーブが難しい",
     features: ["青白い氷", "すべるカーブ", "透明な結晶", "氷のトンネル", "すい星の尾", "ひびわれた道", "ドリフト向き", "きらきら粒子", "ブースト少なめ", "氷の柱"],
@@ -1319,11 +1319,11 @@
   };
   var spaceCourses = [lunarCourse, meteorCourse, spaceCourse, nebulaCourse];
 
-  window.AURORA_GAME_DATA.version = "0.2.4-course-ai-rebuild";
+  window.AURORA_GAME_DATA.version = "0.2.5-theme-cpu-polish";
   window.AURORA_GAME_DATA.difficulties = {
-    Easy: { precision: 0.78, speed: 0.86, reaction: 0.82, maxSpeed: 0.88, acceleration: 0.86, cornerSpeed: 0.72, steeringSkill: 0.82, recoverySpeed: 0.82, boostUsageRate: 0.34, itemUsageSkill: 0.42, mistakeRate: 0.16, avoidanceStrength: 0.78, rubberBanding: 0.06 },
-    Normal: { precision: 1.0, speed: 1.0, reaction: 1.0, maxSpeed: 1.0, acceleration: 1.0, cornerSpeed: 0.9, steeringSkill: 1.0, recoverySpeed: 1.05, boostUsageRate: 0.62, itemUsageSkill: 0.62, mistakeRate: 0.08, avoidanceStrength: 1.0, rubberBanding: 0.11 },
-    Hard: { precision: 1.22, speed: 1.14, reaction: 1.24, maxSpeed: 1.16, acceleration: 1.2, cornerSpeed: 1.08, steeringSkill: 1.24, recoverySpeed: 1.38, boostUsageRate: 0.88, itemUsageSkill: 0.84, mistakeRate: 0.03, avoidanceStrength: 1.3, rubberBanding: 0.18 }
+    Easy: { precision: 0.76, speed: 0.84, reaction: 0.8, maxSpeed: 0.86, acceleration: 0.84, cornerSpeed: 0.7, steeringSkill: 0.78, recoverySpeed: 0.9, boostUsageRate: 0.28, itemUsageSkill: 0.38, mistakeRate: 0.18, avoidanceStrength: 0.72, rubberBanding: 0.05 },
+    Normal: { precision: 1.0, speed: 1.0, reaction: 1.0, maxSpeed: 1.02, acceleration: 1.02, cornerSpeed: 0.92, steeringSkill: 1.04, recoverySpeed: 1.14, boostUsageRate: 0.66, itemUsageSkill: 0.66, mistakeRate: 0.07, avoidanceStrength: 1.08, rubberBanding: 0.12 },
+    Hard: { precision: 1.34, speed: 1.22, reaction: 1.34, maxSpeed: 1.3, acceleration: 1.28, cornerSpeed: 1.2, steeringSkill: 1.36, recoverySpeed: 1.65, boostUsageRate: 0.96, itemUsageSkill: 0.92, mistakeRate: 0.015, avoidanceStrength: 1.48, rubberBanding: 0.22 }
   };
   window.AURORA_GAME_DATA.selectedTitleId = "starlight-grand-prix";
   window.AURORA_GAME_DATA.selectedTitle = {
