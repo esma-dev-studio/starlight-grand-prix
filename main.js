@@ -6031,7 +6031,7 @@ function updateRacer(racer, dt) {
   racer.position.addScaledVector(racer.velocity, dt);
 
   let nearest = nearestTrackSample(racer.position, racer.trackIndex);
-  if (handleCourseAssist(racer, nearest, controls, dt)) {
+  if (handleCourseAssist(racer, nearest, controls, dt) || handleCpuCourseAssist(racer, nearest, controls, dt)) {
     nearest = nearestTrackSample(racer.position, nearest.index);
   }
   handleSurface(racer, nearest, dt);
@@ -6215,8 +6215,8 @@ function readCpuControls(racer, dt) {
   const boostUsage = diff.boostUsageRate || 0.55;
   const itemSkill = diff.itemUsageSkill || 0.55;
   const theme = track?.theme || courseTheme();
-  const recovery = diff.recoverySpeed || 1;
   const icyCourse = theme.id === "nebula-drift-stream";
+  const marsCourse = theme.id === "meteor-mining-belt";
 
   racer.ai.useTimer -= dt * (0.85 + itemSkill * 0.45);
   if (racer.ai.useTimer <= 0 && racer.item) {
@@ -6227,34 +6227,61 @@ function readCpuControls(racer, dt) {
   const nearest = nearestTrackSample(racer.position, racer.trackIndex);
   const stats = combinedStats(racer);
   const baseMax = (34 + stats.speed * 3.4) * (diff.maxSpeed || diff.speed || 1);
-  const lookAhead = Math.floor(18 + clamp(racer.speed, 0, 80) * (0.46 + steeringSkill * 0.08));
+  const speedAbs = clamp(Math.abs(racer.speed), 0, 90);
+  const lookAhead = Math.floor(16 + speedAbs * (0.36 + steeringSkill * 0.07));
   const targetIndex = (nearest.index + lookAhead) % TRACK_STEPS;
-  const farIndex = (nearest.index + lookAhead + Math.floor(18 + steeringSkill * 10)) % TRACK_STEPS;
+  const farIndex = (nearest.index + lookAhead + Math.floor(18 + steeringSkill * 9)) % TRACK_STEPS;
+  const edgeIndex = (nearest.index + Math.floor(8 + speedAbs * 0.18)) % TRACK_STEPS;
   const targetSample = track.samples[targetIndex];
   const farSample = track.samples[farIndex];
+  const edgeSample = track.samples[edgeIndex];
   const futureA = track.samples[(nearest.index + 8) % TRACK_STEPS].tangent;
-  const futureB = track.samples[(nearest.index + 34) % TRACK_STEPS].tangent;
-  const futureC = track.samples[(nearest.index + 58) % TRACK_STEPS].tangent;
-  const curve = Math.max(1 - clamp(futureA.dot(futureB), -1, 1), (1 - clamp(futureB.dot(futureC), -1, 1)) * 0.82);
+  const futureB = track.samples[(nearest.index + 30) % TRACK_STEPS].tangent;
+  const futureC = track.samples[(nearest.index + 56) % TRACK_STEPS].tangent;
+  const curve = Math.max(1 - clamp(futureA.dot(futureB), -1, 1), (1 - clamp(futureB.dot(futureC), -1, 1)) * 0.86);
 
-  const offLine = Math.abs(nearest.lateral || 0);
-  const stallUrgency = clamp((racer.ai.stallTimer || 0) / 0.85, 0, 1);
-  const centralPull = clamp(offLine / (TRACK_WIDTH * 0.55), 0, 1) * -Math.sign(nearest.lateral || 0) * TRACK_WIDTH * (0.22 + stallUrgency * 0.34);
-  let targetOffset = (racer.ai.targetOffset || 0) * (0.5 - clamp(steeringSkill - 1, 0, 0.4) * 0.28) + centralPull;
-  if (stallUrgency > 0.01) targetOffset *= 1 - stallUrgency * 0.72;
-  targetOffset += Math.sin(state.time * 0.65 + racer.ai.noise) * ((1.15 + mistakeRate * 4.2) / Math.max(0.7, diff.precision || 1));
+  const lateral = nearest.lateral || 0;
+  const offLine = Math.abs(lateral);
+  const edgeSafe = TRACK_WIDTH * 0.23;
+  const edgeCritical = TRACK_WIDTH * 0.43;
+  const edgeAmount = clamp((offLine - edgeSafe) / Math.max(0.01, edgeCritical - edgeSafe), 0, 1);
+  const centerSign = -Math.sign(lateral || racer.ai.targetOffset || 1);
+  const stallUrgency = clamp((racer.ai.stallTimer || 0) / 0.8, 0, 1);
+
+  let targetOffset = (racer.ai.targetOffset || 0) * (0.4 - clamp(steeringSkill - 1, 0, 0.4) * 0.22);
+  if (edgeAmount > 0) targetOffset += centerSign * TRACK_WIDTH * (0.18 + edgeAmount * 0.24);
+  if (stallUrgency > 0.01) targetOffset += centerSign * TRACK_WIDTH * (0.12 + stallUrgency * 0.22);
+  if (curve > 0.12 && edgeAmount < 0.35) targetOffset *= 0.65;
+  const noiseScale = (1 - edgeAmount * 0.82) * (1 - stallUrgency * 0.7);
+  targetOffset += Math.sin(state.time * 0.65 + racer.ai.noise) * ((0.92 + mistakeRate * 3.4) / Math.max(0.7, diff.precision || 1)) * Math.max(0, noiseScale);
 
   const upcomingBoost = boostPanels.find((panel) => indexDistance(targetIndex, panel.userData.index) < 34 || indexDistance(nearest.index, panel.userData.index) < 38);
-  if (upcomingBoost && boostUsage > 0.5 && curve < 0.44) targetOffset *= 1 - boostUsage * 0.82;
+  if (upcomingBoost && boostUsage > 0.55 && curve < 0.38 && edgeAmount < 0.35) targetOffset *= 1 - boostUsage * 0.78;
+
+  const maxLane = edgeAmount > 0 ? TRACK_WIDTH * 0.13 : TRACK_WIDTH * 0.22;
+  targetOffset = clamp(targetOffset, -maxLane, maxLane);
 
   const target = targetSample.point
     .clone()
-    .addScaledVector(targetSample.normal, clamp(targetOffset, -TRACK_WIDTH * 0.3, TRACK_WIDTH * 0.3))
-    .lerp(farSample.point.clone().addScaledVector(farSample.normal, clamp(targetOffset * 0.7, -TRACK_WIDTH * 0.26, TRACK_WIDTH * 0.26)), 0.18);
+    .addScaledVector(targetSample.normal, targetOffset)
+    .lerp(farSample.point.clone().addScaledVector(farSample.normal, targetOffset * 0.62), 0.16);
+
+  if (edgeAmount > 0.01 || stallUrgency > 0.01) {
+    const safeLateral = centerSign * TRACK_WIDTH * (0.04 + edgeAmount * 0.08);
+    const edgeTarget = edgeSample.point.clone().addScaledVector(edgeSample.normal, safeLateral);
+    target.lerp(edgeTarget, clamp(edgeAmount * 0.86 + stallUrgency * 0.42, 0, 0.9));
+  }
+
   const toTarget = target.sub(racer.position);
   const desiredYaw = Math.atan2(toTarget.x, toTarget.z);
   const angle = shortestAngle(racer.yaw, desiredYaw);
-  let steer = angle * (1.35 + steeringSkill * 0.46);
+  let steer = angle * (1.58 + steeringSkill * 0.5);
+
+  if (edgeAmount > 0.02) {
+    const trackYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
+    const tangentAngle = shortestAngle(racer.yaw, trackYaw);
+    steer += tangentAngle * (0.22 + edgeAmount * 0.42);
+  }
 
   const forward = forwardFromYaw(racer.yaw);
   const right = new THREE.Vector3(forward.z, 0, -forward.x);
@@ -6267,7 +6294,7 @@ function readCpuControls(racer, dt) {
     if (ahead > -3 && ahead < 38 + avoidanceStrength * 4 && Math.abs(side) < 8.8) {
       const avoid = clamp((8.8 - Math.abs(side)) / 8.8, 0, 1) * (0.58 + stallUrgency * 0.34) * avoidanceStrength;
       steer -= Math.sign(side || (nearest.lateral || 1)) * avoid;
-      if (ahead > 0 && Math.abs(side) < 5.2) targetOffset -= Math.sign(side || 1) * avoid * TRACK_WIDTH * 0.18;
+      if (ahead > 0 && Math.abs(side) < 5.2) racer.ai.laneShift = -Math.sign(side || 1) * TRACK_WIDTH * 0.2;
     }
   });
 
@@ -6276,32 +6303,34 @@ function readCpuControls(racer, dt) {
     const local = other.position.clone().sub(racer.position);
     const ahead = local.dot(forward);
     const side = local.dot(right);
-    if (ahead > -1 && ahead < 15 && Math.abs(side) < 5.4) {
+    if (ahead > -1.5 && ahead < 16 && Math.abs(side) < 5.8) {
       const escapeSide = Math.sign(side || racer.ai.targetOffset || 1);
-      steer -= escapeSide * clamp((5.4 - Math.abs(side)) / 5.4, 0, 1) * 0.42 * avoidanceStrength;
-      if (ahead > 0 && Math.abs(other.speed) < Math.abs(racer.speed) * 0.75) racer.ai.laneShift = -escapeSide * TRACK_WIDTH * 0.16;
+      steer -= escapeSide * clamp((5.8 - Math.abs(side)) / 5.8, 0, 1) * 0.5 * avoidanceStrength;
+      if (ahead > 0 && Math.abs(other.speed) < Math.abs(racer.speed) * 0.82) racer.ai.laneShift = -escapeSide * TRACK_WIDTH * 0.18;
     }
   });
-  racer.ai.laneShift = approach(racer.ai.laneShift || 0, 0, dt * 1.2);
-  steer += clamp((racer.ai.laneShift || 0) / TRACK_WIDTH, -0.22, 0.22);
+  racer.ai.laneShift = approach(racer.ai.laneShift || 0, 0, dt * 1.35);
+  steer += clamp((racer.ai.laneShift || 0) / TRACK_WIDTH, -0.24, 0.24);
 
-  if (rand() < mistakeRate * dt * 0.34) steer += (rand() - 0.5) * mistakeRate * 1.2;
+  if (rand() < mistakeRate * dt * 0.22 * Math.max(0, 1 - edgeAmount)) steer += (rand() - 0.5) * mistakeRate;
   steer = clamp(steer, -1, 1);
 
-  const surfaceCornerPenalty = icyCourse ? 0.1 : theme.id === "meteor-mining-belt" ? 0.04 : 0;
-  const cornerSlowdown = clamp(curve * (0.58 + surfaceCornerPenalty - (diff.cornerSpeed || 0.9) * 0.22), 0.015, 0.54);
+  const surfaceCornerPenalty = icyCourse ? 0.11 : marsCourse ? 0.05 : 0;
+  const cornerSlowdown = clamp(curve * (0.62 + surfaceCornerPenalty - (diff.cornerSpeed || 0.9) * 0.2), 0.02, 0.58);
   let targetSpeed = baseMax * (1 - cornerSlowdown);
-  if (icyCourse && curve > 0.14) targetSpeed *= 0.93;
-  if (offLine > TRACK_WIDTH * 0.38) targetSpeed *= 0.78 + stallUrgency * 0.14;
-  if (upcomingBoost && boostUsage > 0.62) targetSpeed *= 1.1;
-  if (stallUrgency > 0.12) targetSpeed = Math.max(targetSpeed, baseMax * (0.56 + stallUrgency * 0.18));
-  const accel = stallUrgency > 0.12 || racer.speed < targetSpeed * (0.98 + boostUsage * 0.05) || (upcomingBoost && racer.speed < baseMax * 1.18);
-  const brake = stallUrgency < 0.18 && racer.speed > targetSpeed * (1.04 + (diff.cornerSpeed || 1) * 0.06) && curve > 0.12;
-  const drift = curve > (icyCourse ? 0.14 : 0.2 + mistakeRate * 0.18) && Math.abs(steer) > (icyCourse ? 0.22 : 0.28) && racer.speed > baseMax * 0.34;
+  if (icyCourse && curve > 0.14) targetSpeed *= 0.91;
+  if (edgeAmount > 0.01) targetSpeed *= 1 - edgeAmount * 0.56;
+  if (upcomingBoost && boostUsage > 0.62 && edgeAmount < 0.28) targetSpeed *= 1.1;
+  if (stallUrgency > 0.12) targetSpeed = Math.max(targetSpeed, baseMax * (0.46 + stallUrgency * 0.16));
+
+  const accel = stallUrgency > 0.18 || (edgeAmount < 0.78 && racer.speed < targetSpeed * (0.98 + boostUsage * 0.05)) || (upcomingBoost && edgeAmount < 0.28 && racer.speed < baseMax * 1.18);
+  const brake = (edgeAmount > 0.52 && racer.speed > baseMax * 0.36) || (stallUrgency < 0.18 && racer.speed > targetSpeed * (1.04 + (diff.cornerSpeed || 1) * 0.06) && curve > 0.12);
+  const drift = edgeAmount < 0.56 && curve > (icyCourse ? 0.14 : 0.2 + mistakeRate * 0.18) && Math.abs(steer) > (icyCourse ? 0.22 : 0.28) && racer.speed > baseMax * 0.34;
 
   if (racer.stunTimer > 0) return { accel: false, brake: true, steer: clamp(steer * 0.5, -1, 1), drift: false };
   return { accel, brake, steer, drift };
 }
+
 function difficulty() {
   return DATA.difficulties[state.difficulty] || DATA.difficulties.Normal || fallbackData.difficulties.Normal;
 }
@@ -6345,6 +6374,55 @@ function handleCourseAssist(racer, nearest, controls, dt) {
   }
   return true;
 }
+
+function isShortcutZone(nearest, layout = track?.layout || courseLayout()) {
+  return (layout.shortcuts || []).some(([start, end, offset, width]) => {
+    const sideOk = offset === 0 || Math.sign(nearest.lateral || offset) === Math.sign(offset);
+    return sideOk && isIndexBetween(nearest.index, start, end) && Math.abs(nearest.lateral - offset) < width * 0.62;
+  });
+}
+
+function handleCpuCourseAssist(racer, nearest, controls, dt) {
+  if (racer.isPlayer || !nearest?.sample || racer.finished || racer.jumpHeight > 0.2) return false;
+  if (!controls.accel && Math.abs(racer.speed) < 8) return false;
+  if (isShortcutZone(nearest)) return false;
+
+  const absLateral = Math.abs(nearest.lateral || 0);
+  const softEdge = TRACK_WIDTH * 0.24;
+  const warningEdge = TRACK_WIDTH * 0.34;
+  const hardEdge = TRACK_WIDTH * 0.5;
+  const side = Math.sign(nearest.lateral || 1);
+  const amount = clamp((absLateral - softEdge) / Math.max(0.01, hardEdge - softEdge), 0, 1);
+  const targetIndex = (nearest.index + Math.floor(10 + clamp(Math.abs(racer.speed), 0, 90) * 0.16)) % TRACK_STEPS;
+  const targetSample = track.samples[targetIndex] || nearest.sample;
+  const safeLateral = clamp((nearest.lateral || 0) * 0.22, -TRACK_WIDTH * 0.12, TRACK_WIDTH * 0.12);
+  const target = targetSample.point.clone().addScaledVector(targetSample.normal, safeLateral);
+  const targetYaw = Math.atan2(target.x - racer.position.x, target.z - racer.position.z);
+  const tangentYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
+  const yawError = Math.abs(shortestAngle(racer.yaw, targetYaw));
+  if (amount <= 0 && yawError < 0.72) return false;
+
+  const diff = difficulty();
+  const recovery = diff.recoverySpeed || 1;
+  if (amount > 0) {
+    const inward = -side;
+    const pull = (1.25 + amount * 7.4) * recovery * dt;
+    racer.position.addScaledVector(nearest.sample.normal, inward * pull);
+    racer.velocity.addScaledVector(nearest.sample.normal, inward * (4.5 + amount * 15) * recovery * dt);
+  }
+  const yawBlend = clamp(dt * (1.15 + amount * 5.6) * (diff.steeringSkill || 1), 0, 0.34);
+  racer.yaw += shortestAngle(racer.yaw, targetYaw) * yawBlend;
+  racer.yaw += shortestAngle(racer.yaw, tangentYaw) * clamp(dt * amount * 1.2, 0, 0.1);
+
+  if (absLateral > warningEdge && racer.speed > 12) {
+    racer.speed *= 1 - (0.05 + amount * 0.2) * dt;
+  }
+  if (racer.ai && amount > 0.18) {
+    racer.ai.stallTimer = Math.max(racer.ai.stallTimer || 0, 0.12 + amount * 0.38);
+    racer.ai.laneShift = approach(racer.ai.laneShift || 0, 0, dt * 3);
+  }
+  return true;
+}
 function stabilizeRacerGrounding(racer, nearest, dt) {
   const current = nearestTrackSample(racer.position, nearest?.index ?? racer.trackIndex);
   if (!current?.sample) return nearest;
@@ -6364,18 +6442,29 @@ function stabilizeRacerGrounding(racer, nearest, dt) {
 function handleSurface(racer, nearest, dt) {
   const theme = track?.theme || courseTheme();
   const lunarSurface = theme.id === "lunar-crater-run";
-  const offTrack = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.52;
-  const hardWall = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.72;
-  const rescueZone = Math.abs(nearest.lateral) > TRACK_WIDTH * 0.95;
+  const lateralAbs = Math.abs(nearest.lateral || 0);
+  const offTrack = lateralAbs > TRACK_WIDTH * 0.52;
+  const cpuNearWall = !racer.isPlayer && lateralAbs > TRACK_WIDTH * 0.34;
+  const hardWall = lateralAbs > TRACK_WIDTH * (racer.isPlayer ? 0.72 : 0.56);
+  const rescueZone = lateralAbs > TRACK_WIDTH * (racer.isPlayer ? 0.95 : 0.76);
   const layout = track?.layout || courseLayout();
   const dirt = layout.dirtZones.some(([start, end, offset]) => {
     const sameSide = offset === 0 || Math.sign(nearest.lateral || offset) === Math.sign(offset);
     return isIndexBetween(nearest.index, start, end) && sameSide && Math.abs(nearest.lateral) > TRACK_WIDTH * 0.2;
   });
-  const shortcut = (layout.shortcuts || []).some(([start, end, offset, width]) => {
-    const sideOk = offset === 0 || Math.sign(nearest.lateral || offset) === Math.sign(offset);
-    return sideOk && isIndexBetween(nearest.index, start, end) && Math.abs(nearest.lateral - offset) < width * 0.62;
-  });
+  const shortcut = isShortcutZone(nearest, layout);
+
+  if (cpuNearWall && !shortcut) {
+    const edgeAmount = clamp((lateralAbs - TRACK_WIDTH * 0.34) / (TRACK_WIDTH * 0.18), 0, 1);
+    const safeLateral = Math.sign(nearest.lateral || 1) * TRACK_WIDTH * 0.2;
+    const recoveryTarget = nearest.sample.point.clone().addScaledVector(nearest.sample.normal, safeLateral);
+    racer.position.lerp(recoveryTarget, clamp(0.09 + edgeAmount * 0.16, 0, 0.28));
+    racer.velocity.addScaledVector(nearest.sample.normal, -Math.sign(nearest.lateral || 1) * (10 + edgeAmount * 18) * dt);
+    const desiredYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
+    racer.yaw += shortestAngle(racer.yaw, desiredYaw) * clamp(dt * (2.6 + edgeAmount * 4.8), 0, 0.34);
+    racer.speed = Math.max(racer.speed * (1 - (0.18 + edgeAmount * 0.34) * dt), 10 + (difficulty().recoverySpeed || 1) * 5);
+    if (racer.ai) racer.ai.stallTimer = Math.max(racer.ai.stallTimer || 0, 0.18 + edgeAmount * 0.34);
+  }
 
   if ((offTrack && !shortcut) || dirt) {
     const offAmount = clamp((Math.abs(nearest.lateral) - TRACK_WIDTH * 0.52) / (TRACK_WIDTH * 0.58), 0, 1);
@@ -6408,20 +6497,25 @@ function handleSurface(racer, nearest, dt) {
   }
 
   if (hardWall && !shortcut) {
-    const limit = Math.sign(nearest.lateral) * TRACK_WIDTH * 0.56;
+    const limit = Math.sign(nearest.lateral) * TRACK_WIDTH * (racer.isPlayer ? 0.56 : 0.34);
     const target = nearest.sample.point.clone().addScaledVector(nearest.sample.normal, limit);
-    racer.position.lerp(target, racer.isPlayer ? 0.22 : 0.16);
-    racer.speed = Math.max(racer.speed * 0.62, racer.isPlayer ? 10 : 6);
+    racer.position.lerp(target, racer.isPlayer ? 0.22 : 0.32);
+    const desiredYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
+    racer.yaw += shortestAngle(racer.yaw, desiredYaw) * (racer.isPlayer ? 0.18 : 0.42);
+    racer.speed = Math.max(racer.speed * (racer.isPlayer ? 0.62 : 0.72), racer.isPlayer ? 10 : 18);
+    if (racer.ai) racer.ai.stallTimer = Math.max(racer.ai.stallTimer || 0, 0.48);
     racer.wobble = Math.max(racer.wobble, 0.55);
     if (racer.isPlayer) cameraShake = Math.max(cameraShake, 0.18);
   }
 
   if (rescueZone && !shortcut) {
-    const safeSide = Math.sign(nearest.lateral) * TRACK_WIDTH * 0.38;
-    racer.position.copy(nearest.sample.point).addScaledVector(nearest.sample.normal, safeSide);
-    racer.position.y = nearest.sample.point.y;
-    racer.yaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
-    racer.speed = Math.max(Math.abs(racer.speed) * 0.5, racer.isPlayer ? 14 : 9);
+    const safeSide = Math.sign(nearest.lateral) * TRACK_WIDTH * (racer.isPlayer ? 0.38 : 0.18);
+    const forwardIndex = (nearest.index + (racer.isPlayer ? 2 : 8)) % TRACK_STEPS;
+    const sample = racer.isPlayer ? nearest.sample : track.samples[forwardIndex];
+    racer.position.copy(sample.point).addScaledVector(sample.normal, safeSide);
+    racer.position.y = sample.point.y;
+    racer.yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
+    racer.speed = Math.max(Math.abs(racer.speed) * (racer.isPlayer ? 0.5 : 0.68), racer.isPlayer ? 14 : 20);
     racer.verticalSpeed = 0;
     racer.jumpHeight = 0;
     racer.wobble = 0.45;
