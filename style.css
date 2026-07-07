@@ -4037,3 +4037,13 @@ button,
 .course-nebula-drift-stream .course-orbit::after {
   inset: 15px;
 }
+.result-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 620px) {
+  .result-actions {
+    grid-template-columns: 1fr;
+  }
+}

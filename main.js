@@ -626,7 +626,9 @@ function cacheDom() {
     "restartPauseButton",
     "startOverPauseButton",
     "restartButton",
+    "changeCourseButton",
     "changeRacerButton",
+    "resultTitleButton",
     "closeHelpButton",
     "characterGrid",
     "kartGrid",
@@ -724,10 +726,16 @@ function bindEvents() {
   bindUiTap(dom.restartPauseButton, () => startCountdown());
   bindUiTap(dom.startOverPauseButton, () => returnToTitleFromPause());
   bindUiTap(dom.restartButton, () => startCountdown());
+  bindUiTap(dom.changeCourseButton, () => {
+    resetRaceIfReady();
+    populateCourse();
+    go("course");
+  });
   bindUiTap(dom.changeRacerButton, () => {
     resetRaceIfReady();
     go("select");
   });
+  bindUiTap(dom.resultTitleButton, () => returnToTitleFromPause());
   bindUiTap(dom.closeHelpButton, closeHelp);
   bindUiTap(dom.touchHelp, () => openHelp(state.mode === "racing" ? "pause" : state.currentScreen));
   bindUiTap(dom.touchPause, () => {

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>スターライト・グランプリ</title>
-    <link rel="stylesheet" href="./style.css?v=course-variety-v14" />
+    <link rel="stylesheet" href="./style.css?v=result-flow-v15" />
     <script type="importmap">
       {
         "imports": {
@@ -166,9 +166,11 @@
           <p class="eyebrow">ゴール！</p>
           <h2 id="resultTitle">けっか</h2>
           <div id="resultStats" class="result-stats"></div>
-          <div class="screen-actions">
+          <div class="screen-actions result-actions">
             <button id="restartButton" class="game-button primary">もう一回走る</button>
+            <button id="changeCourseButton" class="game-button secondary">コースを変える</button>
             <button id="changeRacerButton" class="game-button secondary">レーサーを変える</button>
+            <button id="resultTitleButton" class="game-button secondary danger-soft">はじめにもどる</button>
           </div>
         </div>
       </section>
@@ -205,8 +207,8 @@
         });
       })();
     </script>
-    <script src="./game-data.js?v=course-variety-v14"></script>
+    <script src="./game-data.js?v=result-flow-v15"></script>
     <script src="./audio.js"></script>
-    <script type="module" src="./main.js?v=course-variety-v14"></script>
+    <script type="module" src="./main.js?v=result-flow-v15"></script>
   </body>
 </html>
