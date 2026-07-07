@@ -4245,3 +4245,217 @@ button,
   background: #ffffff;
   box-shadow: 0 0 16px rgba(191, 247, 255, 0.95);
 }
+
+/* Low-poly stylized space race pass: fewer glows, sharper panels, stronger silhouettes. */
+:root {
+  --lp-panel: rgba(4, 10, 20, 0.76);
+  --lp-panel-strong: rgba(6, 14, 28, 0.9);
+  --lp-line: rgba(180, 226, 238, 0.36);
+  --lp-hot: #e8c66a;
+  --lp-cold: #9ee7ff;
+  --lp-text: #edf8ff;
+}
+
+#screenOverlay {
+  background:
+    linear-gradient(180deg, rgba(1, 4, 12, 0.12), rgba(1, 4, 12, 0.34)),
+    radial-gradient(circle at 50% 120%, rgba(75, 107, 145, 0.24), transparent 46%);
+}
+
+.hud-panel,
+#minimap,
+.hud-coach,
+.game-button,
+.mode-card,
+.choice-card,
+.course-card,
+.difficulty-panel,
+.segmented .segment,
+.result-racer-card,
+.result-row,
+.item-guide-chip {
+  border-radius: 3px !important;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+  border-color: var(--lp-line) !important;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.055), transparent 36%),
+    linear-gradient(180deg, var(--lp-panel-strong), var(--lp-panel)) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 8px 18px rgba(0,0,0,0.24) !important;
+  backdrop-filter: none !important;
+  filter: none !important;
+}
+
+.hud-panel::before,
+.hud-panel::after,
+.game-button::before,
+.course-card::before,
+.course-card::after,
+.mode-card::before,
+.choice-card::before {
+  filter: none !important;
+  opacity: 0.34 !important;
+}
+
+#hud {
+  color: var(--lp-text);
+  text-shadow: none;
+}
+
+.hud-label,
+.difficulty-title,
+.course-kind,
+.choice-label {
+  letter-spacing: 0 !important;
+  text-transform: none;
+}
+
+.hud-label::before {
+  box-shadow: none !important;
+  opacity: 0.9;
+}
+
+.hud-panel .value,
+#rankValue,
+#lapValue,
+#timeValue,
+#speedValue {
+  color: #ffffff !important;
+  text-shadow: 0 0 10px rgba(158, 231, 255, 0.28) !important;
+}
+
+.speed-panel::before,
+.shield-meter,
+.boost-meter,
+.drift-meter {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.game-button {
+  min-height: 46px;
+  color: var(--lp-text) !important;
+  background:
+    linear-gradient(90deg, rgba(158,231,255,0.14), rgba(232,198,106,0.08)),
+    rgba(5, 12, 24, 0.86) !important;
+}
+
+.game-button.primary,
+.game-button.selected,
+.game-button[aria-pressed="true"] {
+  border-color: rgba(232, 198, 106, 0.72) !important;
+  color: #fff7d8 !important;
+  box-shadow: inset 0 0 0 1px rgba(232,198,106,0.22), 0 8px 20px rgba(0,0,0,0.28) !important;
+}
+
+.course-card {
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 154px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--course-secondary, #102846) 86%, black 8%), rgba(255,255,255,0.035) 48%, color-mix(in srgb, var(--course-primary, #7df9ff) 18%, transparent)),
+    rgba(4, 10, 22, 0.9) !important;
+}
+
+.course-card .course-orbit {
+  width: 46px;
+  height: 46px;
+  border-width: 2px;
+  box-shadow: inset 0 -8px 0 rgba(0,0,0,0.18) !important;
+  background: color-mix(in srgb, var(--course-primary, #7df9ff) 28%, #06111e 72%) !important;
+}
+
+.course-card .course-orbit::before {
+  opacity: 0.64;
+  box-shadow: none !important;
+}
+
+.course-card .course-orbit::after {
+  width: 7px;
+  height: 7px;
+  box-shadow: none !important;
+}
+
+.course-lunar-crater-run .course-orbit {
+  background:
+    radial-gradient(circle at 32% 62%, rgba(31,40,54,0.58) 0 11%, transparent 12%),
+    color-mix(in srgb, #c9d0d9 74%, #06111e 26%) !important;
+}
+
+.course-meteor-mining-belt .course-orbit {
+  background: linear-gradient(135deg, #a24d2f, #4a1d12) !important;
+}
+
+.course-starlight-orbit-ring .course-orbit {
+  background: linear-gradient(135deg, #e7eef3, #d8b75d) !important;
+}
+
+.course-nebula-drift-stream .course-orbit {
+  background: linear-gradient(135deg, #cdf5ff, #17445f) !important;
+}
+
+.course-meta-row span,
+.course-caution,
+.course-lap-chip,
+.item-guide-chip b {
+  border-radius: 2px !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+
+.choice-card.selected,
+.course-card.selected,
+.course-card[aria-selected="true"] {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--course-accent, #e8c66a) 52%, transparent),
+    0 10px 22px rgba(0,0,0,0.28) !important;
+}
+
+#countdown.goal-flash {
+  text-shadow: 0 0 18px rgba(232,198,106,0.58), 0 8px 0 rgba(0,0,0,0.34) !important;
+}
+
+.low-quality .hud-panel,
+.low-quality #minimap,
+.low-quality .hud-coach,
+.low-quality .game-button,
+.low-quality .course-card,
+.low-quality .choice-card {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 5px 12px rgba(0,0,0,0.22) !important;
+}
+
+@media (max-width: 760px) {
+  .hud-panel,
+  #minimap,
+  .hud-coach,
+  .game-button,
+  .mode-card,
+  .choice-card,
+  .course-card {
+    clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  }
+
+  .course-card {
+    min-height: 136px;
+  }
+}
+/* Race clarity: remove menu scan/orbit overlays during gameplay. */
+#app.is-racing::before,
+#app.is-racing::after,
+#app.is-countdown::before,
+#app.is-countdown::after,
+#app:not(.is-menu)::before,
+#app:not(.is-menu)::after {
+  display: none !important;
+  content: none !important;
+  opacity: 0 !important;
+}
+
+#app.is-racing #screenOverlay,
+#app.is-countdown #screenOverlay {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}

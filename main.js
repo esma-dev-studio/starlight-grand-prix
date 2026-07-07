@@ -20,28 +20,35 @@ const QUALITY = (() => {
   const isTouch = typeof navigator !== "undefined" && Math.max(navigator.maxTouchPoints || 0, 0) > 0;
   const cappedDpr = Math.min(dpr, 1.5);
   const smallTouch = isTouch || width < 900;
-  const low = dpr > 1.35 || width < 1024 || isTouch;
+  const low = dpr > 1.28 || width < 1100 || isTouch;
   return {
     low,
     mode: smallTouch ? "かるい" : (width < 1280 || dpr > 1.15 ? "ふつう" : "きれい"),
-    pixelRatio: Math.min(cappedDpr, smallTouch ? 0.75 : low ? 0.95 : 1.5),
-    shadowSize: low ? 256 : 768,
-    environmentScale: low ? 0.07 : 0.32,
-    speedLineCount: low ? 5 : 18,
-    particleCap: low ? 36 : 130,
-    tireMarkCap: low ? 16 : 64,
-    maxBurst: low ? 3 : 10,
-    effectRate: low ? 0.18 : 0.52,
-    assistStrength: low ? 1.18 : 0.9,
-    guideStep: low ? 56 : 24,
-    minimapInterval: low ? 0.28 : 0.14,
-    hudInterval: low ? 0.14 : 0.07,
-    venueStep: low ? 180 : 78,
-    menuFrameInterval: low ? 1400 : 700,
-    trackStructureStep: low ? 44 : 18,
-    backgroundCullingDistance: low ? 360 : 620
+    pixelRatio: Math.min(cappedDpr, smallTouch ? 0.68 : low ? 0.88 : 1.22),
+    shadowSize: low ? 256 : 512,
+    environmentScale: low ? 0.045 : 0.16,
+    speedLineCount: low ? 4 : 10,
+    particleCap: low ? 28 : 72,
+    tireMarkCap: low ? 12 : 36,
+    maxBurst: low ? 2 : 6,
+    effectRate: low ? 0.12 : 0.32,
+    assistStrength: low ? 1.2 : 0.95,
+    guideStep: low ? 72 : 36,
+    minimapInterval: low ? 0.34 : 0.18,
+    hudInterval: low ? 0.18 : 0.1,
+    venueStep: low ? 220 : 124,
+    menuFrameInterval: low ? 1600 : 900,
+    trackStructureStep: low ? 64 : 34,
+    backgroundCullingDistance: low ? 300 : 500
   };
 })();
+
+const ART_DIRECTION = Object.freeze({
+  lowPoly: true,
+  coursePaletteLimit: 3,
+  glowOpacity: QUALITY.low ? 0.42 : 0.56,
+  transparentBudget: QUALITY.low ? 0.55 : 0.72
+});
 
 const fallbackData = {
   titleCandidates: ["スターライト・グランプリ"],
@@ -1319,7 +1326,7 @@ function initThree() {
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.26;
+  renderer.toneMappingExposure = 1.08;
 
   scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x11243d, 0.0068);
@@ -1327,10 +1334,10 @@ function initThree() {
   camera = new THREE.PerspectiveCamera(62, 1, 0.1, 1600);
   camera.position.set(0, 20, -36);
 
-  const hemi = new THREE.HemisphereLight(0xe2fbff, 0x2c1b3a, 3.4);
+  const hemi = new THREE.HemisphereLight(0xe2fbff, 0x172034, 2.45);
   scene.add(hemi);
 
-  const sun = new THREE.DirectionalLight(0xfff1c4, 5.2);
+  const sun = new THREE.DirectionalLight(0xfff1c4, 3.25);
   sun.position.set(-70, 115, 60);
   sun.castShadow = !QUALITY.low;
   sun.shadow.mapSize.set(QUALITY.shadowSize, QUALITY.shadowSize);
@@ -1340,13 +1347,15 @@ function initThree() {
   sun.shadow.camera.bottom = -180;
   scene.add(sun);
 
-  const rose = new THREE.PointLight(0xff4f9b, 165, 280, 1.8);
-  rose.position.set(70, 45, -65);
-  scene.add(rose);
+  if (!QUALITY.low) {
+    const rose = new THREE.PointLight(0xff8fa8, 42, 180, 1.8);
+    rose.position.set(70, 42, -65);
+    scene.add(rose);
 
-  const cyan = new THREE.PointLight(0x44e6ff, 165, 280, 1.8);
-  cyan.position.set(-85, 34, 95);
-  scene.add(cyan);
+    const cyan = new THREE.PointLight(0x6de6ff, 46, 180, 1.8);
+    cyan.position.set(-85, 34, 95);
+    scene.add(cyan);
+  }
 
   loadGeneratedTextureAtlas();
   scene.add(makeSkyDome());
@@ -1423,116 +1432,49 @@ function makeKartLiveryMaterial(tileX, tileY, tint = 0xffffff, opacity = 0.96) {
 }
 function makeSkyDome() {
   const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 1024;
+  canvas.width = QUALITY.low ? 512 : 768;
+  canvas.height = QUALITY.low ? 512 : 768;
   const ctx = canvas.getContext("2d");
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
   gradient.addColorStop(0, "#01030a");
-  gradient.addColorStop(0.34, "#060c24");
-  gradient.addColorStop(0.68, "#111044");
-  gradient.addColorStop(1, "#020512");
+  gradient.addColorStop(0.55, "#061020");
+  gradient.addColorStop(1, "#02050d");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const nebula = ctx.createRadialGradient(280, 380, 20, 280, 380, 420);
-  nebula.addColorStop(0, "rgba(167,139,250,0.34)");
-  nebula.addColorStop(0.42, "rgba(52,240,178,0.12)");
-  nebula.addColorStop(1, "rgba(2,5,18,0)");
-  ctx.fillStyle = nebula;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  const planet = ctx.createRadialGradient(782, 244, 8, 782, 244, 156);
-  planet.addColorStop(0, "rgba(255,255,255,0.96)");
-  planet.addColorStop(0.22, "rgba(110,231,255,0.9)");
-  planet.addColorStop(0.66, "rgba(65,86,174,0.82)");
-  planet.addColorStop(1, "rgba(8,12,40,0.12)");
-  ctx.fillStyle = planet;
-  ctx.beginPath();
-  ctx.arc(782, 244, 150, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,209,102,0.46)";
-  ctx.lineWidth = 18;
-  ctx.beginPath();
-  ctx.ellipse(782, 258, 220, 46, -0.23, 0, Math.PI * 2);
-  ctx.stroke();
-
-  for (let i = 0; i < 620; i += 1) {
-    const size = 0.6 + rand() * 2.4;
+  const starCount = QUALITY.low ? 90 : 170;
+  for (let i = 0; i < starCount; i += 1) {
+    const size = i % 11 === 0 ? 1.8 : 0.8 + rand() * 1.1;
     const x = rand() * canvas.width;
     const y = rand() * canvas.height;
-    ctx.fillStyle = "rgba(226,248,255," + (0.16 + rand() * 0.72) + ")";
+    ctx.fillStyle = "rgba(226,248,255," + (0.16 + rand() * 0.42) + ")";
     ctx.fillRect(x, y, size, size);
-  }
-
-  for (let band = 0; band < 8; band += 1) {
-    const y = 132 + band * 84 + rand() * 44;
-    const hue = band % 3 === 0 ? "125,249,255" : band % 3 === 1 ? "255,79,216" : "255,209,102";
-    ctx.strokeStyle = "rgba(" + hue + "," + (0.08 + rand() * 0.18) + ")";
-    ctx.lineWidth = 8 + rand() * 24;
-    ctx.beginPath();
-    for (let x = -80; x <= canvas.width + 80; x += 38) {
-      const wave = Math.sin(x * 0.012 + band * 1.2) * (22 + band * 2.4);
-      if (x === -80) ctx.moveTo(x, y + wave);
-      else ctx.lineTo(x, y + wave);
-    }
-    ctx.stroke();
-  }
-
-  for (let i = 0; i < 24; i += 1) {
-    const x = rand() * canvas.width;
-    const y = 40 + rand() * 620;
-    const length = 70 + rand() * 150;
-    const streak = ctx.createLinearGradient(x, y, x + length, y - length * 0.34);
-    streak.addColorStop(0, "rgba(255,255,255,0)");
-    streak.addColorStop(0.42, "rgba(125,249,255,0.76)");
-    streak.addColorStop(1, "rgba(255,79,216,0)");
-    ctx.strokeStyle = streak;
-    ctx.lineWidth = 1.4 + rand() * 2.8;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.lineTo(x + length, y - length * 0.34);
-    ctx.stroke();
   }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
   const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(720, QUALITY.low ? 24 : 36, QUALITY.low ? 12 : 18),
+    new THREE.SphereGeometry(720, QUALITY.low ? 18 : 24, QUALITY.low ? 9 : 12),
     new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide, depthWrite: false })
   );
   dome.renderOrder = -10;
   return dome;
 }
+
 function makeGroundPlane() {
   const group = new THREE.Group();
   const plane = new THREE.Mesh(
-    new THREE.CircleGeometry(620, QUALITY.low ? 56 : 80),
-    new THREE.MeshBasicMaterial({ color: 0x101929 })
+    new THREE.CircleGeometry(620, QUALITY.low ? 28 : 40),
+    new THREE.MeshBasicMaterial({ color: 0x07101b })
   );
   plane.rotation.x = -Math.PI / 2;
   plane.position.y = -7;
   plane.receiveShadow = false;
   group.add(plane);
-
-  const ringCount = QUALITY.low ? 7 : 14;
-  for (let i = 0; i < ringCount; i += 1) {
-    const radius = 92 + i * 32;
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(radius - 0.22, radius + 0.22, QUALITY.low ? 56 : 92),
-      new THREE.MeshBasicMaterial({
-        color: i % 2 ? 0x17365a : 0x273d61,
-        transparent: true,
-        opacity: QUALITY.low ? 0.18 : 0.26,
-        side: THREE.DoubleSide
-      })
-    );
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = -6.72;
-    group.add(ring);
-  }
   return group;
-}
-function hexColor(value, fallback = 0xffffff) {
+}function hexColor(value, fallback = 0xffffff) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string") {
     const clean = value.trim().replace(/^#/, "");
@@ -1541,12 +1483,30 @@ function hexColor(value, fallback = 0xffffff) {
   return fallback;
 }
 
+const COURSE_STYLE_PALETTES = Object.freeze({
+  "lunar-crater-run": {
+    road: "#C9D0D9", roadEmissive: "#18202B", railLeft: "#EAF6FF", railRight: "#93A8BA", centerLine: "#F8FDFF",
+    shortcut: "#AEB8C6", dust: "#AEB7C2", warning: "#E8C66A", sky: "#02050D", fog: "#070A12", structure: "#8793A2", boost: "#EAF6FF"
+  },
+  "meteor-mining-belt": {
+    road: "#A24D2F", roadEmissive: "#3B1810", railLeft: "#D16A3C", railRight: "#F0A45B", centerLine: "#FFD08A",
+    shortcut: "#71331F", dust: "#AD5C35", warning: "#F0A45B", sky: "#210D08", fog: "#4A1D12", structure: "#71351F", boost: "#F0A45B"
+  },
+  "starlight-orbit-ring": {
+    road: "#E7EEF3", roadEmissive: "#27384D", railLeft: "#F6F2DD", railRight: "#D8B75D", centerLine: "#CCEFFF",
+    shortcut: "#B9C9D8", dust: "#DCE9F2", warning: "#D8B75D", sky: "#061020", fog: "#0A1728", structure: "#B7C2CF", boost: "#D8B75D"
+  },
+  "nebula-drift-stream": {
+    road: "#CDF5FF", roadEmissive: "#17445F", railLeft: "#DCFBFF", railRight: "#86D7E8", centerLine: "#FFFFFF",
+    shortcut: "#87CDE8", dust: "#B8F2FF", warning: "#E9FBFF", sky: "#06111F", fog: "#09213B", structure: "#79BFD4", boost: "#9EEBFF"
+  }
+});
 function courseTheme(course = activeCourse()) {
-  const palette = course?.palette || {};
+  const id = course?.id || "lunar-crater-run";
+  const palette = { ...(course?.palette || {}), ...(COURSE_STYLE_PALETTES[id] || {}) };
   const colors = course?.colors || {};
   const primary = hexColor(palette.railLeft || colors.primary, 0x7df9ff);
   const accent = hexColor(palette.accent || colors.accent || palette.boost, 0xffd166);
-  const id = course?.id || "lunar-crater-run";
   return {
     id,
     surfaceType: course?.surfaceType || "metal-ring",
@@ -1568,10 +1528,10 @@ function courseTheme(course = activeCourse()) {
     fogColor: hexColor(palette.fog || palette.sky, 0x11243d),
     skyColor: hexColor(palette.sky || palette.fog, 0x07111f),
     accentColor: accent,
-    roadOpacity: id === "lunar-crater-run" ? 0.94 : id === "nebula-drift-stream" ? 0.9 : id === "starlight-orbit-ring" ? 0.96 : 0.97,
-    railOpacity: id === "lunar-crater-run" ? 0.42 : id === "meteor-mining-belt" ? 0.58 : id === "nebula-drift-stream" ? 0.62 : 0.76,
-    fogDensity: id === "nebula-drift-stream" ? 0.0072 : id === "meteor-mining-belt" ? 0.009 : id === "lunar-crater-run" ? 0.0038 : 0.0056,
-    structureStep: id === "lunar-crater-run" ? (QUALITY.low ? 58 : 34) : id === "starlight-orbit-ring" ? (QUALITY.low ? 46 : 20) : (QUALITY.low ? 58 : 30)
+    roadOpacity: 1,
+    railOpacity: id === "lunar-crater-run" ? 0.68 : id === "meteor-mining-belt" ? 0.74 : id === "nebula-drift-stream" ? 0.7 : 0.78,
+    fogDensity: id === "nebula-drift-stream" ? 0.0062 : id === "meteor-mining-belt" ? 0.0082 : id === "lunar-crater-run" ? 0.0035 : 0.0048,
+    structureStep: id === "lunar-crater-run" ? (QUALITY.low ? 72 : 48) : id === "starlight-orbit-ring" ? (QUALITY.low ? 76 : 42) : (QUALITY.low ? 82 : 52)
   };
 }
 
@@ -1581,7 +1541,7 @@ function applyCourseAtmosphere(theme) {
     scene.fog.density = theme.fogDensity;
   }
   if (scene) scene.background = new THREE.Color(theme.skyColor);
-  if (renderer) renderer.toneMappingExposure = QUALITY.low ? 1.14 : 1.22;
+  if (renderer) renderer.toneMappingExposure = QUALITY.low ? 1.04 : 1.1;
 }
 
 const COURSE_PATHS = {
@@ -1750,10 +1710,11 @@ function createTrackRibbon(trackInfo, offset, width, color, emissive, opacity, r
   const iceSurface = themeId === "nebula-drift-stream" && receiveShadow;
   const materialOptions = {
     color,
-    roughness: lunarSurface ? 0.88 : marsSurface ? 0.86 : iceSurface ? 0.16 : receiveShadow ? 0.46 : 0.25,
-    metalness: lunarSurface || marsSurface ? 0.03 : iceSurface ? 0.08 : ringSurface ? 0.42 : receiveShadow ? 0.36 : 0.05,
+    roughness: lunarSurface ? 0.92 : marsSurface ? 0.88 : iceSurface ? 0.44 : receiveShadow ? 0.62 : 0.42,
+    metalness: lunarSurface || marsSurface ? 0.02 : iceSurface ? 0.04 : ringSurface ? 0.18 : receiveShadow ? 0.16 : 0.03,
     emissive,
-    emissiveIntensity: lunarSurface ? 0.012 : marsSurface ? 0.018 : iceSurface ? 0.07 : ringSurface ? 0.055 : receiveShadow ? 0.035 : 0.85,
+    emissiveIntensity: lunarSurface ? 0.006 : marsSurface ? 0.01 : iceSurface ? 0.035 : ringSurface ? 0.025 : receiveShadow ? 0.018 : 0.34,
+    flatShading: true,
     transparent: opacity < 1,
     opacity,
     side: THREE.DoubleSide
@@ -1818,8 +1779,8 @@ function addThemedTrackFoundation(trackInfo, theme) {
     createTrackUnderlayRibbon(trackInfo, TRACK_WIDTH * 0.86, 6.0, 0x54200f, 0, 0.46, -0.1, 4);
     addMarsTrackGrooves(trackInfo, theme);
   } else if (theme.id === "starlight-orbit-ring") {
-    createTrackUnderlayRibbon(trackInfo, 0, TRACK_WIDTH * 3.4, theme.warningColor, theme.warningColor, 0.38, -0.22);
-    createTrackUnderlayRibbon(trackInfo, 0, TRACK_WIDTH * 2.62, theme.centerLine, theme.centerLine, 0.3, -0.17, 5);
+    createTrackUnderlayRibbon(trackInfo, 0, TRACK_WIDTH * 3.15, theme.warningColor, theme.warningColor, 0.24, -0.22);
+    createTrackUnderlayRibbon(trackInfo, 0, TRACK_WIDTH * 2.42, theme.centerLine, theme.centerLine, 0.18, -0.17, 5);
     createTrackUnderlayRibbon(trackInfo, -TRACK_WIDTH * 1.22, 1.7, theme.warningColor, theme.warningColor, 0.66, -0.02);
     createTrackUnderlayRibbon(trackInfo, TRACK_WIDTH * 1.22, 1.7, theme.centerLine, theme.centerLine, 0.6, -0.02);
     addRingTrackBandMarkers(trackInfo, theme);
@@ -1836,7 +1797,7 @@ function addThemedTrackFoundation(trackInfo, theme) {
 function addMarsTrackGrooves(trackInfo, theme) {
   const grooveMat = new THREE.MeshBasicMaterial({ color: 0x4d1c0f, transparent: true, opacity: 0.26, depthWrite: false });
   const dustMat = new THREE.MeshBasicMaterial({ color: theme.warningColor, transparent: true, opacity: 0.18, depthWrite: false });
-  for (let i = 4; i < TRACK_STEPS; i += (QUALITY.low ? 38 : 16)) {
+  for (let i = 4; i < TRACK_STEPS; i += (QUALITY.low ? 58 : 28)) {
     const sample = trackInfo.samples[i];
     const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
     [-1, 1].forEach((side) => {
@@ -1858,10 +1819,10 @@ function addMarsTrackGrooves(trackInfo, theme) {
 
 function addRingTrackBandMarkers(trackInfo, theme) {
   const stripeMats = [
-    new THREE.MeshBasicMaterial({ color: theme.warningColor, transparent: true, opacity: 0.72, blending: THREE.AdditiveBlending, depthWrite: false }),
-    new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.54, blending: THREE.AdditiveBlending, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: theme.warningColor, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false }),
+    new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false })
   ];
-  for (let i = 0; i < TRACK_STEPS; i += (QUALITY.low ? 30 : 10)) {
+  for (let i = 0; i < TRACK_STEPS; i += (QUALITY.low ? 54 : 24)) {
     const sample = trackInfo.samples[i];
     const stripe = new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH * 2.92, 0.028, i % 30 === 0 ? 0.72 : 0.34), stripeMats[Math.floor(i / 10) % 2 ? 1 : 0]);
     stripe.position.copy(sample.point);
@@ -1872,7 +1833,7 @@ function addRingTrackBandMarkers(trackInfo, theme) {
 }
 
 function addRingEdgeParticles(trackInfo, theme) {
-  const particleCount = QUALITY.low ? 28 : 70;
+  const particleCount = QUALITY.low ? 10 : 22;
   const geo = new THREE.DodecahedronGeometry(1, 0);
   const iceMat = new THREE.MeshStandardMaterial({ color: 0xdcefff, emissive: theme.centerLine, emissiveIntensity: 0.18, roughness: 0.34, metalness: 0.08 });
   const goldMat = new THREE.MeshStandardMaterial({ color: 0xe8c66a, emissive: theme.warningColor, emissiveIntensity: 0.22, roughness: 0.48, metalness: 0.06 });
@@ -1907,7 +1868,7 @@ function addRingEdgeParticles(trackInfo, theme) {
 function addIceTrackCracks(trackInfo, theme) {
   const crackMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false });
   const blueMat = new THREE.MeshBasicMaterial({ color: theme.centerLine, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false });
-  for (let i = 8; i < TRACK_STEPS; i += (QUALITY.low ? 46 : 15)) {
+  for (let i = 8; i < TRACK_STEPS; i += (QUALITY.low ? 64 : 30)) {
     const sample = trackInfo.samples[i];
     const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
     const crack = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.026, 4.5 + rand() * 5.5), i % 2 ? crackMat : blueMat);
@@ -2102,32 +2063,46 @@ function addStartLine(trackInfo) {
 
   for (let s = -1; s <= 1; s += 2) {
     const arch = new THREE.Mesh(
-      new THREE.BoxGeometry(1.6, 20, 1.6),
+      new THREE.BoxGeometry(1.4, 13.5, 1.2),
       new THREE.MeshStandardMaterial({ color: 0x203047, emissive: 0x225d7a, emissiveIntensity: 0.3 })
     );
     arch.position.copy(sample.point).addScaledVector(sample.normal, s * (TRACK_WIDTH * 0.55 + 2));
-    arch.position.y += 10;
+    arch.position.y += 6.75;
     trackInfo.group.add(arch);
   }
 
   const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
-  const portal = new THREE.Group();
-  const portalMat = new THREE.MeshBasicMaterial({ color: 0x7df9ff, transparent: true, opacity: 0.68, blending: THREE.AdditiveBlending, depthWrite: false });
-  const amberMat = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false });
-  [7.4, 8.8, 10.2].forEach((radius, index) => {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, index === 1 ? 0.08 : 0.045, 8, 96), index === 1 ? amberMat.clone() : portalMat.clone());
-    ring.rotation.z = index * 0.25;
-    portal.add(ring);
+  const gate = new THREE.Group();
+  const gateMat = new THREE.MeshStandardMaterial({
+    color: theme.structureColor,
+    emissive: theme.centerLine,
+    emissiveIntensity: QUALITY.low ? 0.12 : 0.2,
+    roughness: 0.74,
+    metalness: 0.16,
+    flatShading: true
   });
-  const gateCore = new THREE.Mesh(new THREE.PlaneGeometry(TRACK_WIDTH * 1.16, 9.4), new THREE.MeshBasicMaterial({ color: 0x9ee7ff, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  portal.add(gateCore);
-  portal.position.copy(sample.point).addScaledVector(sample.tangent, 3.0);
-  portal.position.y += 8.6;
-  portal.rotation.y = yaw;
-  trackInfo.group.add(portal);
-  const portalLight = new THREE.PointLight(0x7df9ff, 22, 72, 2);
-  portalLight.position.copy(portal.position);
-  trackInfo.group.add(portalLight);
+  const accentMat = new THREE.MeshBasicMaterial({ color: theme.warningColor || theme.centerLine });
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH * 1.22, 0.95, 1.05), gateMat);
+  beam.position.y = 12.8;
+  const lowerBeam = new THREE.Mesh(new THREE.BoxGeometry(TRACK_WIDTH * 0.72, 0.42, 0.72), gateMat);
+  lowerBeam.position.y = 9.6;
+  const badge = new THREE.Mesh(new THREE.OctahedronGeometry(1.15, 0), accentMat);
+  badge.position.y = 11.3;
+  const finGeo = new THREE.BoxGeometry(4.2, 0.54, 0.64);
+  [-1, 1].forEach((side) => {
+    const fin = new THREE.Mesh(finGeo, gateMat);
+    fin.position.set(side * (TRACK_WIDTH * 0.44), 11.35, 0);
+    fin.rotation.z = side * 0.42;
+    gate.add(fin);
+  });
+  const label = theme.id === "meteor-mining-belt" ? "MARS" : theme.id === "starlight-orbit-ring" ? "RING" : "ICE";
+  const sign = createTextSprite(label, theme.centerLine, 0.68);
+  sign.position.y = 14.4;
+  sign.scale.set(9.5, 3.4, 1);
+  gate.add(beam, lowerBeam, badge, sign);
+  gate.position.copy(sample.point).addScaledVector(sample.tangent, 3.0);
+  gate.rotation.y = yaw;
+  trackInfo.group.add(gate);
 }
 
 function addBoostPanels(trackInfo) {
@@ -4366,39 +4341,36 @@ function createKartModel(character, kart, isPlayer) {
   group.userData.machineProfile = profile;
   group.userData.machineType = profile.type;
   group.userData.signatureColor = accent;
-  const bodyMat = new THREE.MeshPhysicalMaterial({
+  const bodyMat = new THREE.MeshStandardMaterial({
     color: primary,
     emissive: primary,
-    emissiveIntensity: isPlayer ? 0.18 : 0.1,
-    roughness: 0.31,
-    metalness: 0.62,
-    clearcoat: 0.55,
-    clearcoatRoughness: 0.18
+    emissiveIntensity: isPlayer ? 0.08 : 0.04,
+    roughness: 0.64,
+    metalness: 0.22,
+    flatShading: true
   });
-  const trimMat = new THREE.MeshPhysicalMaterial({
+  const trimMat = new THREE.MeshStandardMaterial({
     color: secondary,
     emissive: secondary,
-    emissiveIntensity: 0.16,
-    roughness: 0.42,
-    metalness: 0.55,
-    clearcoat: 0.25
+    emissiveIntensity: 0.06,
+    roughness: 0.68,
+    metalness: 0.18,
+    flatShading: true
   });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x07111d, roughness: 0.5, metalness: 0.65 });
   const tireMat = new THREE.MeshStandardMaterial({ color: 0x05070c, roughness: 0.58, metalness: 0.2 });
-  const glassMat = new THREE.MeshPhysicalMaterial({
+  const glassMat = new THREE.MeshStandardMaterial({
     color: accent,
     emissive: accent,
-    emissiveIntensity: 0.42,
-    roughness: 0.08,
-    metalness: 0.05,
-    transmission: 0.15,
-    transparent: true,
-    opacity: 0.72
+    emissiveIntensity: 0.16,
+    roughness: 0.42,
+    metalness: 0.12,
+    flatShading: true
   });
   const glowMat = new THREE.MeshBasicMaterial({
     color: accent,
     transparent: true,
-    opacity: 0.88,
+    opacity: ART_DIRECTION.glowOpacity,
     blending: THREE.AdditiveBlending,
     depthWrite: false
   });
@@ -4428,7 +4400,7 @@ function createKartModel(character, kart, isPlayer) {
   nose.castShadow = true;
   chassis.add(nose);
 
-  const canopy = new THREE.Mesh(new THREE.SphereGeometry(profile.width * 0.28, 24, 14), glassMat);
+  const canopy = new THREE.Mesh(new THREE.DodecahedronGeometry(profile.width * 0.28, 0), glassMat);
   canopy.scale.set(1.08, 0.48, 0.82);
   canopy.position.set(0, 1.88, -0.16);
   canopy.castShadow = true;
@@ -4443,9 +4415,11 @@ function createKartModel(character, kart, isPlayer) {
   driver.rotation.x = profile.driverPitch || 0;
   chassis.add(driver);
 
-  const holoMarker = createRacerHoloMarker(character, kart, accent);
-  holoMarker.position.set(profile.holoX || profile.width * 0.36, (profile.seatY || 2.5) + 1.05, (profile.seatZ || -0.42) - 0.38);
-  chassis.add(trackMachinePart(group, "hover", holoMarker));
+  if (!QUALITY.low && isPlayer) {
+    const holoMarker = createRacerHoloMarker(character, kart, accent);
+    holoMarker.position.set(profile.holoX || profile.width * 0.36, (profile.seatY || 2.5) + 1.05, (profile.seatZ || -0.42) - 0.38);
+    chassis.add(trackMachinePart(group, "hover", holoMarker));
+  }
 
   const wingY = 2.05 + profile.height * 0.18;
   const spoiler = new THREE.Group();
@@ -4463,7 +4437,7 @@ function createKartModel(character, kart, isPlayer) {
   });
   chassis.add(spoiler);
   addKartSilhouetteKit(chassis, profile, character, kart, primary, secondary, accent, bodyMat, trimMat, glowMat, darkMat);
-  addPremiumKartLivery(chassis, profile, character, kart, primary, secondary, accent, darkMat);
+  addStylizedMachinePanels(chassis, profile, character, kart, primary, secondary, accent, darkMat);
   addDedicatedMachineKit(chassis, profile, character, kart, primary, secondary, accent, bodyMat, trimMat, glowMat, darkMat, group);
 
   [-1, 1].forEach((side) => {
@@ -4529,11 +4503,12 @@ function createKartModel(character, kart, isPlayer) {
   underglow.position.y = 0.11;
   group.add(underglow);
 
-  const engine = new THREE.PointLight(accent, isPlayer ? 9 : 5, 18, 2);
-  engine.position.set(0, 1.0, -profile.length * 0.68);
-  chassis.add(engine);
-
-  group.userData.engineLight = engine;
+  if (!QUALITY.low) {
+    const engine = new THREE.PointLight(accent, isPlayer ? 5 : 2.5, 13, 2);
+    engine.position.set(0, 1.0, -profile.length * 0.68);
+    chassis.add(engine);
+    group.userData.engineLight = engine;
+  }
   group.userData.glowMat = glowMat;
   group.userData.chassis = chassis;
   group.userData.driverRoot = driver;
@@ -4775,6 +4750,42 @@ function addDedicatedMachineKit(chassis, profile, character, kart, primary, seco
   }
 }
 
+function addStylizedMachinePanels(chassis, profile, character, kart, primary, secondary, accent, darkMat) {
+  const primaryHex = primary.getHex ? primary.getHex() : primary;
+  const secondaryHex = secondary.getHex ? secondary.getHex() : secondary;
+  const accentHex = accent.getHex ? accent.getHex() : accent;
+  const panelMat = new THREE.MeshStandardMaterial({ color: primaryHex, emissive: primaryHex, emissiveIntensity: 0.045, roughness: 0.7, metalness: 0.16, flatShading: true });
+  const colorBlockMat = new THREE.MeshStandardMaterial({ color: secondaryHex, emissive: accentHex, emissiveIntensity: 0.05, roughness: 0.72, metalness: 0.12, flatShading: true });
+  const accentMat = new THREE.MeshBasicMaterial({ color: accentHex });
+
+  const hoodBlock = new THREE.Mesh(createPrismGeometry(profile.width * 0.62, 0.16, profile.length * 0.34, 0.45, 0.9), colorBlockMat);
+  hoodBlock.position.set(0, 1.58, profile.length * 0.2);
+  hoodBlock.rotation.x = -3 * DEG;
+  chassis.add(hoodBlock);
+
+  [-1, 1].forEach((side) => {
+    const blade = new THREE.Mesh(createPrismGeometry(profile.width * 0.22, 0.14, profile.length * 0.96, 0.32, 1), panelMat);
+    blade.position.set(side * profile.width * 0.72, 1.08, -0.06);
+    blade.rotation.set(0, side * -9 * DEG, side * -10 * DEG);
+    blade.castShadow = true;
+    chassis.add(blade);
+
+    const tailFin = new THREE.Mesh(createPrismGeometry(0.18, profile.height * 0.9, profile.length * 0.42, 0.35, 1), colorBlockMat);
+    tailFin.position.set(side * profile.width * 0.34, 1.86, -profile.length * 0.52);
+    tailFin.rotation.set(-15 * DEG, side * -12 * DEG, side * -24 * DEG);
+    tailFin.castShadow = true;
+    chassis.add(tailFin);
+
+    const boosterBlock = new THREE.Mesh(new THREE.BoxGeometry(profile.width * 0.18, 0.28, 0.42), darkMat);
+    boosterBlock.position.set(side * profile.width * 0.28, 1.02, -profile.length * 0.78);
+    chassis.add(boosterBlock);
+  });
+
+  const emblem = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 0), accentMat);
+  emblem.position.set(0, 1.82, profile.length * 0.34);
+  emblem.rotation.y = Math.PI / 4;
+  chassis.add(emblem);
+}
 function addPremiumKartLivery(chassis, profile, character, kart, primary, secondary, accent, darkMat) {
   const key = `${character.id || character.name || "racer"}-${kart.id || kart.name || "kart"}`;
   const seedValue = Math.abs([...key].reduce((acc, char) => acc + char.charCodeAt(0), 0));
@@ -5126,29 +5137,28 @@ function createDriverModel(character, accent, secondary, primary) {
   accent = characterAccent;
   group.userData.characterId = character.id || "";
   group.userData.characterMotionParts = { pulse: [], spin: [], flutter: [], sway: [] };
-  const suit = new THREE.MeshPhysicalMaterial({
+  const suit = new THREE.MeshStandardMaterial({
     color: secondary,
     emissive: secondary,
-    emissiveIntensity: trait === "robot" ? 0.18 : 0.1,
-    roughness: 0.36,
-    metalness: trait === "robot" ? 0.7 : 0.28,
-    clearcoat: 0.25
+    emissiveIntensity: trait === "robot" ? 0.1 : 0.045,
+    roughness: 0.72,
+    metalness: trait === "robot" ? 0.32 : 0.12,
+    flatShading: true
   });
-  const skin = new THREE.MeshPhysicalMaterial({
+  const skin = new THREE.MeshStandardMaterial({
     color: trait === "robot" ? primary : accent,
     emissive: trait === "spirit" ? accent : primary,
-    emissiveIntensity: trait === "spirit" ? 0.58 : 0.18,
-    roughness: 0.34,
-    metalness: trait === "robot" ? 0.48 : 0.08,
-    transparent: trait === "spirit",
-    opacity: trait === "spirit" ? 0.82 : 1
+    emissiveIntensity: trait === "spirit" ? 0.24 : 0.08,
+    roughness: 0.66,
+    metalness: trait === "robot" ? 0.22 : 0.06,
+    flatShading: true
   });
   const dark = new THREE.MeshStandardMaterial({ color: 0x07111d, roughness: 0.42, metalness: 0.4 });
   const glow = new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
-  const face = new THREE.MeshStandardMaterial({ color: 0xf7fbff, emissive: accent, emissiveIntensity: 0.35, roughness: 0.2 });
+  const face = new THREE.MeshStandardMaterial({ color: 0xf7fbff, emissive: accent, emissiveIntensity: 0.18, roughness: 0.48, flatShading: true });
 
   const torso = new THREE.Mesh(
-    trait === "robot" ? new THREE.BoxGeometry(1.08, 1.08, 0.68) : new THREE.CapsuleGeometry(0.56, 0.96, 8, 16),
+    trait === "robot" ? new THREE.BoxGeometry(1.08, 1.08, 0.68) : new THREE.CapsuleGeometry(0.56, 0.96, 4, 8),
     suit
   );
   torso.position.y = 0.04;
@@ -5162,11 +5172,11 @@ function createDriverModel(character, accent, secondary, primary) {
   group.add(chestLight);
 
   [-1, 1].forEach((side) => {
-    const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 8), suit);
+    const shoulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), suit);
     shoulder.scale.set(trait === "robot" ? 1.55 : 1.12, 0.72, 0.84);
     shoulder.position.set(side * 0.54, 0.36, 0.02);
     group.add(shoulder);
-    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.46, 6, 8), suit);
+    const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.46, 4, 6), suit);
     arm.position.set(side * 0.66, 0.02, 0.15);
     arm.rotation.z = side * -18 * DEG;
     arm.rotation.x = 14 * DEG;
@@ -5174,7 +5184,7 @@ function createDriverModel(character, accent, secondary, primary) {
   });
 
   const head = new THREE.Mesh(
-    trait === "robot" ? new THREE.BoxGeometry(0.86, 0.68, 0.66) : new THREE.SphereGeometry(0.56, 24, 16),
+    trait === "robot" ? new THREE.BoxGeometry(0.86, 0.68, 0.66) : new THREE.DodecahedronGeometry(0.58, 0),
     skin
   );
   head.position.y = 1.02;
@@ -5455,7 +5465,7 @@ function addCharacterSignatureKit(group, character, trait, accent, primary, seco
     tag.position.set(0.12, 0.26, 0.52);
     group.add(trackDriverPart(group, "pulse", tag));
   } else if (id === "mira-calcite") {
-    const shield = new THREE.Mesh(new THREE.OctahedronGeometry(0.58, 0), new THREE.MeshPhysicalMaterial({ color: primaryHex, emissive: accentHex, emissiveIntensity: 0.32, roughness: 0.12, metalness: 0.12, transmission: 0.12, transparent: true, opacity: 0.88 }));
+    const shield = new THREE.Mesh(new THREE.OctahedronGeometry(0.58, 0), new THREE.MeshStandardMaterial({ color: primaryHex, emissive: accentHex, emissiveIntensity: 0.16, roughness: 0.48, metalness: 0.08, flatShading: true }));
     shield.position.set(0, 0.62, -0.78);
     shield.scale.set(0.92, 1.28, 0.18);
     shield.rotation.z = Math.PI / 4;
@@ -5655,7 +5665,7 @@ function addCrystalCrest(group, accent) {
 }
 
 function addPilotHelmet(group, accent, dark) {
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.05), new THREE.MeshPhysicalMaterial({ color: 0x07111d, emissive: accent, emissiveIntensity: 0.55, roughness: 0.08, metalness: 0.5 }));
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.05), new THREE.MeshStandardMaterial({ color: 0x07111d, emissive: accent, emissiveIntensity: 0.24, roughness: 0.44, metalness: 0.18, flatShading: true }));
   visor.position.set(0, 0.99, 0.51);
   group.add(visor);
   const chin = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.12), dark);
@@ -6242,13 +6252,13 @@ function readCpuControls(racer, dt) {
 
   const lateral = nearest.lateral || 0;
   const offLine = Math.abs(lateral);
-  const edgeSafe = TRACK_WIDTH * 0.23;
-  const edgeCritical = TRACK_WIDTH * 0.43;
+  const edgeSafe = TRACK_WIDTH * 0.2;
+  const edgeCritical = TRACK_WIDTH * 0.38;
   const edgeAmount = clamp((offLine - edgeSafe) / Math.max(0.01, edgeCritical - edgeSafe), 0, 1);
   const centerSign = -Math.sign(lateral || racer.ai.targetOffset || 1);
   const stallUrgency = clamp((racer.ai.stallTimer || 0) / 0.8, 0, 1);
 
-  let targetOffset = (racer.ai.targetOffset || 0) * (0.4 - clamp(steeringSkill - 1, 0, 0.4) * 0.22);
+  let targetOffset = (racer.ai.targetOffset || 0) * (0.3 - clamp(steeringSkill - 1, 0, 0.4) * 0.18);
   if (edgeAmount > 0) targetOffset += centerSign * TRACK_WIDTH * (0.18 + edgeAmount * 0.24);
   if (stallUrgency > 0.01) targetOffset += centerSign * TRACK_WIDTH * (0.12 + stallUrgency * 0.22);
   if (curve > 0.12 && edgeAmount < 0.35) targetOffset *= 0.65;
@@ -6258,7 +6268,7 @@ function readCpuControls(racer, dt) {
   const upcomingBoost = boostPanels.find((panel) => indexDistance(targetIndex, panel.userData.index) < 34 || indexDistance(nearest.index, panel.userData.index) < 38);
   if (upcomingBoost && boostUsage > 0.55 && curve < 0.38 && edgeAmount < 0.35) targetOffset *= 1 - boostUsage * 0.78;
 
-  const maxLane = edgeAmount > 0 ? TRACK_WIDTH * 0.13 : TRACK_WIDTH * 0.22;
+  const maxLane = edgeAmount > 0 ? TRACK_WIDTH * 0.08 : TRACK_WIDTH * 0.18;
   targetOffset = clamp(targetOffset, -maxLane, maxLane);
 
   const target = targetSample.point
@@ -6276,6 +6286,7 @@ function readCpuControls(racer, dt) {
   const desiredYaw = Math.atan2(toTarget.x, toTarget.z);
   const angle = shortestAngle(racer.yaw, desiredYaw);
   let steer = angle * (1.58 + steeringSkill * 0.5);
+  if (edgeAmount > 0.02) steer += centerSign * edgeAmount * (0.34 + steeringSkill * 0.18);
 
   if (edgeAmount > 0.02) {
     const trackYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
@@ -6353,7 +6364,7 @@ function handleCourseAssist(racer, nearest, controls, dt) {
   if (!movingIntent) return false;
   const absLateral = Math.abs(nearest.lateral || 0);
   const softEdge = TRACK_WIDTH * 0.34;
-  const hardEdge = TRACK_WIDTH * 0.5;
+  const hardEdge = TRACK_WIDTH * 0.46;
   if (absLateral < softEdge) return false;
   const side = Math.sign(nearest.lateral || 1);
   const amount = clamp((absLateral - softEdge) / Math.max(0.01, hardEdge - softEdge), 0, 1);
@@ -6388,14 +6399,14 @@ function handleCpuCourseAssist(racer, nearest, controls, dt) {
   if (isShortcutZone(nearest)) return false;
 
   const absLateral = Math.abs(nearest.lateral || 0);
-  const softEdge = TRACK_WIDTH * 0.24;
-  const warningEdge = TRACK_WIDTH * 0.34;
-  const hardEdge = TRACK_WIDTH * 0.5;
+  const softEdge = TRACK_WIDTH * 0.2;
+  const warningEdge = TRACK_WIDTH * 0.3;
+  const hardEdge = TRACK_WIDTH * 0.46;
   const side = Math.sign(nearest.lateral || 1);
   const amount = clamp((absLateral - softEdge) / Math.max(0.01, hardEdge - softEdge), 0, 1);
   const targetIndex = (nearest.index + Math.floor(10 + clamp(Math.abs(racer.speed), 0, 90) * 0.16)) % TRACK_STEPS;
   const targetSample = track.samples[targetIndex] || nearest.sample;
-  const safeLateral = clamp((nearest.lateral || 0) * 0.22, -TRACK_WIDTH * 0.12, TRACK_WIDTH * 0.12);
+  const safeLateral = clamp((nearest.lateral || 0) * 0.14, -TRACK_WIDTH * 0.08, TRACK_WIDTH * 0.08);
   const target = targetSample.point.clone().addScaledVector(targetSample.normal, safeLateral);
   const targetYaw = Math.atan2(target.x - racer.position.x, target.z - racer.position.z);
   const tangentYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
@@ -6444,9 +6455,9 @@ function handleSurface(racer, nearest, dt) {
   const lunarSurface = theme.id === "lunar-crater-run";
   const lateralAbs = Math.abs(nearest.lateral || 0);
   const offTrack = lateralAbs > TRACK_WIDTH * 0.52;
-  const cpuNearWall = !racer.isPlayer && lateralAbs > TRACK_WIDTH * 0.34;
-  const hardWall = lateralAbs > TRACK_WIDTH * (racer.isPlayer ? 0.72 : 0.56);
-  const rescueZone = lateralAbs > TRACK_WIDTH * (racer.isPlayer ? 0.95 : 0.76);
+  const cpuNearWall = !racer.isPlayer && lateralAbs > TRACK_WIDTH * 0.3;
+  const hardWall = lateralAbs > TRACK_WIDTH * (racer.isPlayer ? 0.72 : 0.5);
+  const rescueZone = lateralAbs > TRACK_WIDTH * (racer.isPlayer ? 0.95 : 0.66);
   const layout = track?.layout || courseLayout();
   const dirt = layout.dirtZones.some(([start, end, offset]) => {
     const sameSide = offset === 0 || Math.sign(nearest.lateral || offset) === Math.sign(offset);
@@ -6455,8 +6466,8 @@ function handleSurface(racer, nearest, dt) {
   const shortcut = isShortcutZone(nearest, layout);
 
   if (cpuNearWall && !shortcut) {
-    const edgeAmount = clamp((lateralAbs - TRACK_WIDTH * 0.34) / (TRACK_WIDTH * 0.18), 0, 1);
-    const safeLateral = Math.sign(nearest.lateral || 1) * TRACK_WIDTH * 0.2;
+    const edgeAmount = clamp((lateralAbs - TRACK_WIDTH * 0.3) / (TRACK_WIDTH * 0.16), 0, 1);
+    const safeLateral = Math.sign(nearest.lateral || 1) * TRACK_WIDTH * 0.12;
     const recoveryTarget = nearest.sample.point.clone().addScaledVector(nearest.sample.normal, safeLateral);
     racer.position.lerp(recoveryTarget, clamp(0.09 + edgeAmount * 0.16, 0, 0.28));
     racer.velocity.addScaledVector(nearest.sample.normal, -Math.sign(nearest.lateral || 1) * (10 + edgeAmount * 18) * dt);
@@ -6497,25 +6508,25 @@ function handleSurface(racer, nearest, dt) {
   }
 
   if (hardWall && !shortcut) {
-    const limit = Math.sign(nearest.lateral) * TRACK_WIDTH * (racer.isPlayer ? 0.56 : 0.34);
+    const limit = Math.sign(nearest.lateral) * TRACK_WIDTH * (racer.isPlayer ? 0.56 : 0.24);
     const target = nearest.sample.point.clone().addScaledVector(nearest.sample.normal, limit);
     racer.position.lerp(target, racer.isPlayer ? 0.22 : 0.32);
     const desiredYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
     racer.yaw += shortestAngle(racer.yaw, desiredYaw) * (racer.isPlayer ? 0.18 : 0.42);
-    racer.speed = Math.max(racer.speed * (racer.isPlayer ? 0.62 : 0.72), racer.isPlayer ? 10 : 18);
+    racer.speed = Math.max(racer.speed * (racer.isPlayer ? 0.62 : 0.78), racer.isPlayer ? 10 : 21);
     if (racer.ai) racer.ai.stallTimer = Math.max(racer.ai.stallTimer || 0, 0.48);
     racer.wobble = Math.max(racer.wobble, 0.55);
     if (racer.isPlayer) cameraShake = Math.max(cameraShake, 0.18);
   }
 
   if (rescueZone && !shortcut) {
-    const safeSide = Math.sign(nearest.lateral) * TRACK_WIDTH * (racer.isPlayer ? 0.38 : 0.18);
+    const safeSide = Math.sign(nearest.lateral) * TRACK_WIDTH * (racer.isPlayer ? 0.38 : 0.08);
     const forwardIndex = (nearest.index + (racer.isPlayer ? 2 : 8)) % TRACK_STEPS;
     const sample = racer.isPlayer ? nearest.sample : track.samples[forwardIndex];
     racer.position.copy(sample.point).addScaledVector(sample.normal, safeSide);
     racer.position.y = sample.point.y;
     racer.yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
-    racer.speed = Math.max(Math.abs(racer.speed) * (racer.isPlayer ? 0.5 : 0.68), racer.isPlayer ? 14 : 20);
+    racer.speed = Math.max(Math.abs(racer.speed) * (racer.isPlayer ? 0.5 : 0.74), racer.isPlayer ? 14 : 24);
     racer.verticalSpeed = 0;
     racer.jumpHeight = 0;
     racer.wobble = 0.45;
@@ -6773,8 +6784,8 @@ function handleRacerContacts(racer, dt) {
         const tangent = track?.samples?.[racer.trackIndex]?.tangent || forwardFromYaw(racer.yaw);
         racer.position.addScaledVector(tangent, 0.18);
         other.position.addScaledVector(tangent, -0.12);
-        racer.speed = Math.max(Math.abs(racer.speed) * 0.94, 13);
-        other.speed = Math.max(Math.abs(other.speed) * 0.94, 13);
+        racer.speed = Math.max(Math.abs(racer.speed) * 0.96, 16);
+        other.speed = Math.max(Math.abs(other.speed) * 0.96, 16);
         if (dist < 3.45 || (Math.abs(racer.speed) < 14 && Math.abs(other.speed) < 14)) {
           racer.ghostTimer = 0.52;
           other.ghostTimer = 0.52;
@@ -7023,31 +7034,31 @@ function spawnBoostTrail(racer) {
   const side = new THREE.Vector3(Math.cos(racer.yaw), 0, -Math.sin(racer.yaw));
   const origin = racer.position.clone().addScaledVector(back, 3.7);
   const accent = colorToHex(racer.kart.boostColor || racer.character.boostColor || racer.kart.colors.glow || racer.kart.colors.accent || racer.character.colors.accent || 0x7df9ff);
-  spawnBurst(origin, accent, 5, 1.75);
+  spawnBurst(origin, accent, racer.isPlayer ? 3 : 1, 1.45);
   [-1, 1].forEach((sideSign) => {
-    if (rand() > 0.78 && !racer.isPlayer) return;
+    if (!racer.isPlayer && rand() > 0.38) return;
     const streak = new THREE.Mesh(
-      new THREE.BoxGeometry(0.08 + rand() * 0.1, 0.08 + rand() * 0.08, 4.8 + rand() * 3.8),
-      new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false })
+      new THREE.BoxGeometry(0.09, 0.09, racer.isPlayer ? 5.2 : 3.4),
+      new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: racer.isPlayer ? 0.42 : 0.28, blending: THREE.AdditiveBlending, depthWrite: false })
     );
-    streak.position.copy(origin).addScaledVector(side, sideSign * (0.7 + rand() * 0.5));
-    streak.position.y += 0.55 + rand() * 1.0;
-    streak.rotation.y = racer.yaw + (rand() - 0.5) * 0.26;
-    streak.rotation.x = (rand() - 0.5) * 0.18;
+    streak.position.copy(origin).addScaledVector(side, sideSign * (0.78 + rand() * 0.35));
+    streak.position.y += 0.55 + rand() * 0.72;
+    streak.rotation.y = racer.yaw + (rand() - 0.5) * 0.2;
+    streak.rotation.x = (rand() - 0.5) * 0.14;
     scene.add(streak);
-    addParticle({ mesh: streak, velocity: back.clone().multiplyScalar(18 + rand() * 16), life: 0.3 + rand() * 0.22, maxLife: 0.54 });
+    addParticle({ mesh: streak, velocity: back.clone().multiplyScalar(16 + rand() * 12), life: 0.26 + rand() * 0.14, maxLife: 0.42 });
   });
-  if (rand() < 0.42) {
+  if (racer.isPlayer && rand() < 0.25) {
     const ribbon = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.5 + rand() * 0.9, 5.8 + rand() * 3.4),
-      new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+      new THREE.PlaneGeometry(1.25, 5.8),
+      new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
     );
     ribbon.position.copy(origin);
-    ribbon.position.y += 0.28;
+    ribbon.position.y += 0.25;
     ribbon.rotation.x = -Math.PI / 2;
-    ribbon.rotation.z = -racer.yaw + (rand() - 0.5) * 0.18;
+    ribbon.rotation.z = -racer.yaw + (rand() - 0.5) * 0.16;
     scene.add(ribbon);
-    addParticle({ mesh: ribbon, velocity: back.clone().multiplyScalar(8 + rand() * 6), life: 0.26 + rand() * 0.18, maxLife: 0.44, scaleRate: 1.7 });
+    addParticle({ mesh: ribbon, velocity: back.clone().multiplyScalar(8 + rand() * 6), life: 0.24 + rand() * 0.14, maxLife: 0.38, scaleRate: 1.4 });
   }
 }
 
@@ -7128,10 +7139,10 @@ function spawnBurst(origin, color, count, power) {
     const shard = i % 4 === 0;
     const geometry = shard
       ? new THREE.TetrahedronGeometry(0.16 + rand() * 0.18, 0)
-      : new THREE.SphereGeometry(0.1 + rand() * 0.14, 8, 6);
+      : new THREE.TetrahedronGeometry(0.1 + rand() * 0.14, 0);
     const mesh = new THREE.Mesh(
       geometry,
-      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.94, blending: THREE.AdditiveBlending, depthWrite: false })
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.78, blending: THREE.AdditiveBlending, depthWrite: false })
     );
     mesh.position.copy(origin);
     mesh.position.y += 0.4 + rand() * 1.6;
@@ -7457,31 +7468,31 @@ function updateCamera(dt) {
   const boosting = player.boostTimer > 0 || player.miniTurboTimer > 0;
   const steerLean = readPlayerVisualSteerInput();
   const driftLean = player.driftActive ? -player.driftDir : 0;
-  const behind = 17.5 + speed01 * 7.5 + (boosting ? 5.0 : 0);
-  const height = 7.4 + speed01 * 3.4;
+  const behind = 14.8 + speed01 * 8.6 + (boosting ? 4.2 : 0);
+  const height = 5.7 + speed01 * 2.7;
   const targetPos = player.position
     .clone()
     .addScaledVector(forward, -behind)
-    .addScaledVector(right, steerLean * 1.25 + driftLean * 0.8)
-    .add(new THREE.Vector3(0, height + player.jumpHeight * 0.5, 0));
+    .addScaledVector(right, steerLean * 1.45 + driftLean * 1.1)
+    .add(new THREE.Vector3(0, height + player.jumpHeight * 0.45, 0));
   if (cameraShake > 0) {
     targetPos.x += (rand() - 0.5) * cameraShake;
     targetPos.y += (rand() - 0.5) * cameraShake * 0.7;
     cameraShake = Math.max(0, cameraShake - dt * 2.6);
   }
-  camera.position.lerp(targetPos, 1 - Math.pow(0.001, dt));
-  cameraTarget.copy(player.position).addScaledVector(forward, 11 + speed01 * 13);
-  cameraTarget.addScaledVector(right, player.driftActive ? driftLean * 2.5 : steerLean * 1.2);
-  cameraTarget.y += 3.0 + speed01 * 2.2 + player.jumpHeight * 0.24;
-  const roll = clamp(-steerLean * 0.045 + driftLean * 0.085, -0.13, 0.13);
+  camera.position.lerp(targetPos, 1 - Math.pow(0.0012, dt));
+  cameraTarget.copy(player.position).addScaledVector(forward, 14 + speed01 * 16);
+  cameraTarget.addScaledVector(right, player.driftActive ? driftLean * 3.0 : steerLean * 1.55);
+  cameraTarget.y += 2.45 + speed01 * 1.9 + player.jumpHeight * 0.22;
+  const roll = clamp(-steerLean * 0.055 + driftLean * 0.105, -0.16, 0.16);
   camera.up.lerp(new THREE.Vector3(Math.sin(roll), Math.cos(roll), 0), 1 - Math.pow(0.004, dt));
   camera.lookAt(cameraTarget);
-  camera.fov = approach(camera.fov, 56 + speed01 * 12 + (boosting ? 10 : 0), 38 * dt);
+  camera.fov = approach(camera.fov, 58 + speed01 * 10 + (boosting ? 8 : 0), 34 * dt);
   camera.updateProjectionMatrix();
 
   speedLines.forEach((line, index) => {
-    const lineSpeed = speed01 + (boosting ? 0.48 : 0);
-    line.material.opacity = clamp((lineSpeed - 0.24) * 1.7, 0, 0.68);
+    const lineSpeed = speed01 + (boosting ? 0.38 : 0);
+    line.material.opacity = clamp((lineSpeed - 0.32) * 1.35, 0, ART_DIRECTION.glowOpacity);
     line.position.set(
       line.userData.side * (3 + (index % 5) * 1.3),
       -2 + ((index * 1.7) % 6),
