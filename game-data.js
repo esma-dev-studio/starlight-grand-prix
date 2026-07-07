@@ -1186,27 +1186,45 @@
     }
   ];
 
+  var lunarCourse = {
+    id: "lunar-crater-run",
+    name: "Lunar Crater Run",
+    jaName: "月面クレーターラン",
+    kindLabel: "月面コース",
+    theme: "月のクレーターと低重力ジャンプを走る月面グランプリコース",
+    description: "白い月面、丸いクレーター、低重力ジャンプ台をぬける、軽くはねる月面コース。道は広めで、はじめてでも走りやすい。",
+    colors: { primary: "#CFE7FF", secondary: "#43516A", accent: "#FFD166" },
+    features: ["月面クレーター", "低重力ジャンプ台", "広い道", "ムーンベース", "発光レール", "ブーストパネル", "どうぐボックス", "リペアリング", "月の砂", "地球の光"],
+    lapCount: 3,
+    curveTension: 0.58,
+    backgroundEffects: ["月面の地平線", "遠くに見える地球", "クレーターの影", "白い星くず"]
+  };
+
   var spaceCourse = {
     id: "starlight-orbit-ring",
-    name: "Starlight Orbit Ring",
-    jaName: "スターライト・オービットリング",
-    theme: "惑星のまわりを走る宇宙グランプリコース",
-    description: "大きな惑星、宇宙ステーション、流星、ワープゲートをぬけて走る、発光レールの宇宙コース。",
-    features: ["ワープゲート", "発光レール", "大きな惑星", "宇宙ステーション", "流星", "星くず", "低重力ジャンプ台", "ブーストパネル", "どうぐボックス", "リペアリング", "宇宙の看板"],
+    name: "Orbit Station Ring",
+    jaName: "オービット・ステーションリング",
+    kindLabel: "宇宙コース",
+    theme: "惑星ステーションの外周を走る宇宙グランプリコース",
+    description: "大きな惑星、宇宙ステーション、ワープゲートを横目に走る、スピードを出しやすい宇宙軌道コース。",
+    colors: { primary: "#7DF9FF", secondary: "#102846", accent: "#FF4FD8" },
+    features: ["ワープゲート", "発光レール", "大きな惑星", "宇宙ステーション", "ドッキングアーム", "流星", "ブーストパネル", "どうぐボックス", "リペアリング", "宇宙の看板"],
     lapCount: 3,
-    curveTension: 0.45,
-    backgroundEffects: ["星が流れる背景", "遠くに見える惑星", "コース外に広がる宇宙", "星くずのエフェクト"]
+    curveTension: 0.42,
+    backgroundEffects: ["星が流れる背景", "遠くに見える惑星", "コース外に広がる宇宙", "ステーションライト"]
   };
 
   var meteorCourse = {
     id: "meteor-mining-belt",
     name: "Meteor Mining Belt",
     jaName: "メテオ・こうざんベルト",
+    kindLabel: "隕石こうざんコース",
     theme: "隕石こうざんのあいだをぬける力強い宇宙コース",
-    description: "大きな隕石、採掘ステーション、せまいコーナーを走る、ぶつかりとジャンプが楽しいコース。",
-    features: ["隕石ベルト", "採掘ステーション", "発光レール", "低重力ジャンプ台", "ブーストパネル", "どうぐボックス", "リペアリング", "宇宙の看板", "せまいカーブ"],
+    description: "大きな隕石、採掘ステーション、せまいコーナーをぬける、岩場スラロームのテクニカルコース。ぶつかりに注意。",
+    colors: { primary: "#FF9F5A", secondary: "#3A2419", accent: "#7DF9FF" },
+    features: ["隕石ベルト", "採掘ステーション", "岩場スラローム", "せまいカーブ", "発光レール", "低重力ジャンプ台", "ブーストパネル", "どうぐボックス", "リペアリング", "宇宙の看板"],
     lapCount: 3,
-    curveTension: 0.52,
+    curveTension: 0.64,
     backgroundEffects: ["近くを流れる隕石", "遠くのこうざんライト", "コース下の宇宙空間", "オレンジの炉心発光"]
   };
 
@@ -1214,17 +1232,19 @@
     id: "nebula-drift-stream",
     name: "Nebula Drift Stream",
     jaName: "ネビュラ・ドリフトストリーム",
-    theme: "星雲の光の川にそって走るドリフト向けコース",
-    description: "むらさきの星雲、長いカーブ、連続ジャンプをぬける、少し長めの上級コース。",
-    features: ["星雲の光", "長いカーブ", "発光レール", "流星", "低重力ジャンプ台", "ブーストパネル", "どうぐボックス", "リペアリング", "星くず"],
+    kindLabel: "星雲ロングコース",
+    theme: "星雲の光の川にそって走るドリフト向けロングコース",
+    description: "むらさきの星雲、長いS字カーブ、連続ジャンプをぬける、少し長めの上級コース。ドリフトが気持ちいい。",
+    colors: { primary: "#A78BFA", secondary: "#15103A", accent: "#34F0B2" },
+    features: ["星雲の光", "長いS字カーブ", "ロングコース", "発光レール", "流星", "低重力ジャンプ台", "ブーストパネル", "どうぐボックス", "リペアリング", "星くず"],
     lapCount: 4,
-    curveTension: 0.38,
+    curveTension: 0.34,
     backgroundEffects: ["むらさきの星雲", "光る星くず", "遠景ライト", "なめらかな発光レール"]
   };
 
-  var spaceCourses = [spaceCourse, meteorCourse, nebulaCourse];
+  var spaceCourses = [lunarCourse, spaceCourse, meteorCourse, nebulaCourse];
 
-  window.AURORA_GAME_DATA.version = "0.2.0-space-grand-prix";
+  window.AURORA_GAME_DATA.version = "0.2.1-course-variety";
   window.AURORA_GAME_DATA.selectedTitleId = "starlight-grand-prix";
   window.AURORA_GAME_DATA.selectedTitle = {
     id: "starlight-grand-prix",
@@ -1235,7 +1255,7 @@
   };
   window.AURORA_GAME_DATA.titleCandidates = [window.AURORA_GAME_DATA.selectedTitle];
   window.AURORA_GAME_DATA.adoptedTitle = "スターライト・グランプリ";
-  window.AURORA_GAME_DATA.tagline = "星、惑星、宇宙ステーションをぬける、うちゅうグランプリ。";
+  window.AURORA_GAME_DATA.tagline = "月面、宇宙ステーション、隕石帯、星雲を走る、うちゅうグランプリ。";
   window.AURORA_GAME_DATA.world = {
     id: "starlight-grand-prix-world",
     name: "Starlight Grand Prix",
@@ -1247,11 +1267,11 @@
   window.AURORA_GAME_DATA.characters = spaceCharacters;
   window.AURORA_GAME_DATA.karts = spaceMachines;
   window.AURORA_GAME_DATA.courses = spaceCourses;
-  window.AURORA_GAME_DATA.course = spaceCourse;
+  window.AURORA_GAME_DATA.course = lunarCourse;
   window.AURORA_GAME_DATA.defaults = {
     characterId: "luna-mimi",
     kartId: "moon-skipper",
-    courseId: "starlight-orbit-ring",
+    courseId: "lunar-crater-run",
     itemPool: items.map(function (item) { return item.id; })
   };
   window.AURORA_GAME_DATA.uiCopy = {

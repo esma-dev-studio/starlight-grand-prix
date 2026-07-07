@@ -624,6 +624,7 @@ function cacheDom() {
     "resumeButton",
     "helpPauseButton",
     "restartPauseButton",
+    "startOverPauseButton",
     "restartButton",
     "changeRacerButton",
     "closeHelpButton",
@@ -721,6 +722,7 @@ function bindEvents() {
   bindUiTap(dom.resumeButton, () => resumeRace());
   bindUiTap(dom.helpPauseButton, () => openHelp("pause"));
   bindUiTap(dom.restartPauseButton, () => startCountdown());
+  bindUiTap(dom.startOverPauseButton, () => returnToTitleFromPause());
   bindUiTap(dom.restartButton, () => startCountdown());
   bindUiTap(dom.changeRacerButton, () => {
     resetRaceIfReady();
@@ -1088,12 +1090,16 @@ function populateCourse() {
     (DATA.courses || [DATA.course]).forEach((course, index) => {
       const selected = index === state.selectedCourse;
       const button = document.createElement("button");
-      button.className = "course-card" + (selected ? " selected" : "");
+      button.className = "course-card course-" + characterClassId(course) + (selected ? " selected" : "");
       button.dataset.course = course.id || String(index);
       button.setAttribute("aria-selected", selected ? "true" : "false");
-      const featureText = (course.features || []).slice(0, 3).map(friendlyFeature).join(" / ");
+      button.style.setProperty("--course-primary", course.colors?.primary || "#7df9ff");
+      button.style.setProperty("--course-secondary", course.colors?.secondary || "#102846");
+      button.style.setProperty("--course-accent", course.colors?.accent || "#ffd166");
+      const featureText = (course.features || []).slice(0, 4).map(friendlyFeature).join(" / ");
       button.innerHTML =
         '<span class="course-orbit" aria-hidden="true"></span>' +
+        '<span class="course-kind">' + escapeHtml(course.kindLabel || "うちゅうコース") + '</span>' +
         '<strong>' + escapeHtml(displayName(course)) + '</strong>' +
         '<small>' + escapeHtml(course.description || course.theme || "うちゅうコース") + '</small>' +
         '<span class="course-lap-chip">' + escapeHtml(lapTotalForCourse(course)) + 'しゅう</span>' +
@@ -1206,12 +1212,16 @@ function friendlyFeature(feature) {
   if (!raw) return "";
   if (hasJapanese(raw)) return raw;
   const key = raw.toLowerCase();
+  if (/(moon|lunar|crater|regolith)/.test(key)) return "月面クレーター";
+  if (/(mine|mining|ore|rock|asteroid)/.test(key)) return "隕石こうざん";
+  if (/(nebula|stream|s-curve|long)/.test(key)) return "星雲ロングコース";
   if (/(boost|kicker|panel|dash)/.test(key)) return "ブーストパネル";
+  if (/(repair|pit|recover|heal)/.test(key)) return "リペアリング";
   if (/(item|beacon|box|cache|row)/.test(key)) return "どうぐボックス";
   if (/(jump|ramp|leap|drop|hop|gravity)/.test(key)) return "ていじゅうりょくジャンプ";
   if (/(gate|warp|portal)/.test(key)) return "ワープゲート";
   if (/(rail|glow|neon)/.test(key)) return "発光レール";
-  if (/(planet|moon|orb)/.test(key)) return "大きな惑星";
+  if (/(planet|orb)/.test(key)) return "大きな惑星";
   if (/(station|dock|spire|antenna)/.test(key)) return "宇宙ステーション";
   if (/(meteor|comet|shooting)/.test(key)) return "流星";
   if (/(dust|star|spark)/.test(key)) return "星くず";
@@ -1505,50 +1515,75 @@ function makeGroundPlane() {
 }
 
 function courseTrackPoints(course = activeCourse()) {
-  const id = course?.id || "starlight-orbit-ring";
+  const id = course?.id || "lunar-crater-run";
+  if (id === "lunar-crater-run") {
+    return [
+      new THREE.Vector3(0, 0, -112),
+      new THREE.Vector3(58, 5, -128),
+      new THREE.Vector3(116, 11, -82),
+      new THREE.Vector3(86, 5, -22),
+      new THREE.Vector3(134, 15, 40),
+      new THREE.Vector3(70, 19, 92),
+      new THREE.Vector3(18, 8, 62),
+      new THREE.Vector3(-28, 16, 126),
+      new THREE.Vector3(-104, 10, 92),
+      new THREE.Vector3(-134, 2, 18),
+      new THREE.Vector3(-74, 8, -38),
+      new THREE.Vector3(-118, 4, -96),
+      new THREE.Vector3(-42, 0, -126)
+    ];
+  }
+  if (id === "starlight-orbit-ring") {
+    return [
+      new THREE.Vector3(0, 0, -152),
+      new THREE.Vector3(92, 4, -146),
+      new THREE.Vector3(168, 8, -86),
+      new THREE.Vector3(184, 12, -8),
+      new THREE.Vector3(132, 8, 78),
+      new THREE.Vector3(48, 4, 132),
+      new THREE.Vector3(-54, 0, 150),
+      new THREE.Vector3(-146, 5, 112),
+      new THREE.Vector3(-184, 12, 28),
+      new THREE.Vector3(-154, 6, -62),
+      new THREE.Vector3(-88, 2, -132)
+    ];
+  }
   if (id === "meteor-mining-belt") {
     return [
-      new THREE.Vector3(0, 0, -118),
-      new THREE.Vector3(62, 3, -124),
-      new THREE.Vector3(122, 5, -78),
-      new THREE.Vector3(92, 2, -24),
-      new THREE.Vector3(132, 6, 34),
-      new THREE.Vector3(78, 8, 98),
-      new THREE.Vector3(8, 3, 124),
-      new THREE.Vector3(-56, 0, 96),
-      new THREE.Vector3(-122, 5, 62),
-      new THREE.Vector3(-92, 10, -8),
-      new THREE.Vector3(-138, 3, -70),
-      new THREE.Vector3(-58, 0, -116)
+      new THREE.Vector3(0, 0, -138),
+      new THREE.Vector3(72, 6, -154),
+      new THREE.Vector3(148, 13, -92),
+      new THREE.Vector3(88, 2, -44),
+      new THREE.Vector3(164, 11, 16),
+      new THREE.Vector3(106, 18, 86),
+      new THREE.Vector3(24, 9, 142),
+      new THREE.Vector3(-48, 0, 118),
+      new THREE.Vector3(-136, 8, 106),
+      new THREE.Vector3(-96, 17, 34),
+      new THREE.Vector3(-164, 7, -18),
+      new THREE.Vector3(-112, 3, -94),
+      new THREE.Vector3(-52, 0, -148)
     ];
   }
   if (id === "nebula-drift-stream") {
     return [
-      new THREE.Vector3(0, 0, -132),
-      new THREE.Vector3(88, 4, -118),
-      new THREE.Vector3(148, 8, -42),
-      new THREE.Vector3(120, 12, 42),
-      new THREE.Vector3(48, 6, 120),
-      new THREE.Vector3(-32, 2, 132),
-      new THREE.Vector3(-112, 5, 74),
-      new THREE.Vector3(-152, 9, -10),
-      new THREE.Vector3(-96, 3, -82),
-      new THREE.Vector3(-32, 0, -126)
+      new THREE.Vector3(0, 0, -170),
+      new THREE.Vector3(84, 5, -154),
+      new THREE.Vector3(158, 10, -100),
+      new THREE.Vector3(126, 15, -38),
+      new THREE.Vector3(192, 9, 38),
+      new THREE.Vector3(122, 16, 110),
+      new THREE.Vector3(42, 8, 152),
+      new THREE.Vector3(-46, 4, 168),
+      new THREE.Vector3(-128, 11, 116),
+      new THREE.Vector3(-180, 15, 38),
+      new THREE.Vector3(-142, 7, -34),
+      new THREE.Vector3(-196, 12, -92),
+      new THREE.Vector3(-112, 4, -150),
+      new THREE.Vector3(-32, 0, -136)
     ];
   }
-  return [
-    new THREE.Vector3(0, 0, -120),
-    new THREE.Vector3(70, 2, -105),
-    new THREE.Vector3(128, 0, -48),
-    new THREE.Vector3(118, 5, 20),
-    new THREE.Vector3(72, 6, 70),
-    new THREE.Vector3(24, 2, 116),
-    new THREE.Vector3(-52, -1, 108),
-    new THREE.Vector3(-132, 3, 58),
-    new THREE.Vector3(-118, 8, -16),
-    new THREE.Vector3(-72, 4, -68),
-    new THREE.Vector3(-44, 0, -122)
-  ];
+  return courseTrackPoints({ id: "lunar-crater-run" });
 }
 
 function layoutIndex(index) {
@@ -1567,35 +1602,48 @@ function scaledCourseLayout(layout) {
 }
 
 function courseLayout(course = activeCourse()) {
-  const id = course?.id || "starlight-orbit-ring";
+  const id = course?.id || "lunar-crater-run";
+  if (id === "lunar-crater-run") {
+    return scaledCourseLayout({
+      boostPanels: [44, 132, 246, 338],
+      dirtZones: [[74, 104, -TRACK_WIDTH * 0.34], [214, 252, TRACK_WIDTH * 0.36], [318, 344, -TRACK_WIDTH * 0.28]],
+      jumpRamps: [78, 176, 286, 360],
+      itemBoxes: [[54, -5], [54, 5], [148, 0], [232, -4], [232, 4], [326, -5], [326, 5]],
+      repairPads: [[24, 0], [188, 0], [350, 0]],
+      obstacles: [[112, TRACK_WIDTH * 0.58, "pylon"], [268, -TRACK_WIDTH * 0.56, "pylon"], [374, TRACK_WIDTH * 0.5, "crate"]]
+    });
+  }
+  if (id === "starlight-orbit-ring") {
+    return scaledCourseLayout({
+      boostPanels: [36, 112, 206, 318, 372],
+      dirtZones: [[154, 180, TRACK_WIDTH * 0.42], [260, 288, -TRACK_WIDTH * 0.38]],
+      jumpRamps: [128, 274],
+      itemBoxes: [[58, -5], [58, 5], [145, -4], [145, 5], [224, -4], [224, 4], [312, -5], [312, 5], [374, 0]],
+      repairPads: [[28, 0], [198, 0], [342, 0]],
+      obstacles: [[94, -TRACK_WIDTH * 0.58, "crate"], [176, TRACK_WIDTH * 0.56, "pylon"], [284, -TRACK_WIDTH * 0.6, "crate"], [350, TRACK_WIDTH * 0.56, "pylon"]]
+    });
+  }
   if (id === "meteor-mining-belt") {
     return scaledCourseLayout({
-      boostPanels: [32, 118, 212, 306, 374],
-      dirtZones: [[86, 112, -TRACK_WIDTH * 0.36], [248, 280, TRACK_WIDTH * 0.34]],
-      jumpRamps: [152, 332],
-      itemBoxes: [[52, -5], [52, 5], [136, 0], [202, -4], [202, 4], [286, -5], [286, 5], [366, 0]],
-      repairPads: [[24, 0], [188, 0], [344, 0]],
-      obstacles: [[76, -TRACK_WIDTH * 0.6, "pylon"], [164, TRACK_WIDTH * 0.58, "crate"], [236, -TRACK_WIDTH * 0.6, "crate"], [318, TRACK_WIDTH * 0.58, "pylon"]]
+      boostPanels: [34, 122, 214, 304, 374],
+      dirtZones: [[78, 116, -TRACK_WIDTH * 0.38], [178, 206, TRACK_WIDTH * 0.36], [280, 318, -TRACK_WIDTH * 0.34]],
+      jumpRamps: [150, 332],
+      itemBoxes: [[50, -5], [50, 5], [136, 0], [198, -4], [198, 4], [286, -5], [286, 5], [362, 0]],
+      repairPads: [[26, 0], [190, 0], [346, 0]],
+      obstacles: [[72, -TRACK_WIDTH * 0.62, "pylon"], [118, TRACK_WIDTH * 0.58, "crate"], [166, -TRACK_WIDTH * 0.6, "crate"], [238, TRACK_WIDTH * 0.6, "pylon"], [318, -TRACK_WIDTH * 0.58, "crate"]]
     });
   }
   if (id === "nebula-drift-stream") {
     return scaledCourseLayout({
-      boostPanels: [46, 154, 266, 352],
-      dirtZones: [[126, 168, TRACK_WIDTH * 0.38], [292, 326, -TRACK_WIDTH * 0.36]],
-      jumpRamps: [96, 238, 382],
-      itemBoxes: [[64, -5], [64, 5], [172, -4], [172, 4], [250, 0], [324, -5], [324, 5], [394, 0]],
+      boostPanels: [48, 146, 256, 348],
+      dirtZones: [[118, 170, TRACK_WIDTH * 0.38], [286, 338, -TRACK_WIDTH * 0.36]],
+      jumpRamps: [96, 224, 304, 382],
+      itemBoxes: [[62, -5], [62, 5], [166, -4], [166, 4], [246, 0], [324, -5], [324, 5], [392, 0]],
       repairPads: [[34, 0], [218, 0], [372, 0]],
-      obstacles: [[108, TRACK_WIDTH * 0.58, "crate"], [198, -TRACK_WIDTH * 0.6, "pylon"], [282, TRACK_WIDTH * 0.58, "pylon"], [360, -TRACK_WIDTH * 0.6, "crate"]]
+      obstacles: [[106, TRACK_WIDTH * 0.56, "crate"], [196, -TRACK_WIDTH * 0.58, "pylon"], [282, TRACK_WIDTH * 0.58, "pylon"], [360, -TRACK_WIDTH * 0.58, "crate"]]
     });
   }
-  return scaledCourseLayout({
-    boostPanels: [38, 126, 238, 324],
-    dirtZones: [[154, 180, TRACK_WIDTH * 0.42], [260, 288, -TRACK_WIDTH * 0.38]],
-    jumpRamps: [112, 218],
-    itemBoxes: [[58, -5], [58, 5], [145, -4], [145, 5], [206, -4], [206, 4], [294, -5], [294, 5], [360, 0]],
-    repairPads: [[28, 0], [184, 0], [332, 0]],
-    obstacles: [[82, -TRACK_WIDTH * 0.58, "crate"], [172, TRACK_WIDTH * 0.56, "pylon"], [247, -TRACK_WIDTH * 0.6, "crate"], [335, TRACK_WIDTH * 0.56, "pylon"]]
-  });
+  return courseLayout({ id: "lunar-crater-run" });
 }
 function buildTrack() {
   const course = activeCourse();
@@ -2266,9 +2314,11 @@ function addBeacon(position, color) {
 
 function buildEnvironment() {
   const city = new THREE.Group();
+  const courseId = activeCourse()?.id || "lunar-crater-run";
   addStarDustSea(city);
 
-  const towerCount = QUALITY.low ? 12 : Math.round(132 * QUALITY.environmentScale);
+  const towerBase = courseId === "lunar-crater-run" ? 46 : courseId === "meteor-mining-belt" ? 74 : courseId === "nebula-drift-stream" ? 58 : 132;
+  const towerCount = QUALITY.low ? Math.max(8, Math.round(towerBase * 0.14)) : Math.round(towerBase * QUALITY.environmentScale);
   for (let i = 0; i < towerCount; i += 1) {
     const radius = 145 + rand() * 330;
     const angle = rand() * Math.PI * 2;
@@ -2312,7 +2362,15 @@ function buildEnvironment() {
     city.add(ring);
   }
 
-  addSpaceGrandPrixSet(city);
+  if (courseId === "lunar-crater-run") {
+    addLunarCourseSet(city);
+  } else if (courseId === "meteor-mining-belt") {
+    addMeteorMiningSet(city);
+  } else if (courseId === "nebula-drift-stream") {
+    addNebulaDriftSet(city);
+  } else {
+    addSpaceGrandPrixSet(city);
+  }
   addOrbitVenueDetails(city);
   addAdPanels(city);
   if (!QUALITY.low) {
@@ -2322,12 +2380,13 @@ function buildEnvironment() {
     addSpaceDrones(city);
     addSpectatorHolograms(city);
   }
-  addLandmarkSpire(city, 126, 48, 0xff5fa8);
-  addLandmarkSpire(city, 272, -52, 0x7df9ff);
-  addNeonGate(city, 54, 0xffd166, "WARP");
+  const gateLabel = courseId === "lunar-crater-run" ? "MOON" : courseId === "meteor-mining-belt" ? "MINE" : courseId === "nebula-drift-stream" ? "DRIFT" : "WARP";
+  addLandmarkSpire(city, 126, 48, courseId === "meteor-mining-belt" ? 0xff9f5a : 0xff5fa8);
+  addLandmarkSpire(city, 272, -52, courseId === "lunar-crater-run" ? 0xcfe7ff : 0x7df9ff);
+  addNeonGate(city, 54, 0xffd166, gateLabel);
   if (!QUALITY.low) {
-    addNeonGate(city, 118, 0x60e9ff, "JUMP");
-    addNeonGate(city, 308, 0xff5fa8, "ORBIT");
+    addNeonGate(city, 118, courseId === "nebula-drift-stream" ? 0x34f0b2 : 0x60e9ff, courseId === "lunar-crater-run" ? "HOP" : "JUMP");
+    addNeonGate(city, 308, courseId === "meteor-mining-belt" ? 0xff9f5a : 0xff5fa8, courseId === "meteor-mining-belt" ? "ROCK" : "ORBIT");
   }
   scene.add(city);
   environmentGroup = city;
@@ -2393,6 +2452,133 @@ function createTextSprite(label, color = 0xffffff, opacity = 0.9) {
   return new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, opacity, depthWrite: false }));
 }
 
+function addLunarCourseSet(city) {
+  const moonMat = new THREE.MeshStandardMaterial({ color: 0x9fa9b8, emissive: 0x263449, emissiveIntensity: 0.24, roughness: 0.86, metalness: 0.04 });
+  const craterMat = new THREE.MeshBasicMaterial({ color: 0x0f1728, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(220, 220, 2.2, QUALITY.low ? 48 : 96), moonMat);
+  base.position.set(0, -30, 0);
+  base.scale.z = 0.72;
+  city.add(base);
+
+  const craterCount = QUALITY.low ? 7 : Math.round(34 * QUALITY.environmentScale);
+  for (let i = 0; i < craterCount; i += 1) {
+    const sample = track.samples[Math.floor(rand() * TRACK_STEPS)];
+    const side = i % 2 ? 1 : -1;
+    const crater = new THREE.Mesh(new THREE.TorusGeometry(5 + rand() * 11, 0.18 + rand() * 0.2, 8, QUALITY.low ? 28 : 56), craterMat.clone());
+    crater.position.copy(sample.point).addScaledVector(sample.normal, side * (28 + rand() * 92));
+    crater.position.y = -27.6 + rand() * 2.2;
+    crater.rotation.x = Math.PI / 2;
+    crater.scale.y = 0.46 + rand() * 0.34;
+    city.add(crater);
+  }
+
+  const earth = new THREE.Mesh(
+    new THREE.SphereGeometry(22, QUALITY.low ? 24 : 40, QUALITY.low ? 12 : 20),
+    new THREE.MeshStandardMaterial({ color: 0x4aa5ff, emissive: 0x174d8a, emissiveIntensity: 0.62, roughness: 0.36 })
+  );
+  earth.position.set(-190, 104, -245);
+  city.add(earth);
+
+  [42, 182, 318].forEach((index, i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const dome = new THREE.Group();
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(7 + i * 1.4, 24, 12), new THREE.MeshBasicMaterial({ color: 0xcfe7ff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }));
+    shell.scale.y = 0.48;
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.36, 12, 8), new THREE.MeshStandardMaterial({ color: 0x596579, emissive: 0x31435f, emissiveIntensity: 0.34 }));
+    mast.position.y = 5.2;
+    dome.add(shell, mast);
+    dome.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -42 : 42);
+    dome.position.y = -4 + i;
+    city.add(dome);
+  });
+
+  const signs = [[24, "MOON"], [154, "HOP"], [286, "BASE"]];
+  signs.forEach(([index, label], i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const sign = createTextSprite(label, i % 2 ? 0xffd166 : 0xcfe7ff, 0.84);
+    sign.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -34 : 34);
+    sign.position.y += 12;
+    sign.scale.set(12, 4.8, 1);
+    city.add(sign);
+  });
+}
+
+function addMeteorMiningSet(city) {
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x3c332c, emissive: 0x3f1e12, emissiveIntensity: 0.34, roughness: 0.82, metalness: 0.08 });
+  const oreGlow = new THREE.MeshBasicMaterial({ color: 0xff9f5a, transparent: true, opacity: 0.62, blending: THREE.AdditiveBlending, depthWrite: false });
+  const count = QUALITY.low ? 8 : Math.round(44 * QUALITY.environmentScale);
+  for (let i = 0; i < count; i += 1) {
+    const sample = track.samples[Math.floor(rand() * TRACK_STEPS)];
+    const side = i % 2 ? 1 : -1;
+    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(5 + rand() * 12, 0), rockMat.clone());
+    rock.position.copy(sample.point).addScaledVector(sample.normal, side * (42 + rand() * 120));
+    rock.position.y += -8 + rand() * 76;
+    rock.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
+    rock.scale.y = 0.55 + rand() * 1.4;
+    city.add(rock);
+    if (i % 3 === 0) {
+      const vein = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.14, 7 + rand() * 8), oreGlow.clone());
+      vein.position.copy(rock.position);
+      vein.rotation.copy(rock.rotation);
+      city.add(vein);
+    }
+  }
+
+  [68, 188, 316].forEach((index, i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const rig = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: 0x241a16, emissive: 0x8a3518, emissiveIntensity: 0.48, roughness: 0.46, metalness: 0.42 });
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(4, 22, 4), mat);
+    tower.position.y = 10;
+    const drill = new THREE.Mesh(new THREE.ConeGeometry(3.2, 12, 6), new THREE.MeshBasicMaterial({ color: 0xff9f5a, transparent: true, opacity: 0.58, blending: THREE.AdditiveBlending }));
+    drill.position.y = -2;
+    drill.rotation.z = Math.PI;
+    const sign = createTextSprite(i === 1 ? "ORE" : "MINE", 0xff9f5a, 0.76);
+    sign.position.set(0, 24, 0);
+    sign.scale.set(10, 4, 1);
+    rig.add(tower, drill, sign);
+    rig.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -54 : 54);
+    rig.position.y -= 3;
+    city.add(rig);
+  });
+}
+
+function addNebulaDriftSet(city) {
+  const ribbonMatA = new THREE.MeshBasicMaterial({ color: 0xa78bfa, transparent: true, opacity: 0.17, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const ribbonMatB = new THREE.MeshBasicMaterial({ color: 0x34f0b2, transparent: true, opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const ribbons = QUALITY.low ? 3 : 7;
+  for (let i = 0; i < ribbons; i += 1) {
+    const ribbon = new THREE.Mesh(new THREE.PlaneGeometry(260 + i * 38, 18 + i * 4, 1, 1), i % 2 ? ribbonMatB.clone() : ribbonMatA.clone());
+    ribbon.position.set(-130 + i * 45, 42 + i * 8, -210 + i * 74);
+    ribbon.rotation.set(0.28 + i * 0.05, 0.44 - i * 0.1, 0.18 + i * 0.09);
+    city.add(ribbon);
+  }
+
+  const crystalMat = new THREE.MeshStandardMaterial({ color: 0x2a214f, emissive: 0x8b5cf6, emissiveIntensity: 0.68, roughness: 0.28, metalness: 0.18 });
+  [52, 132, 242, 342].forEach((index, i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const side = i % 2 ? -1 : 1;
+    const cluster = new THREE.Group();
+    for (let n = 0; n < 4; n += 1) {
+      const crystal = new THREE.Mesh(new THREE.ConeGeometry(1.4 + n * 0.4, 8 + n * 2.2, 5), crystalMat.clone());
+      crystal.position.set((n - 1.5) * 2.2, n * 1.1, (n % 2) * 1.8);
+      crystal.rotation.z = (n - 1.5) * 0.16;
+      cluster.add(crystal);
+    }
+    cluster.position.copy(sample.point).addScaledVector(sample.normal, side * (38 + i * 8));
+    cluster.position.y += 2;
+    city.add(cluster);
+  });
+
+  [[34, "S-LINE"], [206, "DRIFT"], [374, "NEBULA"]].forEach(([index, label], i) => {
+    const sample = track.samples[layoutIndex(index)];
+    const sign = createTextSprite(label, i % 2 ? 0x34f0b2 : 0xa78bfa, 0.82);
+    sign.position.copy(sample.point).addScaledVector(sample.normal, i % 2 ? -38 : 38);
+    sign.position.y += 14;
+    sign.scale.set(14, 5.2, 1);
+    city.add(sign);
+  });
+}
 function addSpaceGrandPrixSet(city) {
   const planetMat = new THREE.MeshStandardMaterial({ color: 0x294d91, emissive: 0x122f7a, emissiveIntensity: 0.62, roughness: 0.38, metalness: 0.08 });
   const planet = new THREE.Mesh(new THREE.SphereGeometry(42, QUALITY.low ? 28 : 48, QUALITY.low ? 14 : 24), planetMat);
@@ -4261,6 +4447,28 @@ function resumeRace() {
   dom.app?.classList.add("is-racing");
   dom.screenOverlay.classList.add("hidden");
   dom.pauseScreen.classList.add("hidden");
+}
+
+function returnToTitleFromPause() {
+  state.mode = "title";
+  state.time = 0;
+  state.finishTime = 0;
+  state.rank = 1;
+  state.winner = null;
+  Object.assign(input, {
+    accel: false,
+    brake: false,
+    left: false,
+    right: false,
+    drift: false,
+    itemPressed: false,
+    steerAxis: 0,
+    touchSteer: 0
+  });
+  if (dom.countdown) dom.countdown.classList.add("hidden");
+  dom.touchSteer?.querySelector(".touch-knob")?.style.removeProperty("transform");
+  resetRaceIfReady();
+  showScreen("title");
 }
 
 function finishRace() {
