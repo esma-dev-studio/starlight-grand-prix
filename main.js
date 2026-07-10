@@ -4530,6 +4530,17 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
   };
 }
 
+function getDriverRaceScale(character, profile) {
+  const scales = {
+    "luna-mimi": 1.12,
+    "gamma-bolt": 1.16,
+    "nebi-mist": 1.1,
+    "sora-ranger": 1.12,
+    "comet-rin": 1.1
+  };
+  const scale = scales[character.id] || 1.06;
+  return profile.type === "bastion" ? scale * 1.02 : scale;
+}
 function createKartModel(character, kart, isPlayer) {
   const group = new THREE.Group();
   const profile = getKartVisualProfile(kart);
@@ -4612,7 +4623,9 @@ function createKartModel(character, kart, isPlayer) {
   addGlowStrip(chassis, profile.width * 0.44, 1.13, 0, 0.08, profile.length * 0.72, accent, 0.04);
 
   const driver = createDriverModel(character, accent, secondary, primary);
-  driver.position.set(0, profile.seatY || 2.5, profile.seatZ || -0.42);
+  const driverScale = getDriverRaceScale(character, profile);
+  driver.scale.setScalar(driverScale);
+  driver.position.set(0, (profile.seatY || 2.5) + 0.04, profile.seatZ || -0.42);
   driver.rotation.x = profile.driverPitch || 0;
   chassis.add(driver);
 
@@ -4622,50 +4635,62 @@ function createKartModel(character, kart, isPlayer) {
     chassis.add(trackMachinePart(group, "hover", holoMarker));
   }
 
-  const wingY = 2.05 + profile.height * 0.18;
-  const spoiler = new THREE.Group();
-  const spoilerWidth = profile.type === "bastion" ? profile.width * 1.06 : profile.type === "comet" ? profile.width * 0.72 : profile.type === "moon" ? profile.width * 0.72 : profile.width * 0.96;
-  const spoilerDepth = ["moon", "nebula"].includes(profile.type) ? 0.36 : profile.type === "comet" ? 0.46 : 0.66;
-  const spoilerBlade = new THREE.Mesh(new THREE.BoxGeometry(spoilerWidth, 0.14, spoilerDepth), trimMat);
-  spoilerBlade.position.set(0, wingY, -profile.length * 0.54);
-  spoilerBlade.rotation.x = (profile.type === "moon" ? -15 : -8) * DEG;
-  spoilerBlade.castShadow = true;
-  spoiler.add(spoilerBlade);
-  [-1, 1].forEach((side) => {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.78, 0.18), darkMat);
-    post.position.set(side * profile.width * 0.34, wingY - 0.4, -profile.length * 0.5);
-    spoiler.add(post);
-  });
-  chassis.add(spoiler);
-  addKartSilhouetteKit(chassis, profile, character, kart, primary, secondary, accent, bodyMat, trimMat, glowMat, darkMat);
-  addStylizedMachinePanels(chassis, profile, character, kart, primary, secondary, accent, darkMat);
+  if (!["moon", "nebula", "comet"].includes(profile.type)) {
+    const wingY = 2.05 + profile.height * 0.18;
+    const spoiler = new THREE.Group();
+    const spoilerWidth = profile.type === "bastion" ? profile.width * 1.06 : profile.width * 0.9;
+    const spoilerBlade = new THREE.Mesh(new THREE.BoxGeometry(spoilerWidth, 0.14, 0.58), trimMat);
+    spoilerBlade.position.set(0, wingY, -profile.length * 0.54);
+    spoilerBlade.rotation.x = -8 * DEG;
+    spoilerBlade.castShadow = true;
+    spoiler.add(spoilerBlade);
+    [-1, 1].forEach((side) => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.78, 0.18), darkMat);
+      post.position.set(side * profile.width * 0.34, wingY - 0.4, -profile.length * 0.5);
+      spoiler.add(post);
+    });
+    chassis.add(spoiler);
+  }
+
+  const isDedicatedMachine = ["moon-skipper", "iron-bastion", "nebula-float", "star-ranger", "comet-spear"].includes(kart.id);
+  if (!isDedicatedMachine) {
+    addKartSilhouetteKit(chassis, profile, character, kart, primary, secondary, accent, bodyMat, trimMat, glowMat, darkMat);
+    addStylizedMachinePanels(chassis, profile, character, kart, primary, secondary, accent, darkMat);
+  }
   addDedicatedMachineKit(chassis, profile, character, kart, primary, secondary, accent, bodyMat, trimMat, glowMat, darkMat, group);
+  addDedicatedRearIdentity(chassis, profile, kart, primary, secondary, accent, trimMat, glowMat, darkMat, group);
 
-  [-1, 1].forEach((side) => {
-    const sidePod = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, profile.length * 0.52), trimMat);
-    sidePod.position.set(side * profile.width * 0.58, 0.98, -0.12);
-    sidePod.rotation.z = side * -4 * DEG;
-    sidePod.castShadow = true;
-    chassis.add(sidePod);
+  if (!["moon", "nebula", "comet"].includes(profile.type)) {
+    [-1, 1].forEach((side) => {
+      const podWidth = profile.type === "bastion" ? 0.78 : 0.56;
+      const sidePod = new THREE.Mesh(new THREE.BoxGeometry(podWidth, profile.type === "bastion" ? 0.86 : 0.58, profile.length * 0.48), trimMat);
+      sidePod.position.set(side * profile.width * 0.58, 0.98, -0.12);
+      sidePod.rotation.z = side * -4 * DEG;
+      sidePod.castShadow = true;
+      chassis.add(sidePod);
 
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.38, profile.length * 0.68), glowMat.clone());
-    blade.position.set(side * profile.width * 0.76, 1.1, 0.18);
-    blade.rotation.z = side * 8 * DEG;
-    chassis.add(blade);
+      if (profile.type === "ranger") {
+        const frontWing = new THREE.Mesh(new THREE.BoxGeometry(profile.width * 0.34, 0.12, 0.72), trimMat);
+        frontWing.position.set(side * profile.width * 0.32, 0.82, profile.length * 0.47);
+        frontWing.rotation.set(0, side * 10 * DEG, side * -6 * DEG);
+        frontWing.castShadow = true;
+        chassis.add(frontWing);
+      }
+    });
+  }
 
-    const frontWing = new THREE.Mesh(new THREE.BoxGeometry(profile.width * 0.38, 0.14, 0.78), trimMat);
-    frontWing.position.set(side * profile.width * 0.34, 0.82, profile.length * 0.47);
-    frontWing.rotation.set(0, side * 10 * DEG, side * -7 * DEG);
-    frontWing.castShadow = true;
-    chassis.add(frontWing);
-  });
-
-  const wheelPositions = [
+  let wheelPositions = [
     [-profile.width * 0.58, 0.62, profile.length * 0.29],
     [profile.width * 0.58, 0.62, profile.length * 0.29],
     [-profile.width * 0.61, 0.62, -profile.length * 0.35],
     [profile.width * 0.61, 0.62, -profile.length * 0.35]
   ];
+  if (["nebula", "comet"].includes(profile.type)) {
+    wheelPositions = [
+      [-profile.width * 0.62, 0.66, -profile.length * 0.24],
+      [profile.width * 0.62, 0.66, -profile.length * 0.24]
+    ];
+  }
   const hoverRings = [];
   wheelPositions.forEach(([x, y, z], index) => {
     const wheel = createWheelAssembly(profile, accent, tireMat, glowMat, index > 1);
@@ -4951,6 +4976,85 @@ function addDedicatedMachineKit(chassis, profile, character, kart, primary, seco
   }
 }
 
+function addDedicatedRearIdentity(chassis, profile, kart, primary, secondary, accent, trimMat, glowMat, darkMat, group) {
+  const id = kart.id || "";
+  if (!["moon-skipper", "iron-bastion", "nebula-float", "star-ranger", "comet-spear"].includes(id)) return;
+
+  const solidPrimary = new THREE.MeshStandardMaterial({
+    color: primary,
+    emissive: accent,
+    emissiveIntensity: 0.055,
+    roughness: 0.68,
+    metalness: 0.18,
+    flatShading: true
+  });
+  const solidAccent = new THREE.MeshStandardMaterial({
+    color: secondary,
+    emissive: accent,
+    emissiveIntensity: 0.24,
+    roughness: 0.34,
+    metalness: 0.42,
+    flatShading: true
+  });
+  const cowlWidth = profile.type === "bastion" ? 0.86 : profile.type === "nebula" ? 0.9 : profile.type === "comet" ? 0.48 : 0.68;
+  const rearCowl = new THREE.Mesh(
+    createPrismGeometry(profile.width * cowlWidth, profile.height * 0.48, profile.length * 0.22, 0.88, 1),
+    solidPrimary
+  );
+  rearCowl.position.set(0, 1.28, -profile.length * 0.48);
+  rearCowl.rotation.x = -4 * DEG;
+  rearCowl.castShadow = true;
+  chassis.add(rearCowl);
+
+  if (id === "moon-skipper") {
+    const moon = new THREE.Mesh(new THREE.TorusGeometry(0.48, 0.065, 6, 24, Math.PI * 1.42), solidAccent);
+    moon.position.set(0, 1.48, -profile.length * 0.61);
+    moon.rotation.z = -32 * DEG;
+    chassis.add(trackMachinePart(group, "pulse", moon));
+  } else if (id === "iron-bastion") {
+    [-1, 0, 1].forEach((slot) => {
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(slot === 0 ? 0.58 : 0.42, 0.72 + (slot === 0 ? 0.2 : 0), 0.18), slot === 0 ? solidAccent : trimMat);
+      plate.position.set(slot * profile.width * 0.24, 1.42, -profile.length * 0.615);
+      plate.rotation.z = slot * -5 * DEG;
+      plate.castShadow = true;
+      chassis.add(plate);
+    });
+  } else if (id === "nebula-float") {
+    [-1, 1].forEach((side) => {
+      const mantaWing = new THREE.Mesh(createPrismGeometry(profile.width * 0.42, 0.16, profile.length * 0.42, 0.22, 1), solidPrimary);
+      mantaWing.position.set(side * profile.width * 0.43, 1.18, -profile.length * 0.34);
+      mantaWing.rotation.set(-8 * DEG, side * -18 * DEG, side * -13 * DEG);
+      mantaWing.castShadow = true;
+      chassis.add(mantaWing);
+    });
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.34, 0), solidAccent);
+    star.position.set(0, 1.52, -profile.length * 0.615);
+    star.scale.set(1, 1.35, 0.36);
+    chassis.add(trackMachinePart(group, "pulse", star));
+  } else if (id === "star-ranger") {
+    const fin = new THREE.Mesh(createPrismGeometry(0.26, 1.28, 1.12, 0.2, 1), solidAccent);
+    fin.position.set(0, 2.05, -profile.length * 0.47);
+    fin.rotation.x = -18 * DEG;
+    fin.castShadow = true;
+    chassis.add(fin);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(profile.width * 0.64, 0.1, 0.12), glowMat.clone());
+    bar.position.set(0, 1.32, -profile.length * 0.62);
+    chassis.add(trackMachinePart(group, "pulse", bar));
+  } else if (id === "comet-spear") {
+    const spine = new THREE.Mesh(createPrismGeometry(0.34, 1.0, profile.length * 0.5, 0.16, 1), solidAccent);
+    spine.position.set(0, 1.62, -profile.length * 0.34);
+    spine.rotation.x = -15 * DEG;
+    spine.castShadow = true;
+    chassis.add(spine);
+    [-1, 1].forEach((side) => {
+      const arrow = new THREE.Mesh(createPrismGeometry(0.16, 0.42, 1.62, 0.12, 1), solidPrimary);
+      arrow.position.set(side * profile.width * 0.42, 1.28, -profile.length * 0.42);
+      arrow.rotation.set(-10 * DEG, side * -10 * DEG, side * -12 * DEG);
+      arrow.castShadow = true;
+      chassis.add(arrow);
+    });
+  }
+}
 function addStylizedMachinePanels(chassis, profile, character, kart, primary, secondary, accent, darkMat) {
   const primaryHex = primary.getHex ? primary.getHex() : primary;
   const secondaryHex = secondary.getHex ? secondary.getHex() : secondary;
@@ -5327,6 +5431,22 @@ function createWheelAssembly(profile, accent, tireMat, glowMat, rear) {
   return group;
 }
 
+function getDriverProportions(characterId, trait) {
+  const proportions = {
+    "luna-mimi": { torso: [0.86, 0.92, 0.92], head: [0.94, 1.04, 1.02], headY: 1.02, shoulderX: 0.5, shoulderScale: [1.0, 0.66, 0.8] },
+    "gamma-bolt": { torso: [1.22, 0.92, 1.06], head: [1.08, 0.9, 1.04], headY: 0.98, shoulderX: 0.68, shoulderScale: [1.75, 0.82, 1.02] },
+    "nebi-mist": { torso: [0.78, 1.14, 0.82], head: [0.9, 1.16, 0.9], headY: 1.08, shoulderX: 0.46, shoulderScale: [0.82, 0.58, 0.68] },
+    "sora-ranger": { torso: [0.94, 1.08, 0.96], head: [1.0, 1.0, 1.02], headY: 1.03, shoulderX: 0.54, shoulderScale: [1.12, 0.72, 0.84] },
+    "comet-rin": { torso: [0.76, 1.04, 0.86], head: [0.84, 0.92, 1.08], headY: 1.02, shoulderX: 0.47, shoulderScale: [0.88, 0.6, 0.72] }
+  };
+  return proportions[characterId] || {
+    torso: [trait === "robot" ? 1.1 : 1, trait === "beast" ? 0.98 : 1.06, trait === "spirit" ? 0.92 : 1],
+    head: [trait === "beast" ? 0.92 : 1, trait === "spirit" ? 1.12 : 1, 1.04],
+    headY: 1.02,
+    shoulderX: 0.54,
+    shoulderScale: [trait === "robot" ? 1.55 : 1.12, 0.72, 0.84]
+  };
+}
 function createDriverModel(character, accent, secondary, primary) {
   const group = new THREE.Group();
   const trait = character.modelTrait || character.id || "pilot";
@@ -5357,13 +5477,14 @@ function createDriverModel(character, accent, secondary, primary) {
   const dark = new THREE.MeshStandardMaterial({ color: 0x07111d, roughness: 0.42, metalness: 0.4 });
   const glow = new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
   const face = new THREE.MeshStandardMaterial({ color: 0xf7fbff, emissive: accent, emissiveIntensity: 0.18, roughness: 0.48, flatShading: true });
+  const proportions = getDriverProportions(character.id, trait);
 
   const torso = new THREE.Mesh(
     trait === "robot" ? new THREE.BoxGeometry(1.08, 1.08, 0.68) : new THREE.CapsuleGeometry(0.56, 0.96, 4, 8),
     suit
   );
   torso.position.y = 0.04;
-  torso.scale.set(trait === "robot" ? 1.1 : 1, trait === "beast" ? 0.98 : 1.06, trait === "spirit" ? 0.92 : 1);
+  torso.scale.set(...proportions.torso);
   torso.rotation.x = 8 * DEG;
   torso.castShadow = true;
   group.add(torso);
@@ -5374,11 +5495,11 @@ function createDriverModel(character, accent, secondary, primary) {
 
   [-1, 1].forEach((side) => {
     const shoulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), suit);
-    shoulder.scale.set(trait === "robot" ? 1.55 : 1.12, 0.72, 0.84);
-    shoulder.position.set(side * 0.54, 0.36, 0.02);
+    shoulder.scale.set(...proportions.shoulderScale);
+    shoulder.position.set(side * proportions.shoulderX, 0.36, 0.02);
     group.add(shoulder);
     const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.46, 4, 6), suit);
-    arm.position.set(side * 0.66, 0.02, 0.15);
+    arm.position.set(side * (proportions.shoulderX + 0.12), 0.02, 0.15);
     arm.rotation.z = side * -18 * DEG;
     arm.rotation.x = 14 * DEG;
     group.add(arm);
@@ -5388,8 +5509,8 @@ function createDriverModel(character, accent, secondary, primary) {
     trait === "robot" ? new THREE.BoxGeometry(0.86, 0.68, 0.66) : new THREE.DodecahedronGeometry(0.58, 0),
     skin
   );
-  head.position.y = 1.02;
-  head.scale.set(trait === "beast" ? 0.92 : 1, trait === "spirit" ? 1.12 : 1, 1.04);
+  head.position.y = proportions.headY;
+  head.scale.set(...proportions.head);
   head.castShadow = true;
   group.add(head);
 
@@ -5397,7 +5518,8 @@ function createDriverModel(character, accent, secondary, primary) {
   addMouthLine(group, dark, trait);
   addCharacterExpression(group, character, trait, dark, glow, accent);
   addDriverBackSilhouette(group, trait, accent, primary, secondary, suit, glow);
-  addDriverReadabilityKit(group, trait, accent, primary, secondary, dark, glow);
+  const isDedicatedRacer = ["luna-mimi", "gamma-bolt", "nebi-mist", "sora-ranger", "comet-rin"].includes(character.id);
+  if (!isDedicatedRacer) addDriverReadabilityKit(group, trait, accent, primary, secondary, dark, glow);
 
   if (trait === "beast") {
     addEar(group, -0.34, accent, 1.08);
@@ -5420,6 +5542,8 @@ function createDriverModel(character, accent, secondary, primary) {
     addCrystalCrest(group, accent);
     addWing(group, -0.62, accent, 0.9);
     addWing(group, 0.62, accent, 0.9);
+  } else if (trait === "sprinter") {
+    addSprinterCowl(group, accent, dark);
   } else {
     addPilotHelmet(group, accent, dark);
     const cape = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.82, 0.06), suit);
@@ -5865,6 +5989,21 @@ function addCrystalCrest(group, accent) {
   });
 }
 
+function addSprinterCowl(group, accent, dark) {
+  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.74, 0.16, 0.08), dark);
+  visor.position.set(0, 1.08, 0.58);
+  visor.rotation.z = -5 * DEG;
+  group.add(visor);
+  [-1, 1].forEach((side) => {
+    const sweptFin = new THREE.Mesh(
+      new THREE.ConeGeometry(0.12, 0.72, 4),
+      new THREE.MeshStandardMaterial({ color: accent, emissive: accent, emissiveIntensity: 0.3, roughness: 0.3, metalness: 0.24, flatShading: true })
+    );
+    sweptFin.position.set(side * 0.38, 1.48, -0.12);
+    sweptFin.rotation.set(-22 * DEG, 0, side * -28 * DEG);
+    group.add(sweptFin);
+  });
+}
 function addPilotHelmet(group, accent, dark) {
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.16, 0.05), new THREE.MeshStandardMaterial({ color: 0x07111d, emissive: accent, emissiveIntensity: 0.24, roughness: 0.44, metalness: 0.18, flatShading: true }));
   visor.position.set(0, 0.99, 0.51);

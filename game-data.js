@@ -993,6 +993,7 @@
         character.modelTrait === "robot" ? "wide armored shoulders, glowing eyes, antenna, heavy mechanical arms" :
         character.modelTrait === "spirit" ? "translucent body, orbiting crystals, small wing fins, luminous tail" :
         character.modelTrait === "guardian" ? "crystal crest, calm plated suit, winglike facets" :
+        character.modelTrait === "sprinter" ? "low swept visor, arrow fins, slim forward posture, long light scarf" :
         "helmet visor, racing jacket, shoulder pads, short cape",
       requiredParts: ["eyes", "visor or goggles", "torso suit", "shoulder detail", "asymmetric accessory", "glow accent"]
     };
@@ -1103,7 +1104,7 @@
       colors: { primary: "#101827", secondary: "#FF4FD8", accent: "#7DF9FF" },
       boostColor: "#FF4FD8",
       stats: { speed: 10, accel: 7, handling: 6, weight: 4, boost: 8 },
-      modelTrait: "beast",
+      modelTrait: "sprinter",
       presentation: {
         silhouette: "sharp comet fins, low visor, long light scarf",
         portraitMood: "cool, quick, daring",
@@ -1319,7 +1320,7 @@
   };
   var spaceCourses = [lunarCourse, meteorCourse, spaceCourse, nebulaCourse];
 
-  window.AURORA_GAME_DATA.version = "0.2.25-cpu-navigation";
+  window.AURORA_GAME_DATA.version = "0.2.26-art-identity";
   window.AURORA_GAME_DATA.difficulties = {
     Easy: { precision: 0.76, speed: 0.84, reaction: 0.8, maxSpeed: 0.86, acceleration: 0.84, cornerSpeed: 0.7, steeringSkill: 0.78, recoverySpeed: 0.9, boostUsageRate: 0.28, itemUsageSkill: 0.38, mistakeRate: 0.18, avoidanceStrength: 0.72, rubberBanding: 0.05 },
     Normal: { precision: 1.0, speed: 1.0, reaction: 1.0, maxSpeed: 1.02, acceleration: 1.02, cornerSpeed: 0.92, steeringSkill: 1.04, recoverySpeed: 1.14, boostUsageRate: 0.66, itemUsageSkill: 0.66, mistakeRate: 0.07, avoidanceStrength: 1.08, rubberBanding: 0.12 },
