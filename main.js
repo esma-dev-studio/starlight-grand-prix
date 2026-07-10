@@ -445,6 +445,8 @@ let raceWarmupComplete = false;
 let raceWarmupTimer = 0;
 let adaptiveEffectScale = 1;
 let frameCostAverage = 16;
+let qaProbeElement = null;
+let qaProbeTimer = 0;
 
 init();
 
@@ -601,6 +603,48 @@ function init() {
   showScreen(initialScreen);
   document.documentElement.classList.add("app-ready");
   clock = new THREE.Clock();
+  installQaProbe();
+}
+
+function collectQaSnapshot() {
+  return {
+    mode: state.mode,
+    time: Math.round(state.time * 10) / 10,
+    course: activeCourse()?.id || "",
+    racers: racers.map((racer) => {
+      const nearest = track ? nearestTrackSample(racer.position, racer.trackIndex) : null;
+      return {
+        id: racer.id,
+        player: racer.isPlayer,
+        speed: Math.round(racer.speed * 10) / 10,
+        progress: Math.round((racer.progress || 0) * 10) / 10,
+        lap: racer.lap,
+        lateral: nearest ? Math.round((nearest.lateral || 0) * 10) / 10 : 0,
+        stuck: Math.round((racer.stuckTimer || 0) * 100) / 100,
+        stalled: Math.round((racer.ai?.noProgressTimer || 0) * 100) / 100,
+        recovering: Math.round((racer.ai?.recoveryTimer || 0) * 100) / 100,
+        finished: racer.finished
+      };
+    })
+  };
+}
+
+function installQaProbe() {
+  if (!new URLSearchParams(window.location.search).has("qa")) return;
+  qaProbeElement = document.createElement("output");
+  qaProbeElement.id = "qaTelemetry";
+  qaProbeElement.hidden = true;
+  document.body.appendChild(qaProbeElement);
+  window.__STARLIGHT_QA__ = { snapshot: collectQaSnapshot };
+  updateQaProbe(0);
+}
+
+function updateQaProbe(dt) {
+  if (!qaProbeElement) return;
+  qaProbeTimer -= dt;
+  if (qaProbeTimer > 0) return;
+  qaProbeTimer = 0.4;
+  qaProbeElement.textContent = JSON.stringify(collectQaSnapshot());
 }
 function cacheDom() {
   [
@@ -4413,18 +4457,24 @@ function ensureTrackForSelectedCourse() {
 }
 
 function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
-  const startSample = track.samples[0];
-  const gridBack = 8 + gridSlot * 5;
-  const pos = startSample.point
-    .clone()
-    .addScaledVector(startSample.tangent, -gridBack)
-    .addScaledVector(startSample.normal, laneOffset);
+  const gridBack = 8 + gridSlot * 6.2;
+  let gridIndex = 0;
+  let walked = 0;
+  let guard = 0;
+  while (walked < gridBack && guard < TRACK_STEPS) {
+    gridIndex = (gridIndex - 1 + TRACK_STEPS) % TRACK_STEPS;
+    const sample = track.samples[gridIndex];
+    walked += sample.segmentLength || sample.point.distanceTo(track.samples[(gridIndex + 1) % TRACK_STEPS].point);
+    guard += 1;
+  }
+  const startSample = track.samples[gridIndex] || track.samples[0];
+  const pos = startSample.point.clone().addScaledVector(startSample.normal, laneOffset);
   const yaw = Math.atan2(startSample.tangent.x, startSample.tangent.z);
   const group = createKartModel(character, kart, isPlayer);
   group.position.copy(pos);
   group.rotation.y = yaw;
   scene.add(group);
-  const nearest = nearestTrackSample(pos);
+  const nearest = nearestTrackSample(pos, gridIndex);
   return {
     id,
     character,
@@ -4471,7 +4521,10 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
       stallTimer: 0,
       lastIndex: nearest.index,
       laneShift: 0,
-      recoveryTimer: 0
+      recoveryTimer: 0,
+      progressWatchTimer: 0,
+      progressWatchValue: nearest.index > TRACK_STEPS * 0.55 ? nearest.index - TRACK_STEPS : nearest.index,
+      noProgressTimer: 0
     },
     isPlayer
   };
@@ -6083,6 +6136,7 @@ function updateScene(dt) {
     minimapTimer = QUALITY.minimapInterval;
   }
   updateAudio();
+  updateQaProbe(dt);
 }
 
 function updateRacer(racer, dt) {
@@ -6375,6 +6429,7 @@ function readCpuControls(racer, dt) {
   const theme = track?.theme || courseTheme();
   const icyCourse = theme.id === "nebula-drift-stream";
   const marsCourse = theme.id === "meteor-mining-belt";
+  racer.ai.recoveryTimer = Math.max(0, (racer.ai.recoveryTimer || 0) - dt);
 
   racer.ai.useTimer -= dt * (0.85 + itemSkill * 0.45);
   if (racer.ai.useTimer <= 0 && racer.item) {
@@ -6434,7 +6489,7 @@ function readCpuControls(racer, dt) {
   const desiredYaw = Math.atan2(toTarget.x, toTarget.z);
   const angle = shortestAngle(racer.yaw, desiredYaw);
   let steer = angle * (1.58 + steeringSkill * 0.5);
-  if (edgeAmount > 0.02) steer += centerSign * edgeAmount * (0.34 + steeringSkill * 0.18);
+  if (edgeAmount > 0.02) steer -= centerSign * edgeAmount * (0.42 + steeringSkill * 0.22);
 
   if (edgeAmount > 0.02) {
     const trackYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
@@ -6469,7 +6524,7 @@ function readCpuControls(racer, dt) {
     }
   });
   racer.ai.laneShift = approach(racer.ai.laneShift || 0, 0, dt * 1.35);
-  steer += clamp((racer.ai.laneShift || 0) / TRACK_WIDTH, -0.24, 0.24);
+  steer -= clamp((racer.ai.laneShift || 0) / TRACK_WIDTH, -0.24, 0.24);
 
   if (rand() < mistakeRate * dt * 0.22 * Math.max(0, 1 - edgeAmount)) steer += (rand() - 0.5) * mistakeRate;
   steer = clamp(steer, -1, 1);
@@ -6484,7 +6539,7 @@ function readCpuControls(racer, dt) {
 
   const accel = stallUrgency > 0.18 || (edgeAmount < 0.78 && racer.speed < targetSpeed * (0.98 + boostUsage * 0.05)) || (upcomingBoost && edgeAmount < 0.28 && racer.speed < baseMax * 1.18);
   const brake = (edgeAmount > 0.52 && racer.speed > baseMax * 0.36) || (stallUrgency < 0.18 && racer.speed > targetSpeed * (1.04 + (diff.cornerSpeed || 1) * 0.06) && curve > 0.12);
-  const drift = edgeAmount < 0.56 && curve > (icyCourse ? 0.14 : 0.2 + mistakeRate * 0.18) && Math.abs(steer) > (icyCourse ? 0.22 : 0.28) && racer.speed > baseMax * 0.34;
+  const drift = racer.ai.recoveryTimer <= 0 && edgeAmount < 0.34 && curve > (icyCourse ? 0.16 : 0.22 + mistakeRate * 0.18) && Math.abs(steer) > (icyCourse ? 0.24 : 0.32) && racer.speed > baseMax * 0.38;
 
   if (racer.stunTimer > 0) return { accel: false, brake: true, steer: clamp(steer * 0.5, -1, 1), drift: false };
   return { accel, brake, steer, drift };
@@ -6863,13 +6918,26 @@ function handleStuckAssist(racer, nearest, controls, dt) {
   });
 
   let notProgressing = false;
+  let scrapingWall = false;
   if (!racer.isPlayer) {
-    const lastIndex = racer.ai.lastIndex ?? nearest.index;
-    const moved = indexDistance(nearest.index, lastIndex);
-    notProgressing = moved < 2 && Math.abs(racer.speed) < 8.5;
+    racer.ai.progressWatchTimer = (racer.ai.progressWatchTimer || 0) + dt;
+    if (racer.ai.progressWatchTimer >= 0.35) {
+      const watchTime = racer.ai.progressWatchTimer;
+      const previousProgress = Number.isFinite(racer.ai.progressWatchValue) ? racer.ai.progressWatchValue : racer.progress;
+      const forwardAdvance = racer.progress - previousProgress;
+      const minimumAdvance = Math.max(0.45, TRACK_STEPS / 340);
+      racer.ai.noProgressTimer = forwardAdvance > minimumAdvance
+        ? Math.max(0, (racer.ai.noProgressTimer || 0) - watchTime * 1.8)
+        : (racer.ai.noProgressTimer || 0) + watchTime;
+      racer.ai.progressWatchValue = racer.progress;
+      racer.ai.progressWatchTimer = 0;
+    }
+    notProgressing = (racer.ai.noProgressTimer || 0) > 0.68;
+    scrapingWall = offLine && (nearObstacle || yawError > 0.38) && Math.abs(racer.speed) < 32;
     racer.ai.lastIndex = nearest.index;
   }
-  const trapped = Math.abs(racer.speed) < (racer.isPlayer ? 5.2 : 8.5) && (nearObstacle || offLine || yawError > 1.15 || racer.obstacleCooldown > 0.18 || notProgressing);
+  const lowSpeedTrap = Math.abs(racer.speed) < (racer.isPlayer ? 5.2 : 12.5) && (nearObstacle || offLine || yawError > 1.05 || racer.obstacleCooldown > 0.18);
+  const trapped = lowSpeedTrap || scrapingWall || notProgressing;
   if (!trapped) {
     racer.stuckTimer = Math.max(0, (racer.stuckTimer || 0) - dt * 2.2);
     if (racer.ai) racer.ai.stallTimer = Math.max(0, (racer.ai.stallTimer || 0) - dt * 2.5);
@@ -6890,9 +6958,12 @@ function handleStuckAssist(racer, nearest, controls, dt) {
   const hardLimit = racer.isPlayer ? 1.15 : 1.05 / recovery;
   if (racer.stuckTimer < hardLimit && (!racer.ai || racer.ai.stallTimer < hardLimit)) return;
 
-  const targetIndex = (nearest.index + (racer.isPlayer ? 7 : 10)) % TRACK_STEPS;
+  const targetIndex = (nearest.index + (racer.isPlayer ? 7 : 14)) % TRACK_STEPS;
   const sample = track.samples[targetIndex] || nearest.sample;
-  const safeLateral = clamp(nearest.lateral || 0, -TRACK_WIDTH * (racer.isPlayer ? 0.24 : 0.16), TRACK_WIDTH * (racer.isPlayer ? 0.24 : 0.16));
+  const cpuLane = String(racer.id).charCodeAt(String(racer.id).length - 1) % 2 ? TRACK_WIDTH * 0.045 : -TRACK_WIDTH * 0.045;
+  const safeLateral = racer.isPlayer
+    ? clamp(nearest.lateral || 0, -TRACK_WIDTH * 0.24, TRACK_WIDTH * 0.24)
+    : cpuLane;
   racer.position.copy(sample.point).addScaledVector(sample.normal, safeLateral);
   racer.position.y = sample.point.y;
   racer.yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
@@ -6904,10 +6975,15 @@ function handleStuckAssist(racer, nearest, controls, dt) {
   if (racer.ai) {
     racer.ai.stallTimer = 0;
     racer.ai.lastIndex = targetIndex;
+    racer.ai.progressWatchValue = racer.progress;
+    racer.ai.progressWatchTimer = 0;
+    racer.ai.noProgressTimer = 0;
+    racer.ai.recoveryTimer = 1.15;
+    racer.ai.laneShift = 0;
   }
   racer.obstacleCooldown = 0;
-  racer.unstuckCooldown = racer.isPlayer ? 1.35 : 0.72;
-  racer.ghostTimer = racer.isPlayer ? 0 : 0.55;
+  racer.unstuckCooldown = racer.isPlayer ? 1.35 : 0.62;
+  racer.ghostTimer = racer.isPlayer ? 0 : 0.95;
   racer.wobble = Math.max(racer.wobble, 0.45);
   racer.impactPose = Math.max(racer.impactPose, 0.45);
   if (racer.isPlayer) {

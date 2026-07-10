@@ -5121,3 +5121,33 @@ button,
     justify-content: flex-start;
   }
 }
+
+/* CPU/navigation fix v37: keep the minimap outside the touch-control zone. */
+@media (pointer: coarse), (hover: none), (max-width: 1180px) {
+  #hud .minimap-frame {
+    top: calc(132px + var(--safe-top));
+    right: auto;
+    bottom: auto;
+    left: calc(12px + var(--safe-left));
+    width: 78px;
+    height: 78px;
+  }
+}
+
+@media (max-width: 720px) {
+  #hud .minimap-frame {
+    top: calc(72px + var(--safe-top));
+    left: calc(8px + var(--safe-left));
+    width: 72px;
+    height: 72px;
+  }
+}
+
+@media (max-height: 600px) and (orientation: landscape) {
+  #hud .minimap-frame {
+    top: calc(68px + var(--safe-top));
+    left: calc(8px + var(--safe-left));
+    width: 64px;
+    height: 64px;
+  }
+}
