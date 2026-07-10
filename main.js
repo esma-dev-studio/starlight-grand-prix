@@ -46,8 +46,8 @@ const QUALITY = (() => {
 const ART_DIRECTION = Object.freeze({
   lowPoly: true,
   coursePaletteLimit: 3,
-  glowOpacity: QUALITY.low ? 0.42 : 0.56,
-  transparentBudget: QUALITY.low ? 0.55 : 0.72
+  glowOpacity: QUALITY.low ? 0.34 : 0.46,
+  transparentBudget: QUALITY.low ? 0.42 : 0.58
 });
 
 const fallbackData = {
@@ -1096,7 +1096,28 @@ function populateChoices() {
     bindUiTap(button, () => selectCharacterSet(index));
     dom.characterGrid.appendChild(button);
   });
+  populateTitleShowcase();
   refreshCharacterSelection();
+}
+
+function populateTitleShowcase() {
+  const showcase = document.getElementById("titleShowcase");
+  if (!showcase) return;
+  showcase.innerHTML = "";
+  [1, 0, 4].forEach((characterIndex, stageIndex) => {
+    const character = DATA.characters[characterIndex] || DATA.characters[0];
+    const machine = machineForCharacter(character, characterIndex);
+    const figure = document.createElement("span");
+    figure.className = `title-machine title-machine-${stageIndex + 1} racer-${characterClassId(character)}`;
+    figure.style.setProperty("--primary", character.colors?.primary || "#7df9ff");
+    figure.style.setProperty("--secondary", character.colors?.secondary || "#14233b");
+    figure.style.setProperty("--accent", character.colors?.accent || "#ffd166");
+    figure.style.setProperty("--machine-primary", machine?.colors?.primary || machine?.colors?.body || character.colors?.primary || "#7df9ff");
+    figure.style.setProperty("--machine-secondary", machine?.colors?.secondary || machine?.colors?.trim || character.colors?.secondary || "#14233b");
+    figure.style.setProperty("--machine-accent", machine?.boostColor || machine?.colors?.accent || machine?.colors?.glow || character.colors?.accent || "#ffd166");
+    figure.innerHTML = kartVisualMarkup(machine) + '<i class="title-engine-line"></i>';
+    showcase.appendChild(figure);
+  });
 }
 
 function populateCourse() {
@@ -1327,7 +1348,7 @@ function initThree() {
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.08;
+  renderer.toneMappingExposure = 0.9;
 
   scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x11243d, 0.0068);
@@ -1335,10 +1356,10 @@ function initThree() {
   camera = new THREE.PerspectiveCamera(62, 1, 0.1, 1600);
   camera.position.set(0, 20, -36);
 
-  const hemi = new THREE.HemisphereLight(0xe2fbff, 0x172034, 2.45);
+  const hemi = new THREE.HemisphereLight(0xd8f5ff, 0x111827, 1.45);
   scene.add(hemi);
 
-  const sun = new THREE.DirectionalLight(0xfff1c4, 3.25);
+  const sun = new THREE.DirectionalLight(0xffedc2, 2.15);
   sun.position.set(-70, 115, 60);
   sun.castShadow = !QUALITY.low;
   sun.shadow.mapSize.set(QUALITY.shadowSize, QUALITY.shadowSize);
@@ -1349,11 +1370,11 @@ function initThree() {
   scene.add(sun);
 
   if (!QUALITY.low) {
-    const rose = new THREE.PointLight(0xff8fa8, 42, 180, 1.8);
+    const rose = new THREE.PointLight(0xff8fa8, 8, 130, 2);
     rose.position.set(70, 42, -65);
     scene.add(rose);
 
-    const cyan = new THREE.PointLight(0x6de6ff, 46, 180, 1.8);
+    const cyan = new THREE.PointLight(0x6de6ff, 10, 140, 2);
     cyan.position.set(-85, 34, 95);
     scene.add(cyan);
   }
@@ -1486,7 +1507,7 @@ function makeGroundPlane() {
 
 const COURSE_STYLE_PALETTES = Object.freeze({
   "lunar-crater-run": {
-    road: "#C9D0D9", roadEmissive: "#18202B", railLeft: "#EAF6FF", railRight: "#93A8BA", centerLine: "#F8FDFF",
+    road: "#AEB8C4", roadEmissive: "#111823", railLeft: "#EAF6FF", railRight: "#93A8BA", centerLine: "#F8FDFF",
     shortcut: "#AEB8C6", dust: "#AEB7C2", warning: "#E8C66A", sky: "#02050D", fog: "#070A12", structure: "#8793A2", boost: "#EAF6FF"
   },
   "meteor-mining-belt": {
@@ -1494,7 +1515,7 @@ const COURSE_STYLE_PALETTES = Object.freeze({
     shortcut: "#71331F", dust: "#AD5C35", warning: "#F0A45B", sky: "#210D08", fog: "#4A1D12", structure: "#71351F", boost: "#F0A45B"
   },
   "starlight-orbit-ring": {
-    road: "#E7EEF3", roadEmissive: "#27384D", railLeft: "#F6F2DD", railRight: "#D8B75D", centerLine: "#CCEFFF",
+    road: "#CBD5DE", roadEmissive: "#1C2938", railLeft: "#F6F2DD", railRight: "#D8B75D", centerLine: "#CCEFFF",
     shortcut: "#B9C9D8", dust: "#DCE9F2", warning: "#D8B75D", sky: "#061020", fog: "#0A1728", structure: "#B7C2CF", boost: "#D8B75D"
   },
   "nebula-drift-stream": {
@@ -1542,7 +1563,10 @@ function applyCourseAtmosphere(theme) {
     scene.fog.density = theme.fogDensity;
   }
   if (scene) scene.background = new THREE.Color(theme.skyColor);
-  if (renderer) renderer.toneMappingExposure = QUALITY.low ? 1.04 : 1.1;
+  if (renderer) {
+    const courseExposure = theme.id === "lunar-crater-run" || theme.id === "starlight-orbit-ring" ? 0.84 : 0.9;
+    renderer.toneMappingExposure = QUALITY.low ? courseExposure - 0.04 : courseExposure;
+  }
 }
 
 const COURSE_PATHS = {
@@ -4459,6 +4483,8 @@ function createKartModel(character, kart, isPlayer) {
   const primary = new THREE.Color(kart.colors.primary || character.colors.primary);
   const secondary = new THREE.Color(kart.colors.secondary || character.colors.secondary);
   const accent = new THREE.Color(kart.boostColor || character.boostColor || kart.colors.glow || kart.colors.accent || character.colors.accent);
+  const silhouette = new THREE.Color(0x07111d).lerp(secondary, 0.28);
+  const canopyColor = new THREE.Color(0x07111d).lerp(accent, 0.16);
   group.userData.machineMotionParts = { pulse: [], spin: [], flutter: [], hover: [] };
   group.userData.machineProfile = profile;
   group.userData.machineType = profile.type;
@@ -4466,33 +4492,33 @@ function createKartModel(character, kart, isPlayer) {
   const bodyMat = new THREE.MeshStandardMaterial({
     color: primary,
     emissive: primary,
-    emissiveIntensity: isPlayer ? 0.08 : 0.04,
-    roughness: 0.64,
-    metalness: 0.22,
+    emissiveIntensity: isPlayer ? 0.025 : 0.012,
+    roughness: 0.76,
+    metalness: 0.12,
     flatShading: true
   });
   const trimMat = new THREE.MeshStandardMaterial({
-    color: secondary,
+    color: silhouette,
     emissive: secondary,
-    emissiveIntensity: 0.06,
-    roughness: 0.68,
-    metalness: 0.18,
+    emissiveIntensity: 0.035,
+    roughness: 0.7,
+    metalness: 0.22,
     flatShading: true
   });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x07111d, roughness: 0.5, metalness: 0.65 });
-  const tireMat = new THREE.MeshStandardMaterial({ color: 0x05070c, roughness: 0.58, metalness: 0.2 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x050b13, roughness: 0.72, metalness: 0.3, flatShading: true });
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x030508, roughness: 0.74, metalness: 0.08, flatShading: true });
   const glassMat = new THREE.MeshStandardMaterial({
-    color: accent,
+    color: canopyColor,
     emissive: accent,
-    emissiveIntensity: 0.16,
-    roughness: 0.42,
-    metalness: 0.12,
+    emissiveIntensity: 0.08,
+    roughness: 0.36,
+    metalness: 0.24,
     flatShading: true
   });
   const glowMat = new THREE.MeshBasicMaterial({
     color: accent,
     transparent: true,
-    opacity: ART_DIRECTION.glowOpacity,
+    opacity: ART_DIRECTION.glowOpacity * 0.72,
     blending: THREE.AdditiveBlending,
     depthWrite: false
   });
@@ -4619,14 +4645,14 @@ function createKartModel(character, kart, isPlayer) {
 
   const underglow = new THREE.Mesh(
     new THREE.CircleGeometry(profile.width * 0.78, 36),
-    new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.17, blending: THREE.AdditiveBlending, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false })
   );
   underglow.rotation.x = -Math.PI / 2;
   underglow.position.y = 0.11;
   group.add(underglow);
 
   if (!QUALITY.low) {
-    const engine = new THREE.PointLight(accent, isPlayer ? 5 : 2.5, 13, 2);
+    const engine = new THREE.PointLight(accent, isPlayer ? 2.2 : 1.2, 10, 2);
     engine.position.set(0, 1.0, -profile.length * 0.68);
     chassis.add(engine);
     group.userData.engineLight = engine;
@@ -6894,11 +6920,25 @@ function handleRacerContacts(racer, dt) {
     if (other === racer || other.finished) return;
     if (String(racer.id) > String(other.id)) return;
     const bothCpu = !racer.isPlayer && !other.isPlayer;
+    const playerContact = racer.isPlayer || other.isPlayer;
+    const startProtection = playerContact && state.time < 6;
     if (bothCpu && ((racer.ghostTimer || 0) > 0 || (other.ghostTimer || 0) > 0)) return;
     const dist = racer.position.distanceTo(other.position);
+    if (startProtection && dist > 0 && dist < 6.4) {
+      const cpu = racer.isPlayer ? other : racer;
+      const sample = track?.samples?.[cpu.trackIndex] || track?.samples?.[0];
+      if (sample && !cpu.isPlayer) {
+        const lateral = nearestTrackSample(cpu.position, cpu.trackIndex).lateral || 0;
+        const side = Math.abs(lateral) > 0.7 ? Math.sign(lateral) : (String(cpu.id).charCodeAt(String(cpu.id).length - 1) % 2 ? 1 : -1);
+        cpu.position.addScaledVector(sample.normal, side * (6.4 - dist) * 0.46);
+        cpu.speed = Math.max(Math.abs(cpu.speed), 18);
+        cpu.ghostTimer = Math.max(cpu.ghostTimer || 0, 0.45);
+      }
+      return;
+    }
     if (dist > 0 && dist < 4.1) {
       const pushDir = racer.position.clone().sub(other.position).normalize();
-      const pushScale = bothCpu ? 0.28 : 0.5;
+      const pushScale = bothCpu ? 0.28 : startProtection ? 0.14 : 0.5;
       const push = pushDir.multiplyScalar((4.1 - dist) * pushScale);
       racer.position.add(push);
       other.position.sub(push);
@@ -6914,16 +6954,19 @@ function handleRacerContacts(racer, dt) {
         }
       } else {
         const speedSwap = racer.speed;
-        racer.speed = racer.speed * 0.75 + other.speed * 0.18;
-        other.speed = other.speed * 0.75 + speedSwap * 0.18;
-        adjustShield(racer, -4, { silent: true });
-        adjustShield(other, -4, { silent: true });
+        const damping = startProtection ? 0.92 : 0.75;
+        racer.speed = racer.speed * damping + other.speed * (startProtection ? 0.04 : 0.18);
+        other.speed = other.speed * damping + speedSwap * (startProtection ? 0.04 : 0.18);
+        if (!startProtection) {
+          adjustShield(racer, -4, { silent: true });
+          adjustShield(other, -4, { silent: true });
+        }
       }
-      racer.wobble = 0.7;
-      other.wobble = 0.7;
-      racer.impactPose = 0.8;
-      other.impactPose = 0.8;
-      if (racer.isPlayer || other.isPlayer) {
+      racer.wobble = startProtection ? 0.18 : 0.7;
+      other.wobble = startProtection ? 0.18 : 0.7;
+      racer.impactPose = startProtection ? 0.2 : 0.8;
+      other.impactPose = startProtection ? 0.2 : 0.8;
+      if (playerContact && !startProtection) {
         cameraShake = Math.max(cameraShake, 0.35);
         playAudio("collision", 0.25);
       }
@@ -7590,8 +7633,9 @@ function updateCamera(dt) {
   const boosting = player.boostTimer > 0 || player.miniTurboTimer > 0;
   const steerLean = readPlayerVisualSteerInput();
   const driftLean = player.driftActive ? -player.driftDir : 0;
-  const behind = 14.8 + speed01 * 8.6 + (boosting ? 4.2 : 0);
-  const height = 5.7 + speed01 * 2.7;
+  const portraitFraming = clamp((0.86 - camera.aspect) / 0.42, 0, 1);
+  const behind = 14.8 + speed01 * 8.6 + (boosting ? 4.2 : 0) + portraitFraming * 7.5;
+  const height = 5.7 + speed01 * 2.7 + portraitFraming * 1.8;
   const targetPos = player.position
     .clone()
     .addScaledVector(forward, -behind)
@@ -7609,7 +7653,7 @@ function updateCamera(dt) {
   const roll = clamp(-steerLean * 0.055 + driftLean * 0.105, -0.16, 0.16);
   camera.up.lerp(new THREE.Vector3(Math.sin(roll), Math.cos(roll), 0), 1 - Math.pow(0.004, dt));
   camera.lookAt(cameraTarget);
-  camera.fov = approach(camera.fov, 58 + speed01 * 10 + (boosting ? 8 : 0), 34 * dt);
+  camera.fov = approach(camera.fov, 58 + speed01 * 10 + (boosting ? 8 : 0) + portraitFraming * 4, 34 * dt);
   camera.updateProjectionMatrix();
 
   speedLines.forEach((line, index) => {

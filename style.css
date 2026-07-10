@@ -4577,3 +4577,547 @@ button,
 .low-quality #app.is-menu .racer-ip-mark {
   opacity: 0.22;
 }
+/* Art cohesion v31: stronger hierarchy, darker materials, fewer visual fragments. */
+#titleScreen.screen-title.hidden {
+  display: none !important;
+}
+
+#titleScreen.screen-title {
+  width: min(1180px, calc(100vw - 48px)) !important;
+  min-height: min(640px, calc(100dvh - 72px));
+  display: grid !important;
+  grid-template-columns: minmax(360px, 0.86fr) minmax(420px, 1.14fr);
+  grid-template-areas:
+    "eyebrow visual"
+    "title visual"
+    "tagline visual"
+    "actions visual"
+    "meta visual";
+  align-content: center;
+  align-items: center;
+  gap: 14px 28px !important;
+  padding: clamp(28px, 5vw, 64px) !important;
+  overflow: hidden;
+  text-align: left !important;
+  border: 0 !important;
+  background: rgba(2, 6, 14, 0.2) !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+}
+
+#titleScreen .eyebrow {
+  grid-area: eyebrow;
+  justify-self: start;
+  margin: 0 !important;
+  color: #e8c66a;
+}
+
+#titleScreen h1 {
+  grid-area: title;
+  max-width: 9.5em;
+  font-size: clamp(3rem, 6.4vw, 6rem) !important;
+  line-height: 0.96 !important;
+  text-align: left;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.75), 0 0 22px rgba(143, 221, 238, 0.24) !important;
+}
+
+#titleScreen .tagline {
+  grid-area: tagline;
+  justify-self: start;
+  max-width: 35em;
+  margin: 0 !important;
+  color: rgba(230, 242, 248, 0.78) !important;
+  text-align: left;
+}
+
+#titleScreen .title-actions {
+  grid-area: actions;
+  justify-content: flex-start;
+}
+
+#titleScreen .meta-row {
+  grid-area: meta;
+  justify-content: flex-start;
+  margin-top: 2px;
+  opacity: 0.68;
+}
+
+.title-showcase {
+  grid-area: visual;
+  position: relative;
+  width: 100%;
+  min-height: 410px;
+  isolation: isolate;
+  pointer-events: none;
+}
+
+.title-showcase::before {
+  content: "";
+  position: absolute;
+  width: 280px;
+  aspect-ratio: 1;
+  right: 8%;
+  top: 0;
+  border: 2px solid rgba(200, 228, 235, 0.4);
+  border-radius: 50%;
+  background: #173f58;
+  box-shadow:
+    inset -48px -36px 0 #07111d,
+    inset 22px 18px 0 rgba(216, 239, 242, 0.12),
+    0 0 0 18px rgba(232, 198, 106, 0.08);
+  transform: rotate(-12deg);
+  z-index: -2;
+}
+
+.title-showcase::after {
+  content: "";
+  position: absolute;
+  left: 2%;
+  right: -18%;
+  bottom: 52px;
+  height: 92px;
+  border: solid rgba(174, 206, 216, 0.5);
+  border-width: 2px 0;
+  background: #0b1a29;
+  box-shadow: inset 0 9px 0 rgba(232, 198, 106, 0.16);
+  transform: perspective(420px) rotateX(66deg) rotateZ(-7deg);
+  z-index: -1;
+}
+
+.title-machine {
+  position: absolute;
+  display: block;
+  width: 230px;
+  height: 160px;
+  filter: drop-shadow(0 18px 12px rgba(0, 0, 0, 0.52));
+}
+
+.title-machine .kart-visual {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  transform: none !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.title-machine-1 {
+  left: 0;
+  bottom: 70px;
+  transform: scale(0.76) rotate(-6deg);
+  opacity: 0.82;
+}
+
+.title-machine-2 {
+  left: 29%;
+  bottom: 30px;
+  z-index: 3;
+  transform: scale(1.12);
+}
+
+.title-machine-3 {
+  right: -2%;
+  bottom: 82px;
+  transform: scale(0.72) rotate(7deg);
+  opacity: 0.78;
+}
+
+.title-engine-line {
+  position: absolute;
+  left: -42%;
+  top: 53%;
+  width: 54%;
+  height: 4px;
+  background: var(--machine-accent, #9ee7ff);
+  opacity: 0.58;
+  transform: skewX(-28deg);
+}
+
+#courseGrid.course-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+#courseGrid .course-card {
+  grid-template-columns: 64px minmax(0, 1fr);
+  min-height: 166px;
+  padding: 12px;
+}
+
+#courseGrid .course-orbit {
+  width: 56px;
+  height: 56px;
+}
+
+#courseGrid .course-card strong {
+  font-size: 0.98rem;
+}
+
+#courseGrid .course-one-line {
+  min-height: 2.2em;
+}
+
+/* Race HUD is grouped into three instruments instead of a wall of cards. */
+#app.is-racing #hud,
+#app.is-countdown #hud {
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+}
+
+#hud.hidden {
+  display: none !important;
+}
+
+#hudRacerPanel {
+  position: absolute;
+  top: calc(12px + var(--safe-top));
+  left: calc(12px + var(--safe-left));
+  width: 270px;
+  min-height: 64px;
+  padding: 8px 12px !important;
+  background: rgba(4, 10, 20, 0.84) !important;
+}
+
+#hudRacerPanel .hud-racer-portrait {
+  width: 48px;
+  height: 48px;
+}
+
+#hudRacerPanel .hud-racer-line {
+  color: rgba(225, 238, 244, 0.62);
+}
+
+#hud .hud-left {
+  position: absolute;
+  top: calc(86px + var(--safe-top));
+  left: calc(12px + var(--safe-left));
+  display: grid;
+  grid-template-columns: 88px 106px 126px;
+  gap: 0;
+  width: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(180, 226, 238, 0.3);
+  background: rgba(4, 10, 20, 0.82);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+}
+
+#hud .hud-left .hud-panel {
+  position: relative;
+  min-width: 0;
+  min-height: 62px;
+  padding: 8px 10px !important;
+  border: 0 !important;
+  border-right: 1px solid rgba(180, 226, 238, 0.18) !important;
+  clip-path: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#hud .hud-left .hud-panel:last-child {
+  border-right: 0 !important;
+}
+
+#hud .hud-left #positionValue,
+#hud .hud-left #lapValue,
+#hud .hud-left #timeValue {
+  font-size: 1.55rem !important;
+  line-height: 1;
+}
+
+#hud .hud-left #positionValue {
+  color: #f5d36e !important;
+}
+
+#hud .hud-right {
+  position: absolute;
+  top: calc(12px + var(--safe-top));
+  right: calc(12px + var(--safe-right));
+  display: grid;
+  grid-template-columns: 122px 154px;
+  gap: 8px;
+  width: auto;
+}
+
+#hud .hud-right .hud-panel {
+  min-height: 72px;
+  padding: 8px 10px !important;
+}
+
+#hud .speed-panel {
+  grid-template-columns: 1fr auto !important;
+}
+
+#hud #speedValue {
+  font-size: 2.15rem !important;
+  line-height: 0.92;
+}
+
+#hud .item-panel {
+  grid-template-columns: 1fr 70px;
+  align-items: center;
+}
+
+#hud .item-panel .item-hint {
+  grid-column: 1 / -1;
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#hudCoach {
+  position: absolute;
+  top: calc(12px + var(--safe-top));
+  left: 50%;
+  width: min(340px, 30vw);
+  min-height: 54px;
+  padding: 8px 14px !important;
+  transform: translateX(-50%);
+  background: rgba(4, 10, 20, 0.78) !important;
+}
+
+#hudCoach .coach-label {
+  padding: 3px 7px;
+}
+
+#hudCoach strong {
+  font-size: 0.92rem;
+}
+
+#hudCoach small {
+  color: rgba(225, 238, 244, 0.62);
+}
+
+#hud .minimap-frame {
+  position: absolute;
+  left: calc(12px + var(--safe-left));
+  bottom: calc(12px + var(--safe-bottom));
+  width: 122px;
+  height: 122px;
+  padding: 7px;
+  border: 1px solid rgba(180, 226, 238, 0.32);
+  background: rgba(3, 8, 16, 0.76);
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+}
+
+#hud .minimap-frame #minimap {
+  position: static !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+  clip-path: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#app.is-racing .hud-panel,
+#app.is-racing #minimap,
+#app.is-racing .hud-coach {
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 5px 12px rgba(0,0,0,0.24) !important;
+}
+
+@media (max-width: 980px) {
+  #titleScreen.screen-title {
+    grid-template-columns: minmax(300px, 0.9fr) minmax(340px, 1.1fr);
+    gap: 10px 18px !important;
+  }
+
+  .title-showcase {
+    min-height: 330px;
+  }
+
+  .title-showcase::before {
+    width: 220px;
+  }
+
+  .title-machine {
+    width: 190px;
+    height: 132px;
+  }
+
+  #courseGrid.course-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (pointer: coarse), (hover: none), (max-width: 900px) {
+  #hudRacerPanel {
+    width: 190px;
+    min-height: 52px;
+    padding: 6px 8px !important;
+  }
+
+  #hudRacerPanel .hud-racer-portrait {
+    width: 38px;
+    height: 38px;
+  }
+
+  #hudRacerPanel .hud-racer-line {
+    display: none;
+  }
+
+  #hud .hud-left {
+    top: calc(70px + var(--safe-top));
+    grid-template-columns: 70px 82px 102px;
+  }
+
+  #hud .hud-left .hud-panel {
+    min-height: 50px;
+    padding: 6px 7px !important;
+  }
+
+  #hud .hud-left #positionValue,
+  #hud .hud-left #lapValue,
+  #hud .hud-left #timeValue {
+    font-size: 1.15rem !important;
+  }
+
+  #hud .hud-right {
+    grid-template-columns: 92px 112px;
+  }
+
+  #hud .hud-right .hud-panel {
+    min-height: 58px;
+    padding: 6px 7px !important;
+  }
+
+  #hud #speedValue {
+    font-size: 1.55rem !important;
+  }
+
+  #hudCoach {
+    display: none;
+  }
+
+  #hud .minimap-frame {
+    width: 84px;
+    height: 84px;
+    bottom: calc(150px + var(--safe-bottom));
+  }
+}
+
+@media (max-width: 720px) {
+  #titleScreen.screen-title {
+    width: 100% !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    min-height: auto;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "visual"
+      "eyebrow"
+      "title"
+      "tagline"
+      "actions"
+      "meta";
+    padding: 18px !important;
+  }
+
+  .title-showcase {
+    min-height: 180px;
+  }
+
+  .title-showcase::before {
+    width: 132px;
+    right: 10%;
+  }
+
+  .title-showcase::after {
+    bottom: 20px;
+    height: 58px;
+  }
+
+  .title-machine {
+    width: 132px;
+    height: 92px;
+  }
+
+  .title-machine-1,
+  .title-machine-3 {
+    opacity: 0.48;
+  }
+
+  .title-machine-1 { bottom: 26px; }
+  .title-machine-2 { bottom: 8px; }
+  .title-machine-3 { bottom: 28px; }
+
+  #titleScreen h1 {
+    font-size: clamp(2.5rem, 14vw, 4.2rem) !important;
+  }
+
+  #titleScreen .title-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #courseGrid.course-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #courseGrid .course-card {
+    min-height: 144px;
+  }
+
+  #hudRacerPanel {
+    display: none;
+  }
+
+  #hud .hud-left {
+    top: calc(8px + var(--safe-top));
+    left: calc(8px + var(--safe-left));
+    grid-template-columns: 54px 64px 78px;
+  }
+
+  #hud .hud-right {
+    top: calc(8px + var(--safe-top));
+    right: calc(8px + var(--safe-right));
+    grid-template-columns: 66px 74px;
+    gap: 5px;
+  }
+
+  #hud .hud-right .shield-label,
+  #hud .hud-right .shield-hint,
+  #hud .item-panel .item-hint {
+    display: none;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+  #titleScreen.screen-title {
+    min-height: calc(100dvh - 40px);
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "eyebrow"
+      "title"
+      "tagline"
+      "visual"
+      "actions"
+      "meta";
+    align-content: center;
+    padding: 36px 48px !important;
+  }
+
+  #titleScreen h1 {
+    max-width: 100%;
+    font-size: clamp(3.2rem, 9vw, 5rem) !important;
+  }
+
+  .title-showcase {
+    width: min(620px, 100%);
+    min-height: 300px;
+    justify-self: center;
+  }
+
+  .title-machine {
+    width: 205px;
+    height: 142px;
+  }
+
+  #titleScreen .title-actions {
+    justify-content: flex-start;
+  }
+}
