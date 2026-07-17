@@ -5270,3 +5270,210 @@ button,
   height: 21px;
   border-width: 3px;
 }
+/* 100-point presentation pass v41: key art, race energy, and cinematic transitions. */
+#titleScreen.screen-title {
+  position: relative;
+  min-height: min(680px, calc(100dvh - 80px));
+  border: 1px solid rgba(151, 221, 237, 0.18) !important;
+  background:
+    linear-gradient(90deg, rgba(2, 6, 14, 0.98) 0%, rgba(2, 6, 14, 0.9) 30%, rgba(2, 6, 14, 0.42) 54%, rgba(2, 6, 14, 0.06) 100%),
+    linear-gradient(180deg, rgba(3, 8, 18, 0.04), rgba(3, 8, 18, 0.42)),
+    url("./assets/title-keyart-v41.webp") center / cover no-repeat !important;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.52) !important;
+}
+
+#titleScreen.screen-title::after {
+  content: "";
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(137, 220, 239, 0.12);
+  clip-path: polygon(0 0, 72px 0, 72px 2px, calc(100% - 72px) 2px, calc(100% - 72px) 0, 100% 0, 100% 100%, calc(100% - 96px) 100%, calc(100% - 96px) calc(100% - 2px), 96px calc(100% - 2px), 96px 100%, 0 100%);
+  pointer-events: none;
+}
+
+#titleScreen .title-showcase {
+  opacity: 0;
+}
+
+#titleScreen .eyebrow {
+  padding-left: 28px;
+  position: relative;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+#titleScreen .eyebrow::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 18px;
+  height: 2px;
+  background: #e8c66a;
+  box-shadow: 0 0 12px rgba(232, 198, 106, 0.6);
+}
+
+#titleScreen h1 {
+  max-width: 8em;
+  color: #f7fbff;
+  text-wrap: balance;
+  text-shadow: 0 3px 0 rgba(0,0,0,0.8), 0 0 28px rgba(125,249,255,0.18) !important;
+}
+
+#titleScreen .tagline {
+  max-width: 29em;
+  font-size: 1rem;
+  line-height: 1.72;
+  color: rgba(235, 247, 252, 0.82) !important;
+}
+
+#titleScreen .game-button {
+  min-height: 52px;
+  border-radius: 3px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+#titleScreen .game-button.primary {
+  background: linear-gradient(90deg, rgba(232, 198, 106, 0.2), rgba(7, 17, 29, 0.86));
+  border-color: rgba(232, 198, 106, 0.72);
+  box-shadow: inset 4px 0 0 #e8c66a, 0 12px 28px rgba(0,0,0,0.34);
+}
+
+#app.is-racing::after,
+#app.is-finish::after {
+  content: "" !important;
+  display: block !important;
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+  opacity: var(--race-energy, 0);
+  background:
+    radial-gradient(ellipse at 50% 58%, transparent 35%, color-mix(in srgb, var(--racer-accent, #7df9ff) 20%, transparent) 78%, rgba(2,5,12,0.48) 100%),
+    linear-gradient(90deg, color-mix(in srgb, var(--racer-accent, #7df9ff) 10%, transparent), transparent 16%, transparent 84%, color-mix(in srgb, var(--racer-accent, #7df9ff) 10%, transparent));
+  transition: opacity 120ms linear;
+}
+
+#app.is-finish::after {
+  opacity: 0.78;
+  background:
+    radial-gradient(circle at 50% 54%, rgba(255,255,255,0.18), transparent 26%),
+    radial-gradient(ellipse at 50% 58%, transparent 34%, rgba(232,198,106,0.18) 76%, rgba(2,5,12,0.58) 100%);
+}
+
+#app.is-max-speed #speedValue {
+  color: #ffffff;
+  text-shadow: 0 0 8px var(--racer-accent, #7df9ff), 0 0 20px var(--racer-accent, #7df9ff);
+}
+
+#countdown {
+  width: clamp(132px, 14vw, 188px);
+  height: clamp(132px, 14vw, 188px);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(232, 248, 255, 0.72);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255,255,255,0.18), rgba(8,18,34,0.84) 58%, rgba(2,6,14,0.3) 60%, transparent 66%);
+  box-shadow: 0 0 0 8px rgba(125,249,255,0.08), 0 0 48px rgba(125,249,255,0.24);
+  font-size: clamp(4.8rem, 10vw, 8rem) !important;
+  line-height: 1;
+  color: #ffffff;
+  -webkit-text-stroke: 1px rgba(7,17,29,0.78);
+  text-shadow: 0 4px 0 rgba(7,17,29,0.82), 0 0 22px rgba(125,249,255,0.62);
+}
+
+#countdown.course-intro {
+  width: auto;
+  height: auto;
+  max-width: min(720px, calc(100vw - 40px));
+  padding: 16px 30px;
+  border-radius: 3px;
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  background: linear-gradient(90deg, rgba(4,12,26,0.94), rgba(12,31,49,0.82));
+  box-shadow: inset 5px 0 0 #e8c66a, 0 18px 48px rgba(0,0,0,0.52);
+  font-size: clamp(1.4rem, 4vw, 3rem) !important;
+  letter-spacing: 0;
+  -webkit-text-stroke: 0;
+}
+
+#countdown.goal-flash {
+  width: auto;
+  height: auto;
+  min-width: min(560px, calc(100vw - 32px));
+  padding: 20px 42px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(232,198,106,0.18), rgba(7,17,29,0.9), rgba(125,249,255,0.18));
+  font-size: clamp(2.8rem, 8vw, 6.4rem) !important;
+}
+
+@media (max-width: 900px) {
+  #titleScreen.screen-title {
+    background-position: 64% center !important;
+  }
+}
+
+@media (max-width: 720px) {
+  #titleScreen.screen-title {
+    background:
+      linear-gradient(180deg, rgba(2,6,14,0.28) 0%, rgba(2,6,14,0.56) 30%, rgba(2,6,14,0.96) 57%, #02060e 100%),
+      url("./assets/title-keyart-v41.webp") 66% top / auto 54% no-repeat !important;
+  }
+
+  #titleScreen .title-showcase {
+    min-height: clamp(138px, 29dvh, 220px);
+  }
+
+  #titleScreen h1 {
+    font-size: clamp(2.3rem, 12vw, 3.8rem) !important;
+    max-width: 9em;
+  }
+
+  #titleScreen .tagline {
+    font-size: 0.86rem;
+    line-height: 1.55;
+  }
+
+  #countdown {
+    width: 116px;
+    height: 116px;
+    font-size: 4.4rem !important;
+  }
+}
+/* Countdown remains a full-screen centering layer; only its visual core is drawn. */
+#countdown,
+#countdown.course-intro,
+#countdown.goal-flash {
+  inset: 0;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  max-width: none;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  clip-path: none;
+  box-shadow: none;
+}
+
+#countdown {
+  background: radial-gradient(circle at 50% 50%, rgba(8,18,34,0.88) 0 68px, rgba(125,249,255,0.13) 69px 76px, transparent 77px);
+}
+
+#countdown.course-intro {
+  background: linear-gradient(90deg, transparent 12%, rgba(4,12,26,0.92) 34%, rgba(12,31,49,0.88) 66%, transparent 88%);
+}
+
+#countdown.goal-flash {
+  background: linear-gradient(90deg, transparent 8%, rgba(232,198,106,0.14) 27%, rgba(7,17,29,0.9) 50%, rgba(125,249,255,0.14) 73%, transparent 92%);
+}
+
+@media (max-width: 720px) {
+  #countdown {
+    width: auto;
+    height: auto;
+    background: radial-gradient(circle at 50% 50%, rgba(8,18,34,0.9) 0 54px, rgba(125,249,255,0.13) 55px 61px, transparent 62px);
+  }
+}

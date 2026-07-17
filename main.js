@@ -381,6 +381,7 @@ const state = {
   difficulty: "Normal",
   time: 0,
   finishTime: 0,
+  finishSequence: false,
   countdown: 0,
   rank: 1,
   winner: null,
@@ -2106,9 +2107,9 @@ function addLunarStartLine(trackInfo, theme) {
   });
 
   const sign = createTextSprite("MOON BASE", theme.centerLine, 0.72);
-  sign.position.copy(sample.point).addScaledVector(sample.tangent, 4.2);
-  sign.position.y += 6.7;
-  sign.scale.set(12, 4, 1);
+  sign.position.copy(sample.point).addScaledVector(sample.tangent, 7.5);
+  sign.position.y += 5.4;
+  sign.scale.set(8.5, 2.7, 1);
   trackInfo.group.add(sign);
 }
 function addStartLine(trackInfo) {
@@ -4185,7 +4186,7 @@ function addSpaceDrones(city) {
     const ship = new THREE.Group();
     const body = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 14), mat.clone());
     body.scale.set(7.8 + i * 0.35, 1.55, 2.15);
-    body.castShadow = true;
+    body.castShadow = false;
     const gondola = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.72, 1.2), new THREE.MeshStandardMaterial({ color: 0x0f1728, emissive: 0xff5fa8, emissiveIntensity: 0.22, roughness: 0.4, metalness: 0.52 }));
     gondola.position.y = -1.35;
     const tail = new THREE.Mesh(new THREE.ConeGeometry(1.25, 2.4, 4), mat.clone());
@@ -4375,22 +4376,25 @@ function resetRace() {
   const chosenCharacter = DATA.characters[state.selectedCharacter] || DATA.characters[0];
   const chosenKart = machineForCharacter(chosenCharacter, state.selectedCharacter);
   state.selectedKart = machineIndexForCharacter(chosenCharacter, state.selectedCharacter);
-  player = createRacer(PLAYER_ID, chosenCharacter, chosenKart, 0, 0, true);
+  const cpuCount = Math.min(raceMode().rivals, DATA.characters.length);
+  const playerGridSlot = Math.min(2, cpuCount);
+  player = createRacer(PLAYER_ID, chosenCharacter, chosenKart, playerGridSlot, playerGridSlot % 2 ? 3.8 : -3.8, true);
   racers.push(player);
 
-  const cpuLimit = QUALITY.low ? 2 : DATA.characters.length;
-  const cpuCount = Math.min(raceMode().rivals, DATA.characters.length, cpuLimit);
   for (let i = 0; i < cpuCount; i += 1) {
     const character = DATA.characters[(i + 1) % DATA.characters.length];
     const kart = machineForCharacter(character, (i + 1) % DATA.characters.length);
-    racers.push(createRacer(`cpu-${i}`, character, kart, i + 1, i % 2 ? 4 : -4, false));
+    const gridSlot = i < playerGridSlot ? i : i + 1;
+    racers.push(createRacer(`cpu-${i}`, character, kart, gridSlot, gridSlot % 2 ? 3.8 : -3.8, false));
   }
   state.time = 0;
   state.finishTime = 0;
   state.rank = 1;
+  state.finishSequence = false;
   lastCoachKey = "";
   lastHudLap = 0;
   state.winner = null;
+  updateRanks();
   updateHud();
   previewSelection();
 }
@@ -4457,7 +4461,7 @@ function ensureTrackForSelectedCourse() {
 }
 
 function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
-  const gridBack = 8 + gridSlot * 6.2;
+  const gridBack = 10 + gridSlot * 8.2;
   let gridIndex = 0;
   let walked = 0;
   let guard = 0;
@@ -4544,6 +4548,7 @@ function getDriverRaceScale(character, profile) {
 function createKartModel(character, kart, isPlayer) {
   const group = new THREE.Group();
   const profile = getKartVisualProfile(kart);
+  const lightweightCpu = QUALITY.low && !isPlayer;
   const primary = new THREE.Color(kart.colors.primary || character.colors.primary);
   const secondary = new THREE.Color(kart.colors.secondary || character.colors.secondary);
   const accent = new THREE.Color(kart.boostColor || character.boostColor || kart.colors.glow || kart.colors.accent || character.colors.accent);
@@ -4557,16 +4562,16 @@ function createKartModel(character, kart, isPlayer) {
     color: primary,
     emissive: primary,
     emissiveIntensity: isPlayer ? 0.025 : 0.012,
-    roughness: 0.76,
-    metalness: 0.12,
+    roughness: 0.58,
+    metalness: 0.22,
     flatShading: true
   });
   const trimMat = new THREE.MeshStandardMaterial({
     color: silhouette,
     emissive: secondary,
     emissiveIntensity: 0.035,
-    roughness: 0.7,
-    metalness: 0.22,
+    roughness: 0.48,
+    metalness: 0.42,
     flatShading: true
   });
   const darkMat = new THREE.MeshStandardMaterial({ color: 0x050b13, roughness: 0.72, metalness: 0.3, flatShading: true });
@@ -4575,8 +4580,8 @@ function createKartModel(character, kart, isPlayer) {
     color: canopyColor,
     emissive: accent,
     emissiveIntensity: 0.08,
-    roughness: 0.36,
-    metalness: 0.24,
+    roughness: 0.22,
+    metalness: 0.34,
     flatShading: true
   });
   const glowMat = new THREE.MeshBasicMaterial({
@@ -4595,13 +4600,13 @@ function createKartModel(character, kart, isPlayer) {
     bodyMat
   );
   body.position.y = 1.08;
-  body.castShadow = true;
+  body.castShadow = isPlayer && !QUALITY.low;
   body.receiveShadow = true;
   chassis.add(body);
 
   const belly = new THREE.Mesh(new THREE.BoxGeometry(profile.width * 0.78, 0.34, profile.length * 0.86), darkMat);
   belly.position.set(0, 0.66, -0.15);
-  belly.castShadow = true;
+  belly.castShadow = isPlayer && !QUALITY.low;
   chassis.add(belly);
 
   const nose = new THREE.Mesh(new THREE.ConeGeometry(profile.width * 0.34, profile.length * 0.46, 4), bodyMat);
@@ -4609,13 +4614,13 @@ function createKartModel(character, kart, isPlayer) {
   nose.rotation.z = Math.PI / 4;
   nose.position.set(0, 1.15, profile.length * 0.57);
   nose.scale.set(profile.noseScale, 1, 0.58);
-  nose.castShadow = true;
+  nose.castShadow = isPlayer && !QUALITY.low;
   chassis.add(nose);
 
   const canopy = new THREE.Mesh(new THREE.DodecahedronGeometry(profile.width * 0.28, 0), glassMat);
   canopy.scale.set(1.08, 0.48, 0.82);
   canopy.position.set(0, 1.88, -0.16);
-  canopy.castShadow = true;
+  canopy.castShadow = isPlayer && !QUALITY.low;
   chassis.add(canopy);
 
   addGlowStrip(chassis, 0, 1.73, profile.length * 0.25, profile.width * 0.08, profile.length * 0.84, accent, 0);
@@ -4635,7 +4640,7 @@ function createKartModel(character, kart, isPlayer) {
     chassis.add(trackMachinePart(group, "hover", holoMarker));
   }
 
-  if (!["moon", "nebula", "comet"].includes(profile.type)) {
+  if (!lightweightCpu && !["moon", "nebula", "comet"].includes(profile.type)) {
     const wingY = 2.05 + profile.height * 0.18;
     const spoiler = new THREE.Group();
     const spoilerWidth = profile.type === "bastion" ? profile.width * 1.06 : profile.width * 0.9;
@@ -4657,10 +4662,12 @@ function createKartModel(character, kart, isPlayer) {
     addKartSilhouetteKit(chassis, profile, character, kart, primary, secondary, accent, bodyMat, trimMat, glowMat, darkMat);
     addStylizedMachinePanels(chassis, profile, character, kart, primary, secondary, accent, darkMat);
   }
-  addDedicatedMachineKit(chassis, profile, character, kart, primary, secondary, accent, bodyMat, trimMat, glowMat, darkMat, group);
+  if (!lightweightCpu) {
+    addDedicatedMachineKit(chassis, profile, character, kart, primary, secondary, accent, bodyMat, trimMat, glowMat, darkMat, group);
+  }
   addDedicatedRearIdentity(chassis, profile, kart, primary, secondary, accent, trimMat, glowMat, darkMat, group);
 
-  if (!["moon", "nebula", "comet"].includes(profile.type)) {
+  if (!lightweightCpu && !["moon", "nebula", "comet"].includes(profile.type)) {
     [-1, 1].forEach((side) => {
       const podWidth = profile.type === "bastion" ? 0.78 : 0.56;
       const sidePod = new THREE.Mesh(new THREE.BoxGeometry(podWidth, profile.type === "bastion" ? 0.86 : 0.58, profile.length * 0.48), trimMat);
@@ -4685,7 +4692,7 @@ function createKartModel(character, kart, isPlayer) {
     [-profile.width * 0.61, 0.62, -profile.length * 0.35],
     [profile.width * 0.61, 0.62, -profile.length * 0.35]
   ];
-  if (["nebula", "comet"].includes(profile.type)) {
+  if (lightweightCpu || ["nebula", "comet"].includes(profile.type)) {
     wheelPositions = [
       [-profile.width * 0.62, 0.66, -profile.length * 0.24],
       [profile.width * 0.62, 0.66, -profile.length * 0.24]
@@ -4701,7 +4708,7 @@ function createKartModel(character, kart, isPlayer) {
   });
 
   const enginePlumes = [];
-  [-0.42, 0.42].forEach((x) => {
+  (lightweightCpu ? [0] : [-0.42, 0.42]).forEach((x) => {
     const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 1.05, 18), darkMat);
     pod.rotation.x = Math.PI / 2;
     pod.position.set(x * profile.width, 1.02, -profile.length * 0.63);
@@ -4729,7 +4736,7 @@ function createKartModel(character, kart, isPlayer) {
   underglow.position.y = 0.11;
   group.add(underglow);
 
-  if (!QUALITY.low) {
+  if (!QUALITY.low && isPlayer) {
     const engine = new THREE.PointLight(accent, isPlayer ? 2.2 : 1.2, 10, 2);
     engine.position.set(0, 1.0, -profile.length * 0.68);
     chassis.add(engine);
@@ -4855,6 +4862,12 @@ function addDedicatedMachineKit(chassis, profile, character, kart, primary, seco
 
   if (id === "moon-skipper") {
     [-1, 1].forEach((side) => {
+      const wingHull = new THREE.Mesh(createPrismGeometry(0.72, 0.36, 2.45, 0.22, 1), side < 0 ? bright : bodyMat);
+      wingHull.position.set(side * profile.width * 0.54, 1.04, -profile.length * 0.03);
+      wingHull.rotation.set(-4 * DEG, side * -12 * DEG, side * -7 * DEG);
+      wingHull.castShadow = false;
+      chassis.add(wingHull);
+
       const crescent = new THREE.Mesh(new THREE.TorusGeometry(0.9, 0.055, 8, 46, Math.PI * 1.35), glow.clone());
       crescent.position.set(side * profile.width * 0.74, 1.34, profile.length * 0.18);
       crescent.rotation.set(Math.PI / 2, side * 18 * DEG, side * 54 * DEG);
@@ -5640,6 +5653,10 @@ function addCharacterSignatureKit(group, character, trait, accent, primary, seco
 
 
   if (id === "luna-mimi") {
+    const helmetBand = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.13, 0.06), bright);
+    helmetBand.position.set(0, 1.08, -0.58);
+    helmetBand.rotation.z = -4 * DEG;
+    group.add(helmetBand);
     const crescent = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.035, 8, 48, Math.PI * 1.35), glow.clone());
     crescent.position.set(0, 1.18, -0.18);
     crescent.rotation.set(Math.PI / 2, 0, -36 * DEG);
@@ -6024,16 +6041,18 @@ function previewSelection() {
 async function startCountdown() {
   startAudioOnce();
   state.mode = "countdown";
+  state.finishSequence = false;
   dom.hud.classList.remove("hidden");
   dom.app?.classList.remove("is-menu");
   dom.app?.classList.add("is-racing");
   dom.screenOverlay.classList.add("hidden");
   dom.countdown.classList.remove("hidden");
-  dom.countdown.textContent = "\u3058\u3085\u3093\u3073";
+  dom.countdown.classList.add("course-intro");
+  dom.countdown.textContent = displayName(activeCourse());
   dom.countdown.classList.add("pop");
   dom.mobileControls.classList.add("active");
   await waitForNextPaint();
-  await wait(220);
+  await wait(520);
   raceWarmupStarted = true;
   ensureRaceAssetsReady({ createRacers: true });
   if (state.currentScreen !== "course") {
@@ -6043,19 +6062,26 @@ async function startCountdown() {
     state.finishTime = 0;
     state.rank = 1;
     state.winner = null;
+    state.finishSequence = false;
     updateHud();
   }
+  dom.countdown.classList.remove("course-intro");
   state.countdown = 3;
   for (const label of ["3", "2", "1", "スタート！"]) {
     dom.countdown.textContent = label;
     pulseCountdown(label);
-    await wait(820);
+    await wait(680);
   }
   dom.countdown.classList.add("hidden");
   state.mode = "racing";
   state.time = 0;
+  if (player && input.accel) {
+    player.miniTurboTimer = Math.max(player.miniTurboTimer, 0.72);
+    spawnShockwave(player.position, colorToHex(player.kart.boostColor || player.character.boostColor || "#ffd166"), 5.2);
+    playAudio("boost", 0.42);
+    gameHaptic(18);
+  }
 }
-
 function pulseCountdown(label) {
   dom.countdown.classList.remove("pop");
   void dom.countdown.offsetWidth;
@@ -6084,6 +6110,8 @@ function returnToTitleFromPause() {
   state.finishTime = 0;
   state.rank = 1;
   state.winner = null;
+  state.finishSequence = false;
+  dom.app?.classList.remove("is-finish", "is-fast", "is-max-speed");
   Object.assign(input, {
     accel: false,
     brake: false,
@@ -6101,22 +6129,36 @@ function returnToTitleFromPause() {
 }
 
 function finishRace() {
-  state.mode = "result";
+  if (state.finishSequence) return;
+  state.finishSequence = true;
   state.finishTime = state.time;
+  state.mode = "finish";
+  dom.app?.classList.add("is-racing", "is-finish");
+  dom.mobileControls.classList.remove("active");
   playAudio("goal");
+  gameHaptic([28, 45, 70]);
   if (player) {
     player.group.userData.victoryPose = true;
     spawnGoalLightShow(player);
   }
   const sorted = getRanking();
   const winner = sorted[0];
-  const playerRank = sorted.findIndex((r) => r === player) + 1;
-  showScreen("result");
+  const playerRank = sorted.findIndex((racer) => racer === player) + 1;
   showGoalBanner(playerRank);
+  window.setTimeout(() => {
+    if (!state.finishSequence || !player) return;
+    state.mode = "result";
+    dom.app?.classList.remove("is-finish");
+    showScreen("result");
+    renderRaceResults(winner, playerRank);
+  }, 1450);
+}
+
+function renderRaceResults(winner, playerRank) {
   const mode = raceMode();
   const playerCard = resultCharacterCardMarkup(player.character);
   if (mode.timeAttack) {
-    dom.resultTitle.textContent = "タイムアタック完走！";
+    dom.resultTitle.textContent = "タイムアタック かんそう！";
     dom.resultStats.innerHTML = playerCard + `
       <div><span>モード</span><strong>${escapeHtml(mode.name)}</strong></div>
       <div><span>タイム</span><strong>${formatTime(state.finishTime)}</strong></div>
@@ -6125,7 +6167,7 @@ function finishRace() {
     `;
     return;
   }
-  dom.resultTitle.textContent = playerRank === 1 ? "1い！やったね！" : "レースのけっか";
+  dom.resultTitle.textContent = playerRank === 1 ? "1い！ やったね！" : "レースのけっか";
   dom.resultStats.innerHTML = playerCard + `
     <div><span>モード</span><strong>${escapeHtml(mode.name)}</strong></div>
     <div><span>じゅんい</span><strong>${playerRank}/${racers.length}</strong></div>
@@ -6133,7 +6175,6 @@ function finishRace() {
     <div><span>1いのレーサー</span><strong>${escapeHtml(displayName(winner.character))}</strong></div>
   `;
 }
-
 function showGoalBanner(playerRank) {
   if (!dom.countdown) return;
   dom.countdown.textContent = playerRank === 1 ? "1いでゴール!" : "ゴール!";
@@ -6141,7 +6182,7 @@ function showGoalBanner(playerRank) {
   void dom.countdown.offsetWidth;
   dom.countdown.classList.add("pop", "goal-flash");
   window.setTimeout(() => {
-    if (state.mode === "result") dom.countdown.classList.add("hidden");
+    if (state.mode === "result" || state.mode === "finish") dom.countdown.classList.add("hidden");
     dom.countdown.classList.remove("goal-flash");
   }, 1250);
 }
@@ -6155,8 +6196,8 @@ function showScreen(name) {
   [dom.titleScreen, dom.modeScreen, dom.selectScreen, dom.courseScreen, dom.pauseScreen, dom.helpScreen, dom.resultScreen].forEach((screen) => {
     screen.classList.add("hidden");
   });
-  const hudVisible = name !== "help" && (["pause", "result"].includes(name) || state.mode === "racing");
-  const controlsVisible = name !== "help" && (["pause", "result"].includes(name) || state.mode === "racing");
+  const hudVisible = name !== "help" && (name === "pause" || state.mode === "racing");
+  const controlsVisible = name !== "help" && (name === "pause" || state.mode === "racing");
   dom.hud.classList.toggle("hidden", !hudVisible);
   dom.mobileControls.classList.toggle("active", controlsVisible);
   dom.app?.classList.toggle("is-menu", !["racing", "countdown"].includes(state.mode));
@@ -6361,7 +6402,10 @@ function updateRacer(racer, dt) {
       if (racer.driftCharge > 0.75) {
         racer.miniTurboTimer = clamp(racer.driftCharge * 0.45, 0.45, 1.45);
         spawnBurst(racer.position, 0xffc857, 18, 1.5);
-        playAudio("boost", 0.45);
+        if (racer.isPlayer) {
+          playAudio("boost", 0.45);
+          gameHaptic(14);
+        }
       }
       racer.driftActive = false;
       racer.driftCharge = 0;
@@ -6546,7 +6590,7 @@ function readPlayerVisualSteerInput() {
 }
 
 function readPlayerSteerInput() {
-  return -readPlayerVisualSteerInput();
+  return readPlayerVisualSteerInput();
 }
 
 function readPlayerControls() {
@@ -6884,6 +6928,7 @@ function handleRaceProgress(racer, nearest) {
   if (old > TRACK_STEPS * 0.78 && next < TRACK_STEPS * 0.22 && racer.speed > 0) {
     if (racer.startedLap) {
       racer.lap += 1;
+      if (racer.isPlayer && racer.lap < activeLapTotal()) gameHaptic([12, 28, 14]);
       if (racer.lap >= activeLapTotal()) {
         racer.finished = true;
         racer.finishTime = state.time;
@@ -6912,7 +6957,10 @@ function handleItemPickup(racer) {
       box.userData.cooldown = 5.5;
       spawnBurst(box.position, 0xffd166, 18, 1.4);
       spawnShockwave(box.position, racer.item.color || 0xffd166, 5.2);
-      playAudio("itemPickup");
+      if (racer.isPlayer) {
+        playAudio("itemPickup");
+        gameHaptic([10, 22, 12]);
+      }
       break;
     }
   }
@@ -6961,6 +7009,7 @@ function handleBoostPanels(racer, nearest) {
         if (racer.isPlayer) {
           cameraShake = Math.max(cameraShake, 0.38);
           playAudio("boost", 0.55);
+          gameHaptic(16);
         }
       } else if (racer.isPlayer) {
         cameraShake = Math.max(cameraShake, 0.28);
@@ -7027,7 +7076,10 @@ function handleObstacleCollisions(racer, nearest) {
         spawnBurst(racer.position, 0xff7a5c, obstacle.type === "pylon" ? 5 : 10, obstacle.type === "pylon" ? 0.7 : 1.1);
         spawnShockwave(racer.position, racer.kart.colors.accent || racer.character.colors.accent, obstacle.type === "pylon" ? 2.6 : 4.4);
         adjustShield(racer, obstacle.type === "pylon" ? -7 : -16, { big: obstacle.type !== "pylon" });
-        if (racer.isPlayer) playAudio("collision", obstacle.type === "pylon" ? 0.28 : 0.55);
+        if (racer.isPlayer) {
+          playAudio("collision", obstacle.type === "pylon" ? 0.28 : 0.55);
+          gameHaptic(obstacle.type === "pylon" ? 18 : [24, 28, 34]);
+        }
       }
       racer.obstacleCooldown = obstacle.type === "pylon" ? 0.28 : 0.42;
     }
@@ -7184,6 +7236,7 @@ function handleRacerContacts(racer, dt) {
       if (playerContact && !startProtection) {
         cameraShake = Math.max(cameraShake, 0.35);
         playAudio("collision", 0.25);
+        gameHaptic(16);
       }
     }
   });
@@ -7381,8 +7434,11 @@ function hitRacer(racer, item, owner, stun = 1.25) {
   racer.wobble = 1.2;
   spawnBurst(racer.position, colorToHex(item.color), 24, 1.8);
   spawnShockwave(racer.position, colorToHex(item.color), 6.8);
-  if (racer.isPlayer || owner?.isPlayer) cameraShake = Math.max(cameraShake, 0.8);
-  playAudio("collision", 0.7);
+  if (racer.isPlayer || owner?.isPlayer) {
+    cameraShake = Math.max(cameraShake, 0.8);
+    playAudio("collision", 0.7);
+    if (racer.isPlayer) gameHaptic([30, 35, 45]);
+  }
 }
 
 function spawnSparks(racer) {
@@ -7653,6 +7709,11 @@ function updateHud() {
   }
   const boosting = player.boostTimer > 0 || player.miniTurboTimer > 0;
   const speedKmh = Math.max(0, Math.round(player.speed * 3.1));
+  const raceEnergy = clamp((speedKmh - 48) / 155 + (boosting ? 0.22 : 0), 0, 1);
+  dom.app?.style.setProperty("--race-energy", raceEnergy.toFixed(3));
+  dom.app?.style.setProperty("--racer-accent", player.kart.boostColor || player.character.boostColor || "#7df9ff");
+  dom.app?.classList.toggle("is-fast", speedKmh > 105);
+  dom.app?.classList.toggle("is-max-speed", speedKmh > 168 || boosting);
   dom.hud.classList.toggle("is-boosting", boosting);
   dom.hud.classList.toggle("is-drifting", player.driftActive);
   const shieldPct = clamp((player.shieldEnergy ?? MAX_SHIELD) / MAX_SHIELD, 0, 1);
@@ -7888,6 +7949,14 @@ function updateAudio() {
   audio.setEngine?.(speed01, player.boostTimer > 0 ? 1 : 0);
 }
 
+function gameHaptic(pattern = 12) {
+  if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
+  try {
+    navigator.vibrate(pattern);
+  } catch (error) {
+    // Haptics are optional and may be blocked by the browser.
+  }
+}
 function playAudio(name, ...args) {
   if (!audio) return;
   const aliases = {
