@@ -4536,13 +4536,13 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
 
 function getDriverRaceScale(character, profile) {
   const scales = {
-    "luna-mimi": 1.12,
-    "gamma-bolt": 1.16,
-    "nebi-mist": 1.1,
-    "sora-ranger": 1.12,
-    "comet-rin": 1.1
+    "luna-mimi": 0.96,
+    "gamma-bolt": 1.02,
+    "nebi-mist": 0.94,
+    "sora-ranger": 0.98,
+    "comet-rin": 0.94
   };
-  const scale = scales[character.id] || 1.06;
+  const scale = scales[character.id] || 0.96;
   return profile.type === "bastion" ? scale * 1.02 : scale;
 }
 function createKartModel(character, kart, isPlayer) {
@@ -4623,16 +4623,40 @@ function createKartModel(character, kart, isPlayer) {
   canopy.castShadow = isPlayer && !QUALITY.low;
   chassis.add(canopy);
 
+  if (!lightweightCpu) {
+    const cockpitDeck = new THREE.Mesh(
+      createPrismGeometry(profile.width * 0.76, profile.height * 0.58, profile.length * 0.5, 0.42, 0.96),
+      bodyMat
+    );
+    cockpitDeck.position.set(0, 1.42, -profile.length * 0.18);
+    cockpitDeck.rotation.x = -3 * DEG;
+    cockpitDeck.castShadow = isPlayer && !QUALITY.low;
+    chassis.add(cockpitDeck);
+
+    [-1, 1].forEach((side) => {
+      const shoulderFairing = new THREE.Mesh(
+        createPrismGeometry(profile.width * 0.24, profile.height * 0.48, profile.length * 0.54, 0.34, 1),
+        side < 0 ? bodyMat : trimMat
+      );
+      shoulderFairing.position.set(side * profile.width * 0.43, 1.18, -profile.length * 0.08);
+      shoulderFairing.rotation.set(-4 * DEG, side * -7 * DEG, side * -5 * DEG);
+      shoulderFairing.castShadow = isPlayer && !QUALITY.low;
+      chassis.add(shoulderFairing);
+    });
+  }
+
   addGlowStrip(chassis, 0, 1.73, profile.length * 0.25, profile.width * 0.08, profile.length * 0.84, accent, 0);
   addGlowStrip(chassis, -profile.width * 0.44, 1.13, 0, 0.08, profile.length * 0.72, accent, -0.04);
   addGlowStrip(chassis, profile.width * 0.44, 1.13, 0, 0.08, profile.length * 0.72, accent, 0.04);
 
   const driver = createDriverModel(character, accent, secondary, primary);
   const driverScale = getDriverRaceScale(character, profile);
+  const driverBaseY = (profile.seatY || 2.5) - 0.2;
   driver.scale.setScalar(driverScale);
-  driver.position.set(0, (profile.seatY || 2.5) + 0.04, profile.seatZ || -0.42);
+  driver.position.set(0, driverBaseY, profile.seatZ || -0.42);
   driver.rotation.x = profile.driverPitch || 0;
   chassis.add(driver);
+  group.userData.driverBaseY = driverBaseY;
 
   if (!QUALITY.low && isPlayer) {
     const holoMarker = createRacerHoloMarker(character, kart, accent);
@@ -4862,8 +4886,8 @@ function addDedicatedMachineKit(chassis, profile, character, kart, primary, seco
 
   if (id === "moon-skipper") {
     [-1, 1].forEach((side) => {
-      const wingHull = new THREE.Mesh(createPrismGeometry(0.72, 0.36, 2.45, 0.22, 1), side < 0 ? bright : bodyMat);
-      wingHull.position.set(side * profile.width * 0.54, 1.04, -profile.length * 0.03);
+      const wingHull = new THREE.Mesh(createPrismGeometry(1.18, 0.42, 3.18, 0.24, 1), side < 0 ? bright : bodyMat);
+      wingHull.position.set(side * profile.width * 0.46, 1.04, -profile.length * 0.03);
       wingHull.rotation.set(-4 * DEG, side * -12 * DEG, side * -7 * DEG);
       wingHull.castShadow = false;
       chassis.add(wingHull);
@@ -6508,7 +6532,7 @@ function animateKartVisuals(racer, dt, speedFactor, boosting, steer) {
   }
   if (group.userData.driverRoot) {
     const driver = group.userData.driverRoot;
-    const baseY = profile.seatY || 2.5;
+    const baseY = group.userData.driverBaseY ?? ((profile.seatY || 2.5) - 0.2);
     driver.position.y = baseY + bob * 1.7 + (boosting ? 0.04 : 0);
     driver.position.x = Math.sin(t * 22) * impact * 0.045;
     driver.rotation.z = approach(driver.rotation.z, steer * -0.14 + driftLean * 1.35 + Math.sin(t * 18) * impact * 0.08, 7 * dt);
@@ -6590,7 +6614,8 @@ function readPlayerVisualSteerInput() {
 }
 
 function readPlayerSteerInput() {
-  return readPlayerVisualSteerInput();
+  // The chase camera looks toward +Z, so screen-right is world -X.
+  return -readPlayerVisualSteerInput();
 }
 
 function readPlayerControls() {

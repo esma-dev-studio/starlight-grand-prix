@@ -5477,3 +5477,219 @@ button,
     background: radial-gradient(circle at 50% 50%, rgba(8,18,34,0.9) 0 54px, rgba(125,249,255,0.13) 55px 61px, transparent 62px);
   }
 }
+/* v42 unified cockpit art direction. */
+#selectScreen,
+#courseScreen,
+#modeScreen,
+#resultScreen,
+#pauseScreen,
+#helpScreen {
+  border-radius: 3px !important;
+  border-color: rgba(154, 224, 239, 0.24) !important;
+  background:
+    linear-gradient(135deg, rgba(125, 249, 255, 0.055), transparent 30%),
+    linear-gradient(315deg, rgba(232, 198, 106, 0.04), transparent 28%),
+    rgba(4, 10, 20, 0.96) !important;
+  box-shadow: 0 28px 74px rgba(0, 0, 0, 0.56), inset 0 1px 0 rgba(255, 255, 255, 0.055) !important;
+}
+
+.racer-set-card.choice-card.rich-card {
+  min-height: 404px;
+  padding: 12px;
+  border-radius: 3px;
+  border-color: color-mix(in srgb, var(--accent, #ffd166) 28%, rgba(154, 224, 239, 0.24));
+  background:
+    linear-gradient(118deg, color-mix(in srgb, var(--primary, #7df9ff) 12%, transparent), transparent 34%),
+    linear-gradient(180deg, rgba(15, 27, 43, 0.92), rgba(3, 8, 17, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.055), 0 14px 30px rgba(0, 0, 0, 0.34);
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+}
+
+.racer-set-card.selected {
+  border-color: color-mix(in srgb, var(--accent, #ffd166) 78%, white 8%);
+  box-shadow: inset 4px 0 0 var(--accent, #ffd166), 0 0 0 1px color-mix(in srgb, var(--accent, #ffd166) 44%, transparent), 0 20px 44px rgba(0, 0, 0, 0.5);
+}
+
+.racer-set-visuals {
+  position: relative;
+  gap: 0;
+  min-height: 150px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent, #ffd166) 24%, rgba(154, 224, 239, 0.25));
+  border-radius: 2px;
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--primary, #7df9ff) 12%, transparent), transparent 48%, color-mix(in srgb, var(--machine-primary, #7df9ff) 10%, transparent)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 28px),
+    #050c18;
+}
+
+.racer-set-visuals::after {
+  content: "";
+  position: absolute;
+  left: 42%;
+  top: -15%;
+  width: 1px;
+  height: 130%;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--accent, #ffd166) 72%, white 8%), transparent);
+  transform: rotate(9deg);
+  pointer-events: none;
+}
+
+.racer-set-visuals .choice-visual {
+  min-height: 150px;
+  height: 150px;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.set-character-slot,
+.set-machine-slot {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.set-character-slot .racer-visual {
+  transform: scale(1.08);
+  transform-origin: 52% 62%;
+}
+
+.set-machine-slot .kart-visual {
+  transform: scale(1.12);
+  transform-origin: 44% 62%;
+}
+
+.racer-set-card .choice-kind,
+.racer-set-card .character-signature-label,
+.racer-set-card .machine-name,
+.racer-set-card .racer-line {
+  border-radius: 2px;
+}
+
+.racer-set-card > strong {
+  font-size: 1.22rem;
+  color: #f7fbff;
+}
+
+.racer-set-card .machine-name {
+  border-left: 3px solid var(--machine-accent, #7df9ff);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.course-card,
+.mode-card {
+  border-radius: 3px !important;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.045), 0 12px 26px rgba(0,0,0,0.28) !important;
+}
+
+.hud-panel,
+.hud-coach,
+.minimap-frame {
+  border-radius: 2px !important;
+  border-color: rgba(155, 225, 240, 0.27) !important;
+  background:
+    linear-gradient(110deg, rgba(125,249,255,0.055), transparent 36%),
+    rgba(3, 9, 18, 0.9) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 12px 28px rgba(0,0,0,0.34) !important;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+}
+
+.stat-panel {
+  min-width: 94px;
+  border-top: 2px solid rgba(125, 249, 255, 0.34) !important;
+}
+
+.stat-panel strong,
+#speedValue {
+  font-variant-numeric: tabular-nums;
+  color: #f8fcff;
+  text-shadow: 0 0 14px rgba(125,249,255,0.18);
+}
+
+#positionValue { color: #f2ce70; }
+.speed-panel { border-top: 2px solid var(--racer-accent, #7df9ff) !important; }
+.item-panel { border-top: 2px solid #e8c66a !important; }
+.minimap-frame { border-left: 3px solid rgba(125,249,255,0.5) !important; }
+
+.touch-pad {
+  border: 1px solid rgba(172, 233, 246, 0.34) !important;
+  background: radial-gradient(circle, rgba(125,249,255,0.14), rgba(5,13,25,0.82) 58%, rgba(2,7,15,0.9)) !important;
+  box-shadow: inset 0 0 0 8px rgba(125,249,255,0.035), 0 18px 38px rgba(0,0,0,0.4) !important;
+}
+
+.touch-button {
+  border-radius: 3px !important;
+  border-color: rgba(168, 229, 242, 0.3) !important;
+  background: linear-gradient(145deg, rgba(28,45,63,0.92), rgba(5,12,23,0.94)) !important;
+  box-shadow: inset 3px 0 0 rgba(125,249,255,0.12), 0 10px 22px rgba(0,0,0,0.34) !important;
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+}
+
+.touch-button.accel {
+  border-color: rgba(232,198,106,0.58) !important;
+  box-shadow: inset 3px 0 0 #e8c66a, 0 12px 24px rgba(0,0,0,0.38) !important;
+}
+
+@media (max-width: 720px) {
+  .racer-set-card.choice-card.rich-card { min-height: 360px; }
+  .racer-set-visuals,
+  .racer-set-visuals .choice-visual {
+    min-height: 126px;
+    height: 126px;
+  }
+  .hud-panel,
+  .hud-coach,
+  .minimap-frame {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.045), 0 8px 18px rgba(0,0,0,0.3) !important;
+  }
+}
+@media (min-width: 761px) and (max-width: 1180px) {
+  .hud-coach {
+    left: calc(50% - min(175px, 17vw)) !important;
+    right: auto !important;
+    top: calc(88px + var(--safe-top)) !important;
+    width: min(350px, 34vw) !important;
+    transform: none;
+  }
+}
+
+@media (min-width: 621px) and (max-width: 760px) {
+  .hud-coach {
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    transform: none;
+  }
+}
+@media (max-width: 720px) {
+  #hud .speed-panel {
+    min-width: 0 !important;
+    padding: 6px !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  #hud .speed-panel::before {
+    display: none;
+  }
+
+  #hud .speed-panel .speed-unit {
+    font-size: 0.56rem;
+  }
+
+  #hud .item-panel {
+    min-width: 0 !important;
+    padding: 5px !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  #hud .item-panel #itemSlot {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    justify-self: center;
+  }
+}
