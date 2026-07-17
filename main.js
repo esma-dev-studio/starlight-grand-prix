@@ -1190,12 +1190,17 @@ function populateCourse() {
       const difficultyText = course.difficultyLabel || "ふつう";
       const cautionText = course.caution || "コースの外に注意";
       const courseIcon = course.icon || "星";
+      const topology = course.topology || {};
+      const routeLabel = topology.routeLabel || "周回コース";
+      const heightLabel = topology.heightLabel || "高低差 ふつう";
+      const cornerLabel = topology.cornerLabel || "カーブ ふつう";
       button.innerHTML =
         '<span class="course-orbit" aria-hidden="true"><span class="course-icon">' + escapeHtml(courseIcon) + '</span></span>' +
         '<span class="course-kind">' + escapeHtml(course.kindLabel || "コース") + '</span>' +
         '<strong>' + escapeHtml(displayName(course)) + '</strong>' +
         '<small class="course-one-line">' + escapeHtml(shortCopy) + '</small>' +
         '<span class="course-meta-row"><span>むずかしさ ' + escapeHtml(difficultyText) + '</span><span>' + escapeHtml(lapTotalForCourse(course)) + 'しゅう</span></span>' +
+        '<span class="course-drive-row"><span>' + escapeHtml(routeLabel) + '</span><span>' + escapeHtml(heightLabel) + '</span><span>' + escapeHtml(cornerLabel) + '</span></span>' +
         '<span class="course-caution">ちゅうい ' + escapeHtml(cautionText) + '</span>' +
         '<em><b>とくちょう</b> ' + escapeHtml(featureText) + '</em>';
       bindUiTap(button, () => selectCourse(index));
@@ -1616,26 +1621,55 @@ function applyCourseAtmosphere(theme) {
 
 const COURSE_PATHS = {
   "lunar-crater-run": [
-    [0, 0, -118], [64, 5, -136], [124, 11, -86], [92, 5, -18], [142, 15, 42], [76, 19, 98], [18, 8, 66],
-    [-34, 16, 134], [-112, 10, 98], [-146, 2, 18], [-80, 8, -42], [-124, 4, -104], [-42, 0, -132]
+    [0, 2, -170], [86, 5, -164], [158, 13, -116], [184, 27, -38], [158, 34, 52], [96, 22, 122], [18, 8, 154],
+    [-70, 4, 142], [-148, 10, 100], [-190, 22, 28], [-176, 30, -52], [-112, 14, -126], [-44, 4, -168]
   ],
   "starlight-orbit-ring": [
-    [0, 0, -168], [104, 4, -160], [184, 8, -92], [202, 12, -6], [144, 8, 88], [52, 4, 148],
-    [-62, 0, 166], [-160, 5, 124], [-204, 12, 30], [-170, 6, -70], [-96, 2, -148]
+    [0, 10, -205], [112, 12, -205], [224, 22, -176], [292, 42, -104], [306, 62, 0], [278, 66, 108], [190, 48, 178],
+    [54, 25, 205], [-98, 18, 205], [-226, 31, 164], [-292, 54, 74], [-304, 61, -36], [-258, 40, -136], [-148, 18, -198]
   ],
   "meteor-mining-belt": [
-    [0, 0, -144], [74, 6, -162], [154, 13, -96], [88, 2, -42], [168, 11, 18], [108, 18, 88], [26, 9, 148],
-    [-50, 0, 122], [-144, 8, 112], [-98, 17, 34], [-172, 7, -18], [-116, 3, -98], [-52, 0, -154]
+    [0, 6, -180], [96, 8, -170], [166, 23, -128], [92, 39, -82], [186, 51, -18], [132, 36, 62], [56, 20, 30],
+    [28, 8, 132], [-58, 4, 172], [-142, 18, 132], [-86, 36, 62], [-188, 49, 10], [-142, 30, -72], [-68, 12, -118]
   ],
   "nebula-drift-stream": [
-    [0, 0, -184], [92, 5, -164], [170, 10, -106], [136, 15, -40], [206, 9, 40], [132, 16, 120], [46, 8, 164],
-    [-50, 4, 184], [-138, 11, 126], [-194, 15, 40], [-152, 7, -34], [-212, 12, -98], [-120, 4, -164], [-34, 0, -146]
+    [0, 12, -205], [90, 22, -190], [178, 38, -132], [96, 55, -70], [206, 70, -5], [164, 60, 82], [72, 38, 124],
+    [142, 20, 184], [30, 8, 212], [-86, 12, 188], [-168, 30, 126], [-82, 50, 62], [-198, 66, -6], [-160, 52, -92], [-74, 30, -145]
   ]
 };
 
 function courseTrackPoints(course = activeCourse()) {
   const points = COURSE_PATHS[course?.id || "lunar-crater-run"] || COURSE_PATHS["lunar-crater-run"];
   return points.map(([x, y, z]) => new THREE.Vector3(x, y, z));
+}
+
+function courseTopology(course = activeCourse()) {
+  const topology = course?.topology || {};
+  return {
+    route: topology.route || "crater-loop",
+    bankStrength: Number.isFinite(topology.bankStrength) ? topology.bankStrength : 0.7,
+    maxBank: (Number.isFinite(topology.maxBank) ? topology.maxBank : 8) * DEG,
+    bankLookAhead: Number.isFinite(topology.bankLookAhead) ? topology.bankLookAhead : 9,
+    climbEffect: Number.isFinite(topology.climbEffect) ? topology.climbEffect : 10
+  };
+}
+
+function trackSurfaceY(sample, lateral = 0) {
+  return sample.point.y + lateral * Math.sin(sample.bank || 0);
+}
+
+function trackSurfacePoint(sample, lateral = 0, yOffset = 0) {
+  const point = sample.point.clone().addScaledVector(sample.normal, lateral);
+  point.y = trackSurfaceY(sample, lateral) + yOffset;
+  return point;
+}
+
+function orientTrackObject(object, sample, pitchOffset = 0, bankOffset = 0) {
+  object.rotation.order = "YXZ";
+  object.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+  object.rotation.x = -(sample.grade || 0) + pitchOffset;
+  object.rotation.z = (sample.bank || 0) + bankOffset;
+  return object;
 }
 
 function layoutIndex(index) {
@@ -1656,39 +1690,39 @@ function scaledCourseLayout(layout) {
 
 const COURSE_LAYOUTS = {
   "lunar-crater-run": {
-    boostPanels: [58, 176, 322],
-    dirtZones: [[74, 108, -TRACK_WIDTH * 0.34], [214, 252, TRACK_WIDTH * 0.36], [318, 344, -TRACK_WIDTH * 0.28]],
-    jumpRamps: [78, 176, 286, 360],
-    itemBoxes: [[54, -5], [54, 5], [148, 0], [232, -4], [232, 4], [326, -5], [326, 5]],
-    repairPads: [[24, 0], [188, 0], [350, 0]],
-    obstacles: [[112, TRACK_WIDTH * 0.62, "pylon"], [268, -TRACK_WIDTH * 0.6, "pylon"], [374, TRACK_WIDTH * 0.54, "crate"]],
+    boostPanels: [72, 214, 344],
+    dirtZones: [[88, 126, -TRACK_WIDTH * 0.34], [248, 286, TRACK_WIDTH * 0.34]],
+    jumpRamps: [92, 214, 334],
+    itemBoxes: [[54, -5], [54, 5], [146, 0], [242, -4], [242, 4], [344, -5], [344, 5]],
+    repairPads: [[24, 0], [192, 0], [358, 0]],
+    obstacles: [[144, TRACK_WIDTH * 0.62, "pylon"], [292, -TRACK_WIDTH * 0.6, "pylon"]],
     shortcuts: []
   },
   "starlight-orbit-ring": {
-    boostPanels: [36, 94, 154, 226, 318, 372],
-    dirtZones: [[154, 180, TRACK_WIDTH * 0.42], [260, 288, -TRACK_WIDTH * 0.38]],
-    jumpRamps: [128, 274],
-    itemBoxes: [[58, -5], [58, 5], [145, -4], [145, 5], [224, -4], [224, 4], [312, -5], [312, 5], [374, 0]],
-    repairPads: [[28, 0], [198, 0], [342, 0]],
-    obstacles: [[94, -TRACK_WIDTH * 0.62, "crate"], [176, TRACK_WIDTH * 0.58, "pylon"], [284, -TRACK_WIDTH * 0.62, "crate"], [350, TRACK_WIDTH * 0.58, "pylon"]],
-    shortcuts: [[186, 228, -TRACK_WIDTH * 0.72, TRACK_WIDTH * 0.42]]
+    boostPanels: [28, 76, 128, 202, 266, 330, 386],
+    dirtZones: [[164, 188, TRACK_WIDTH * 0.42], [286, 310, -TRACK_WIDTH * 0.38]],
+    jumpRamps: [154, 306],
+    itemBoxes: [[54, -5], [54, 5], [142, -4], [142, 5], [228, -4], [228, 4], [316, -5], [316, 5], [382, 0]],
+    repairPads: [[22, 0], [216, 0], [360, 0]],
+    obstacles: [[112, -TRACK_WIDTH * 0.62, "crate"], [194, TRACK_WIDTH * 0.58, "pylon"], [292, -TRACK_WIDTH * 0.62, "crate"], [356, TRACK_WIDTH * 0.58, "pylon"]],
+    shortcuts: [[206, 248, -TRACK_WIDTH * 0.72, TRACK_WIDTH * 0.42]]
   },
   "meteor-mining-belt": {
-    boostPanels: [34, 122, 214, 304, 374],
-    dirtZones: [[78, 116, -TRACK_WIDTH * 0.38], [178, 206, TRACK_WIDTH * 0.36], [280, 318, -TRACK_WIDTH * 0.34]],
-    jumpRamps: [150, 332],
-    itemBoxes: [[50, -5], [50, 5], [136, 0], [198, -4], [198, 4], [286, -5], [286, 5], [362, 0]],
-    repairPads: [[26, 0], [190, 0], [346, 0]],
-    obstacles: [[72, -TRACK_WIDTH * 0.66, "pylon"], [118, TRACK_WIDTH * 0.62, "crate"], [166, -TRACK_WIDTH * 0.64, "crate"], [238, TRACK_WIDTH * 0.64, "pylon"], [318, -TRACK_WIDTH * 0.62, "crate"]],
-    shortcuts: [[244, 292, TRACK_WIDTH * 0.76, TRACK_WIDTH * 0.38]]
+    boostPanels: [42, 158, 268, 366],
+    dirtZones: [[66, 108, -TRACK_WIDTH * 0.38], [172, 214, TRACK_WIDTH * 0.36], [288, 334, -TRACK_WIDTH * 0.34]],
+    jumpRamps: [136, 318],
+    itemBoxes: [[44, -5], [44, 5], [128, 0], [206, -4], [206, 4], [290, -5], [290, 5], [372, 0]],
+    repairPads: [[20, 0], [220, 0], [354, 0]],
+    obstacles: [[74, -TRACK_WIDTH * 0.62, "pylon"], [112, TRACK_WIDTH * 0.58, "crate"], [166, -TRACK_WIDTH * 0.6, "crate"], [222, TRACK_WIDTH * 0.6, "pylon"], [278, -TRACK_WIDTH * 0.58, "crate"], [326, TRACK_WIDTH * 0.58, "pylon"], [382, -TRACK_WIDTH * 0.62, "crate"]],
+    shortcuts: [[238, 284, TRACK_WIDTH * 0.74, TRACK_WIDTH * 0.38]]
   },
   "nebula-drift-stream": {
-    boostPanels: [48, 146, 256, 348],
-    dirtZones: [[118, 170, TRACK_WIDTH * 0.38], [286, 338, -TRACK_WIDTH * 0.36]],
-    jumpRamps: [96, 224, 304, 382],
-    itemBoxes: [[62, -5], [62, 5], [166, -4], [166, 4], [246, 0], [324, -5], [324, 5], [392, 0]],
-    repairPads: [[34, 0], [218, 0], [372, 0]],
-    obstacles: [[106, TRACK_WIDTH * 0.6, "crate"], [196, -TRACK_WIDTH * 0.62, "pylon"], [282, TRACK_WIDTH * 0.62, "pylon"], [360, -TRACK_WIDTH * 0.62, "crate"]],
+    boostPanels: [58, 164, 274, 372],
+    dirtZones: [[102, 156, TRACK_WIDTH * 0.38], [282, 346, -TRACK_WIDTH * 0.36]],
+    jumpRamps: [112, 222, 312, 392],
+    itemBoxes: [[62, -5], [62, 5], [158, -4], [158, 4], [246, 0], [330, -5], [330, 5], [394, 0]],
+    repairPads: [[30, 0], [232, 0], [366, 0]],
+    obstacles: [[96, TRACK_WIDTH * 0.58, "crate"], [182, -TRACK_WIDTH * 0.58, "pylon"], [252, TRACK_WIDTH * 0.58, "pylon"], [318, -TRACK_WIDTH * 0.58, "crate"], [374, TRACK_WIDTH * 0.58, "pylon"]],
     shortcuts: []
   }
 };
@@ -1701,6 +1735,7 @@ function buildTrack() {
   const points = courseTrackPoints(course);
   const curve = new THREE.CatmullRomCurve3(points, true, "catmullrom", course.curveTension || 0.45);
   const samples = [];
+  const topology = courseTopology(course);
   let totalLength = 0;
   for (let i = 0; i < TRACK_STEPS; i += 1) {
     const t = i / TRACK_STEPS;
@@ -1708,16 +1743,27 @@ function buildTrack() {
     const tangent = curve.getTangentAt(t).normalize();
     const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
     if (i > 0) totalLength += point.distanceTo(samples[i - 1].point);
-    samples.push({ point, tangent, normal, distance: totalLength });
+    samples.push({ point, tangent, normal, distance: totalLength, bank: 0, grade: Math.asin(clamp(tangent.y, -0.58, 0.58)) });
   }
   samples.forEach((sample, index) => {
     const next = samples[(index + 1) % TRACK_STEPS];
+    const look = topology.bankLookAhead;
+    const previousTangent = samples[(index - look + TRACK_STEPS) % TRACK_STEPS].tangent;
+    const nextTangent = samples[(index + look) % TRACK_STEPS].tangent;
+    const previousLength = Math.hypot(previousTangent.x, previousTangent.z) || 1;
+    const nextLength = Math.hypot(nextTangent.x, nextTangent.z) || 1;
+    const ax = previousTangent.x / previousLength;
+    const az = previousTangent.z / previousLength;
+    const bx = nextTangent.x / nextLength;
+    const bz = nextTangent.z / nextLength;
+    const turnAngle = Math.atan2(ax * bz - az * bx, clamp(ax * bx + az * bz, -1, 1));
+    sample.bank = clamp(turnAngle * topology.bankStrength, -topology.maxBank, topology.maxBank);
     sample.segmentLength = sample.point.distanceTo(next.point);
   });
 
   const theme = courseTheme(course);
   applyCourseAtmosphere(theme);
-  const trackInfo = { curve, samples, width: TRACK_WIDTH, group: new THREE.Group(), layout: courseLayout(course), theme };
+  const trackInfo = { curve, samples, width: TRACK_WIDTH, group: new THREE.Group(), layout: courseLayout(course), theme, topology };
   scene.add(trackInfo.group);
 
   addThemedTrackFoundation(trackInfo, theme);
@@ -1758,10 +1804,9 @@ function createTrackRibbon(trackInfo, offset, width, color, emissive, opacity, r
       continue;
     }
     const sample = trackInfo.samples[index];
-    const center = sample.point.clone().addScaledVector(sample.normal, offset);
-    const left = center.clone().addScaledVector(sample.normal, width * 0.5);
-    const right = center.clone().addScaledVector(sample.normal, -width * 0.5);
-    vertices.push(left.x, left.y + 0.03, left.z, right.x, right.y + 0.03, right.z);
+    const left = trackSurfacePoint(sample, offset + width * 0.5, 0.03);
+    const right = trackSurfacePoint(sample, offset - width * 0.5, 0.03);
+    vertices.push(left.x, left.y, left.z, right.x, right.y, right.z);
     uvs.push(0, n / count, 1, n / count);
   }
   for (let n = 0; n < count; n += 1) {
@@ -1813,10 +1858,9 @@ function createTrackUnderlayRibbon(trackInfo, offset, width, color, emissive, op
       continue;
     }
     const sample = trackInfo.samples[index];
-    const center = sample.point.clone().addScaledVector(sample.normal, offset);
-    const left = center.clone().addScaledVector(sample.normal, width * 0.5);
-    const right = center.clone().addScaledVector(sample.normal, -width * 0.5);
-    vertices.push(left.x, left.y + yOffset, left.z, right.x, right.y + yOffset, right.z);
+    const left = trackSurfacePoint(sample, offset + width * 0.5, yOffset);
+    const right = trackSurfacePoint(sample, offset - width * 0.5, yOffset);
+    vertices.push(left.x, left.y, left.z, right.x, right.y, right.z);
     uvs.push(0, n / count, 1, n / count);
   }
   for (let n = 0; n < count; n += 1) {
@@ -2201,9 +2245,8 @@ function addBoostPanels(trackInfo) {
   (trackInfo.layout || courseLayout()).boostPanels.forEach((index, i) => {
     const sample = trackInfo.samples[index];
     const panel = new THREE.Mesh(panelGeo, panelMat);
-    panel.position.copy(sample.point);
-    panel.position.y += 0.16;
-    panel.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+    panel.position.copy(trackSurfacePoint(sample, 0, 0.16));
+    orientTrackObject(panel, sample);
     panel.userData = { index, radius: theme.boostStyle === "few-strong" ? 10.5 : 9 };
     panel.castShadow = false;
     trackInfo.group.add(panel);
@@ -2253,11 +2296,9 @@ function addJumpRamps(trackInfo) {
   (trackInfo.layout || courseLayout()).jumpRamps.forEach((index) => {
     const sample = trackInfo.samples[index];
     const ramp = new THREE.Mesh(rampGeo, rampMat);
-    ramp.position.copy(sample.point);
-    ramp.position.y += 0.65;
+    ramp.position.copy(trackSurfacePoint(sample, 0, 0.65));
     const yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
-    ramp.rotation.y = yaw;
-    ramp.rotation.x = theme.gravityFeel === "low" ? -7 * DEG : -10 * DEG;
+    orientTrackObject(ramp, sample, theme.gravityFeel === "low" ? -7 * DEG : -10 * DEG);
     ramp.castShadow = !QUALITY.low;
     ramp.userData = { index, radius: theme.gravityFeel === "low" ? 11 : 10 };
     trackInfo.group.add(ramp);
@@ -2289,9 +2330,8 @@ function addRepairPads(trackInfo) {
     crossA.position.y = 0.08;
     crossB.position.y = 0.09;
     group.add(core, ring, crossA, crossB);
-    group.position.copy(sample.point).addScaledVector(sample.normal, offset);
-    group.position.y += 0.24;
-    group.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+    group.position.copy(trackSurfacePoint(sample, offset, 0.24));
+    orientTrackObject(group, sample);
     group.userData = { index, offset, baseY: group.position.y, ring, core, cooldown: 0 };
     trackInfo.group.add(group);
     repairPads.push(group);
@@ -2340,8 +2380,7 @@ function addItemBoxes(trackInfo) {
     base.rotation.x = -Math.PI / 2;
     base.position.y = -2.15;
     group.add(shell, core, halo, base);
-    group.position.copy(sample.point).addScaledVector(sample.normal, offset);
-    group.position.y += 2.8;
+    group.position.copy(trackSurfacePoint(sample, offset, 2.8));
     group.userData = { index, cooldown: 0, offset, shell, core, halo, baseY: group.position.y };
     trackInfo.group.add(group);
     itemBoxes.push(group);
@@ -2354,8 +2393,7 @@ function addLunarObstacle(trackInfo, sample, index, offset, type) {
   const mesh = type === "crate"
     ? new THREE.Mesh(new THREE.DodecahedronGeometry(2.2, 0), moonRockMat)
     : new THREE.Mesh(new THREE.ConeGeometry(1.15, 2.8, 7), beaconMat);
-  mesh.position.copy(sample.point).addScaledVector(sample.normal, offset);
-  mesh.position.y += type === "crate" ? 1.3 : 1.4;
+  mesh.position.copy(trackSurfacePoint(sample, offset, type === "crate" ? 1.3 : 1.4));
   mesh.rotation.set(rand() * 0.3, rand() * Math.PI, rand() * 0.3);
   mesh.scale.y = type === "crate" ? 0.62 + rand() * 0.28 : 1;
   mesh.castShadow = false;
@@ -2387,8 +2425,7 @@ function addThemedObstacle(trackInfo, sample, index, offset, type) {
   } else {
     return null;
   }
-  mesh.position.copy(sample.point).addScaledVector(sample.normal, offset);
-  mesh.position.y += type === "crate" ? 1.5 : 1.8;
+  mesh.position.copy(trackSurfacePoint(sample, offset, type === "crate" ? 1.5 : 1.8));
   mesh.rotation.y = rand() * Math.PI;
   mesh.castShadow = false;
   mesh.receiveShadow = false;
@@ -2411,8 +2448,7 @@ function addThemedObstacle(trackInfo, sample, index, offset, type) {
             new THREE.ConeGeometry(2.2, 5.2, 6),
             new THREE.MeshStandardMaterial({ color: 0xff7a5c, emissive: 0xff3d81, emissiveIntensity: 0.35 })
           );
-    mesh.position.copy(sample.point).addScaledVector(sample.normal, offset);
-    mesh.position.y += type === "crate" ? 2 : 2.6;
+    mesh.position.copy(trackSurfacePoint(sample, offset, type === "crate" ? 2 : 2.6));
     mesh.rotation.y = rand() * Math.PI;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -2441,8 +2477,7 @@ function addRails(trackInfo) {
           emissiveIntensity: 0.28
         })
       );
-      post.position.copy(sample.point).addScaledVector(sample.normal, side * (TRACK_WIDTH * 0.55 + 0.7));
-      post.position.y += 1.1;
+      post.position.copy(trackSurfacePoint(sample, side * (TRACK_WIDTH * 0.55 + 0.7), 1.1));
       trackInfo.group.add(post);
     }
   }
@@ -2551,9 +2586,8 @@ function addRoadDetails(trackInfo) {
         new THREE.BoxGeometry(0.24, 0.18, 7.2),
         new THREE.MeshBasicMaterial({ color: side > 0 ? 0x58d9ff : 0xffc857, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })
       );
-      rail.position.copy(sample.point).addScaledVector(sample.normal, side * (TRACK_WIDTH * 0.58 + 0.9));
-      rail.position.y += 1.72;
-      rail.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+      rail.position.copy(trackSurfacePoint(sample, side * (TRACK_WIDTH * 0.58 + 0.9), 1.72));
+      orientTrackObject(rail, sample);
       trackInfo.group.add(rail);
     }
   }
@@ -4472,7 +4506,7 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     guard += 1;
   }
   const startSample = track.samples[gridIndex] || track.samples[0];
-  const pos = startSample.point.clone().addScaledVector(startSample.normal, laneOffset);
+  const pos = trackSurfacePoint(startSample, laneOffset);
   const yaw = Math.atan2(startSample.tangent.x, startSample.tangent.z);
   const group = createKartModel(character, kart, isPlayer);
   group.position.copy(pos);
@@ -6409,6 +6443,9 @@ function updateRacer(racer, dt) {
     if (gap > TRACK_STEPS * 0.22) rubberBand += clamp(gap / (TRACK_STEPS * 1.2), 0, 1) * band;
     if (gap < -TRACK_STEPS * 0.45) rubberBand -= clamp(Math.abs(gap) / (TRACK_STEPS * 1.4), 0, 1) * band * 0.45;
   }
+  const grade = track?.samples?.[racer.trackIndex]?.tangent?.y || 0;
+  const climbEffect = track?.topology?.climbEffect || 10;
+  racer.speed -= grade * climbEffect * clamp(Math.abs(racer.speed) / 24, 0.3, 1) * dt;
   const currentMax = maxSpeed * (boosting ? 1.32 * boostPower : 1) * shieldSpeedLimit * rubberBand;
   racer.speed = clamp(racer.speed, -maxSpeed * 0.32, currentMax);
 
@@ -6502,11 +6539,13 @@ function updateRacer(racer, dt) {
     spawnAirShearLine(racer, boosting);
   }
 
+  const roadPitch = nearest?.sample?.grade || 0;
+  const roadBank = nearest?.sample?.bank || 0;
   racer.group.position.copy(racer.position);
   racer.group.position.y += racer.jumpHeight + 0.08;
   racer.group.rotation.y = racer.yaw;
-  racer.group.rotation.z = -steer * 0.14 + (racer.driftActive ? -racer.driftDir * 0.11 : 0) + Math.sin(performance.now() * 0.02) * racer.wobble * 0.05;
-  racer.group.rotation.x = clamp(racer.speed / maxSpeed, -0.18, 0.18) * -0.2 - (boosting ? 0.035 : 0);
+  racer.group.rotation.z = roadBank - steer * 0.14 + (racer.driftActive ? -racer.driftDir * 0.11 : 0) + Math.sin(performance.now() * 0.02) * racer.wobble * 0.05;
+  racer.group.rotation.x = -roadPitch + clamp(racer.speed / maxSpeed, -0.18, 0.18) * -0.2 - (boosting ? 0.035 : 0);
   racer.group.traverse((child) => {
     if (child.userData.spin) child.rotation.x += racer.speed * dt * 0.55;
   });
@@ -6848,7 +6887,7 @@ function handleCpuCourseAssist(racer, nearest, controls, dt) {
 function stabilizeRacerGrounding(racer, nearest, dt) {
   const current = nearestTrackSample(racer.position, nearest?.index ?? racer.trackIndex);
   if (!current?.sample) return nearest;
-  const groundY = current.sample.point.y;
+  const groundY = trackSurfaceY(current.sample, current.lateral || 0);
   const airborne = racer.jumpHeight > 0.08 || racer.verticalSpeed > 0.1;
   if (racer.position.y < groundY - 0.08) {
     racer.position.y = groundY;
@@ -6879,7 +6918,7 @@ function handleSurface(racer, nearest, dt) {
   if (cpuNearWall && !shortcut) {
     const edgeAmount = clamp((lateralAbs - TRACK_WIDTH * 0.3) / (TRACK_WIDTH * 0.16), 0, 1);
     const safeLateral = Math.sign(nearest.lateral || 1) * TRACK_WIDTH * 0.12;
-    const recoveryTarget = nearest.sample.point.clone().addScaledVector(nearest.sample.normal, safeLateral);
+    const recoveryTarget = trackSurfacePoint(nearest.sample, safeLateral);
     racer.position.lerp(recoveryTarget, clamp(0.09 + edgeAmount * 0.16, 0, 0.28));
     racer.velocity.addScaledVector(nearest.sample.normal, -Math.sign(nearest.lateral || 1) * (10 + edgeAmount * 18) * dt);
     const desiredYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
@@ -6895,7 +6934,7 @@ function handleSurface(racer, nearest, dt) {
 
     if (offTrack && !shortcut) {
       const safeLateral = Math.sign(nearest.lateral) * TRACK_WIDTH * 0.46;
-      const recoveryTarget = nearest.sample.point.clone().addScaledVector(nearest.sample.normal, safeLateral);
+      const recoveryTarget = trackSurfacePoint(nearest.sample, safeLateral);
       const pull = racer.isPlayer ? 0.065 + offAmount * 0.12 : 0.045 + offAmount * 0.08;
       racer.position.lerp(recoveryTarget, clamp(pull, 0, 0.24));
 
@@ -6920,7 +6959,7 @@ function handleSurface(racer, nearest, dt) {
 
   if (hardWall && !shortcut) {
     const limit = Math.sign(nearest.lateral) * TRACK_WIDTH * (racer.isPlayer ? 0.56 : 0.24);
-    const target = nearest.sample.point.clone().addScaledVector(nearest.sample.normal, limit);
+    const target = trackSurfacePoint(nearest.sample, limit);
     racer.position.lerp(target, racer.isPlayer ? 0.22 : 0.32);
     const desiredYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
     racer.yaw += shortestAngle(racer.yaw, desiredYaw) * (racer.isPlayer ? 0.18 : 0.42);
@@ -6934,8 +6973,7 @@ function handleSurface(racer, nearest, dt) {
     const safeSide = Math.sign(nearest.lateral) * TRACK_WIDTH * (racer.isPlayer ? 0.38 : 0.08);
     const forwardIndex = (nearest.index + (racer.isPlayer ? 2 : 8)) % TRACK_STEPS;
     const sample = racer.isPlayer ? nearest.sample : track.samples[forwardIndex];
-    racer.position.copy(sample.point).addScaledVector(sample.normal, safeSide);
-    racer.position.y = sample.point.y;
+    racer.position.copy(trackSurfacePoint(sample, safeSide));
     racer.yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
     racer.speed = Math.max(Math.abs(racer.speed) * (racer.isPlayer ? 0.5 : 0.74), racer.isPlayer ? 14 : 24);
     racer.verticalSpeed = 0;
@@ -7079,7 +7117,7 @@ function handleObstacleCollisions(racer, nearest) {
       const slideStrength = obstacle.type === "pylon" ? (cpuRecovery ? 1.7 : 1.25) : (cpuRecovery ? 0.9 : 0.34);
       racer.position.addScaledVector(away, overlap * (cpuRecovery ? 0.72 : obstacle.type === "pylon" ? 0.92 : 0.52));
       racer.position.addScaledVector(tangent, slideSign * overlap * slideStrength);
-      if (nearest?.sample?.point) racer.position.y = nearest.sample.point.y;
+      if (nearest?.sample?.point) racer.position.y = trackSurfaceY(nearest.sample, nearest.lateral || 0);
       if (cpuRecovery) {
         const desiredYaw = Math.atan2(tangent.x, tangent.z);
         racer.yaw += shortestAngle(racer.yaw, desiredYaw) * 0.38;
@@ -7180,8 +7218,7 @@ function handleStuckAssist(racer, nearest, controls, dt) {
   const safeLateral = racer.isPlayer
     ? clamp(nearest.lateral || 0, -TRACK_WIDTH * 0.24, TRACK_WIDTH * 0.24)
     : cpuLane;
-  racer.position.copy(sample.point).addScaledVector(sample.normal, safeLateral);
-  racer.position.y = sample.point.y;
+  racer.position.copy(trackSurfacePoint(sample, safeLateral));
   racer.yaw = Math.atan2(sample.tangent.x, sample.tangent.z);
   racer.velocity.copy(sample.tangent).multiplyScalar(racer.isPlayer ? 12 : 16 * recovery);
   racer.speed = Math.max(Math.abs(racer.speed), racer.isPlayer ? 17 : 20 * recovery);
@@ -8028,8 +8065,9 @@ function nearestTrackSample(position, startIndex = null) {
     const index = useLocalScan ? (center - half + n + TRACK_STEPS) % TRACK_STEPS : n;
     const sample = track.samples[index];
     const dx = position.x - sample.point.x;
+    const dy = position.y - sample.point.y;
     const dz = position.z - sample.point.z;
-    const distSq = dx * dx + dz * dz;
+    const distSq = dx * dx + dz * dz + dy * dy * 0.32;
     if (distSq < bestDist) {
       bestDist = distSq;
       best = { sample, index };

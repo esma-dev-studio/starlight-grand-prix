@@ -4100,6 +4100,24 @@ button,
   border-color: color-mix(in srgb, var(--course-accent, #ffd166) 44%, transparent);
 }
 
+.course-drive-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+
+.course-drive-row span {
+  padding: 3px 6px;
+  border-left: 2px solid var(--course-accent, #ffd166);
+  color: rgba(238, 248, 255, 0.86);
+  background: rgba(2, 7, 16, 0.52);
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
 .course-card em b {
   display: inline-block;
   margin-right: 5px;

@@ -1193,7 +1193,7 @@
     jaName: "つきのジャンプクレーター",
     kindLabel: "月面コース",
     icon: "月",
-    shortCopy: "ふわっとジャンプする、月のコース",
+    shortCopy: "広いクレーターをまわる、やさしい立体コース",
     difficultyLabel: "やさしい",
     caution: "すこしすべる",
     theme: "月の平原、クレーター、月面基地を走る低重力グランプリコース",
@@ -1206,16 +1206,17 @@
     gripModifier: 0.93,
     visualSignature: "クレーター、月面基地、大きな地球、白い粉じん",
     courseIcon: "月",
-    difficultyNote: "ふわっと跳ねて、すこしすべる",
+    difficultyNote: "広いカーブと、ふわっと長いジャンプ",
     landmarks: ["大きな地球", "月面基地", "パラボラアンテナ", "着陸船", "月面ローバー"],
     background: { kind: "moon", sky: "black-space", horizon: "low-lunar-horizon" },
     hazards: ["月の岩", "小さなクレーター", "月の粉じん", "低い発光ビーコン"],
     gravityFeel: "low",
     boostStyle: "few-strong",
-    roadFeel: "広め・すこしすべる・低重力ジャンプが長い",
+    roadFeel: "広いクレーター周回・ゆるい坂・低重力ジャンプ",
     features: ["低重力ジャンプ", "月面クレーター", "大きな地球", "月面基地", "パラボラアンテナ", "着陸船", "月面ローバー", "白い粉じん", "月の岩", "低い発光ポール"],
     lapCount: 3,
     curveTension: 0.56,
+    topology: { route: "crater-loop", routeLabel: "クレーター周回", heightLabel: "高低差 ひくめ", cornerLabel: "カーブ ゆるい", bankStrength: 0.35, maxBank: 5, bankLookAhead: 12, climbEffect: 8 },
     backgroundEffects: ["黒い宇宙空間", "低い月の水平線", "遠くに見える地球", "白い月の粉じん"]
   };
 
@@ -1227,10 +1228,10 @@
     kindLabel: "リング惑星コース",
     icon: "輪",
     courseIcon: "輪",
-    shortCopy: "大きな星のわっかを走るコース",
+    shortCopy: "高いリングをかけぬける、高速コース",
     kidDescription: "大きな星のわっかを走る、ながい直線とジャンプのコース。",
     difficultyLabel: "ふつう",
-    difficultyNote: "速い直線と、わっかのすきまジャンプ",
+    difficultyNote: "長い直線、急なのぼり、高速バンク",
     caution: "わっかのすきまを飛びこえよう",
     theme: "巨大なリング惑星の輪の上を走る高速グランプリコース",
     description: "白、金、うすい青の明るいリング路面を走るコース。下には巨大な惑星が見え、氷と岩の粒が流れるわっかのすきまをジャンプで越える。",
@@ -1246,10 +1247,11 @@
     jumpStyle: "ring-gap",
     gripModifier: 1.06,
     visualSignature: "巨大な惑星、わっか、氷と岩の粒、リングジャンプ",
-    roadFeel: "長い直線・高速・すきまジャンプ",
+    roadFeel: "長い高架直線・急上昇・高速バンク",
     features: ["巨大な惑星", "大きなわっか", "長い直線", "リングジャンプ", "氷と岩の粒", "白と金の路面", "発光ガード", "ブースト多め", "遠くの輪の層", "スピード重視"],
     lapCount: 3,
     curveTension: 0.38,
+    topology: { route: "elevated-ring", routeLabel: "高架スピードリング", heightLabel: "高低差 大きい", cornerLabel: "高速バンク", bankStrength: 1.2, maxBank: 14, bankLookAhead: 10, climbEffect: 12 },
     backgroundEffects: ["巨大惑星の光", "遠くの輪の層", "流れる氷の粒", "明るい発光レール"]
   };
   var meteorCourse = {
@@ -1260,10 +1262,10 @@
     kindLabel: "火星コース",
     icon: "赤",
     courseIcon: "赤",
-    shortCopy: "赤いすなの星を走るコース",
+    shortCopy: "渓谷を上り下りする、ヘアピンコース",
     kidDescription: "赤いすなと岩の星を走る、すなぼこりのコース。",
     difficultyLabel: "むずかしい",
-    difficultyNote: "すなぼこりと岩に注意",
+    difficultyNote: "連続ヘアピンと急な坂がむずかしい",
     caution: "岩にぶつからないようにしよう",
     theme: "赤い火星の砂地、渓谷、岩山、火星基地を走るグランプリコース",
     description: "赤茶色の砂地、岩山、渓谷、火星基地のそばを走るコース。砂で少し滑り、すなぼこりと岩を避ける緊張感がある。",
@@ -1279,10 +1281,11 @@
     jumpStyle: "canyon-hop",
     gripModifier: 0.86,
     visualSignature: "赤い砂、渓谷、赤い岩山、砂嵐、火星基地",
-    roadFeel: "重め・砂で少しすべる・岩を避ける",
+    roadFeel: "渓谷の上り下り・連続ヘアピン・砂ですべる",
     features: ["赤い砂", "赤い岩山", "渓谷", "砂嵐", "火星基地", "探査ローバー", "岩を避ける", "砂ぼこり", "オレンジの空", "せまい区間"],
     lapCount: 3,
     curveTension: 0.62,
+    topology: { route: "canyon-switchback", routeLabel: "渓谷ヘアピン", heightLabel: "高低差 大きい", cornerLabel: "急カーブ 多い", bankStrength: 0.55, maxBank: 8, bankLookAhead: 8, climbEffect: 14 },
     backgroundEffects: ["オレンジの空", "遠くの巨大な山", "赤い砂ぼこり", "渓谷の影"]
   };
   var nebulaCourse = {
@@ -1293,10 +1296,10 @@
     kindLabel: "氷コース",
     icon: "氷",
     courseIcon: "氷",
-    shortCopy: "つるつるすべる氷のコース",
+    shortCopy: "下り坂のS字をすべる、氷のコース",
     kidDescription: "青白い氷の上を走る、ドリフトが大事なコース。",
     difficultyLabel: "むずかしい",
-    difficultyNote: "すべるカーブはドリフトで曲がる",
+    difficultyNote: "大きなS字と下り坂をドリフトで曲がる",
     caution: "曲がる時はドリフトを使おう",
     theme: "氷のすい星の上を走る、結晶と光の尾がきらめくドリフトコース",
     description: "青白い氷の路面、透明な結晶、すい星の尾の光をぬけるコース。よく滑るので、ドリフトを使うと気持ちよく曲がれる。",
@@ -1312,15 +1315,16 @@
     jumpStyle: "comet-tail",
     gripModifier: 0.68,
     visualSignature: "青白い氷、透明な結晶、すい星の尾、すべる道",
-    roadFeel: "よくすべる・ドリフト向き・カーブが難しい",
+    roadFeel: "下り坂・大きなS字・よくすべるドリフト路面",
     features: ["青白い氷", "すべるカーブ", "透明な結晶", "氷のトンネル", "すい星の尾", "ひびわれた道", "ドリフト向き", "きらきら粒子", "ブースト少なめ", "氷の柱"],
     lapCount: 3,
     curveTension: 0.46,
+    topology: { route: "comet-s-curves", routeLabel: "下りS字ドリフト", heightLabel: "高低差 とても大きい", cornerLabel: "すべる連続カーブ", bankStrength: 0.95, maxBank: 11, bankLookAhead: 9, climbEffect: 10 },
     backgroundEffects: ["青白いすい星の尾", "氷のきらめき", "透明な結晶", "冷たい光のトンネル"]
   };
   var spaceCourses = [lunarCourse, meteorCourse, spaceCourse, nebulaCourse];
 
-  window.AURORA_GAME_DATA.version = "0.3.1-cockpit-v42";
+  window.AURORA_GAME_DATA.version = "0.4.0-topology-v43";
   window.AURORA_GAME_DATA.difficulties = {
     Easy: { precision: 0.76, speed: 0.84, reaction: 0.8, maxSpeed: 0.86, acceleration: 0.84, cornerSpeed: 0.7, steeringSkill: 0.78, recoverySpeed: 0.9, boostUsageRate: 0.28, itemUsageSkill: 0.38, mistakeRate: 0.18, avoidanceStrength: 0.72, rubberBanding: 0.05 },
     Normal: { precision: 1.0, speed: 1.0, reaction: 1.0, maxSpeed: 1.02, acceleration: 1.02, cornerSpeed: 0.92, steeringSkill: 1.04, recoverySpeed: 1.14, boostUsageRate: 0.66, itemUsageSkill: 0.66, mistakeRate: 0.07, avoidanceStrength: 1.08, rubberBanding: 0.12 },
