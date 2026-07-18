@@ -5711,3 +5711,223 @@ button,
     justify-self: center;
   }
 }
+
+/* v44 mastery pass: clearer race rhythm, restrained cockpit hierarchy. */
+.race-flow {
+  position: fixed;
+  z-index: 26;
+  left: 50%;
+  bottom: calc(18px + var(--safe-bottom));
+  width: min(430px, 38vw);
+  min-height: 58px;
+  padding: 9px 12px;
+  transform: translateX(-50%);
+  display: grid;
+  grid-template-columns: minmax(118px, 1fr) minmax(90px, 1.35fr) minmax(112px, 1fr);
+  align-items: center;
+  gap: 10px;
+  color: #effaff;
+  border: 1px solid rgba(154, 224, 239, 0.3);
+  border-left: 3px solid var(--racer-accent, #7df9ff);
+  background: rgba(3, 9, 18, 0.9);
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.36), inset 0 1px rgba(255, 255, 255, 0.05);
+  pointer-events: none;
+}
+
+.race-flow-copy,
+.drift-readout {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.race-flow small,
+.drift-readout small {
+  color: #8faabd;
+  font-size: 0.61rem;
+  font-weight: 800;
+}
+
+.race-flow-copy strong,
+.drift-readout strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #f5fbff;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-progress,
+.drift-readout > i {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  height: 7px;
+  border: 1px solid rgba(145, 211, 226, 0.22);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.race-progress::after {
+  content: "";
+  position: absolute;
+  inset: 2px 33.333% 2px auto;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: -100px 0 rgba(255, 255, 255, 0.14);
+}
+
+#raceProgressFill,
+#driftMeterFill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #7df9ff, var(--racer-accent, #ffd166));
+  transition: width 120ms linear;
+}
+
+.drift-readout > i {
+  height: 5px;
+}
+
+.drift-readout[data-stage="1"] #driftMeterFill { background: #67e8f9; }
+.drift-readout[data-stage="2"] #driftMeterFill { background: #ffd166; }
+.drift-readout[data-stage="3"] #driftMeterFill { background: #ff67d4; }
+.drift-readout.is-active strong { color: var(--racer-accent, #7df9ff); }
+.drift-readout.start-ready strong { color: #ffd166; }
+.drift-readout.start-early strong { color: #ff7b6b; }
+
+.race-notice {
+  position: fixed;
+  z-index: 55;
+  left: 50%;
+  top: 24%;
+  width: min(390px, calc(100vw - 32px));
+  padding: 10px 18px 12px;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+  color: #f7fcff;
+  border-block: 1px solid rgba(125, 249, 255, 0.38);
+  background: linear-gradient(90deg, transparent, rgba(3, 10, 20, 0.92) 16% 84%, transparent);
+  pointer-events: none;
+}
+
+.race-notice small {
+  color: #7df9ff;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.race-notice strong {
+  font-size: clamp(1.05rem, 2.2vw, 1.45rem);
+}
+
+.race-notice span {
+  color: #b9cbd7;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.race-notice[data-tone="boost"] strong,
+.race-notice[data-tone="final"] strong { color: #ffd166; }
+.race-notice[data-tone="warning"] strong { color: #ff8d78; }
+.race-notice.notice-pop { animation: raceNoticeIn 260ms ease-out both; }
+
+@keyframes raceNoticeIn {
+  from { opacity: 0; transform: translate(-50%, 12px) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+
+.course-record {
+  display: inline-flex;
+  width: max-content;
+  padding: 3px 7px;
+  color: #d6e6ef;
+  border-left: 2px solid var(--course-accent, #ffd166);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.67rem;
+  font-weight: 850;
+}
+
+.result-award {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border: 1px solid rgba(214, 230, 239, 0.2);
+  border-left: 4px solid var(--medal, #d78c56);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.result-award.award-gold { --medal: #f2ce70; }
+.result-award.award-silver { --medal: #c4d4df; }
+.result-award.award-bronze { --medal: #d78c56; }
+
+.medal-mark {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  color: #09111c;
+  border: 3px solid color-mix(in srgb, var(--medal) 60%, white);
+  border-radius: 50%;
+  background: var(--medal);
+  font-size: 1.25rem;
+  font-weight: 950;
+}
+
+.result-award > span:last-child {
+  display: grid;
+  gap: 1px;
+}
+
+.result-award small,
+.result-award em { color: #9fb3c0; font-size: 0.7rem; font-style: normal; }
+.result-award strong { color: var(--medal); font-size: 1.15rem; }
+
+@media (max-width: 760px), (pointer: coarse) {
+  .race-flow {
+    top: calc(7px + var(--safe-top));
+    bottom: auto;
+    width: min(330px, 48vw);
+    min-height: 48px;
+    padding: 6px 8px;
+    grid-template-columns: minmax(92px, 1fr) minmax(70px, 1fr) minmax(88px, 1fr);
+    gap: 6px;
+  }
+
+  .race-flow-copy strong,
+  .drift-readout strong { font-size: 0.68rem; }
+
+  .race-flow small,
+  .drift-readout small { font-size: 0.52rem; }
+
+  .race-notice { top: 28%; }
+}
+
+@media (max-width: 560px) {
+  .race-flow {
+    top: calc(68px + var(--safe-top));
+    width: min(290px, calc(100vw - 118px));
+    grid-template-columns: 1fr 0.9fr;
+  }
+
+  .race-progress {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .race-flow-copy strong,
+  .drift-readout strong { max-width: 118px; }
+}
+#hud.hidden .race-flow,
+.race-notice.hidden,
+#hud[hidden] .race-flow {
+  display: none !important;
+}

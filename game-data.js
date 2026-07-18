@@ -1217,6 +1217,8 @@
     lapCount: 3,
     curveTension: 0.56,
     topology: { route: "crater-loop", routeLabel: "クレーター周回", heightLabel: "高低差 ひくめ", cornerLabel: "カーブ ゆるい", bankStrength: 0.35, maxBank: 5, bankLookAhead: 12, climbEffect: 8 },
+    sectors: [{ name: "地球のみえる丘", tip: "広い道でスピードをのせよう" }, { name: "クレーター橋", tip: "ふわっと長いジャンプ" }, { name: "月面基地ストレート", tip: "白いラインをまっすぐ走ろう" }],
+    medalTime: 210,
     backgroundEffects: ["黒い宇宙空間", "低い月の水平線", "遠くに見える地球", "白い月の粉じん"]
   };
 
@@ -1252,6 +1254,8 @@
     lapCount: 3,
     curveTension: 0.38,
     topology: { route: "elevated-ring", routeLabel: "高架スピードリング", heightLabel: "高低差 大きい", cornerLabel: "高速バンク", bankStrength: 1.2, maxBank: 14, bankLookAhead: 10, climbEffect: 12 },
+    sectors: [{ name: "惑星ビューストレート", tip: "ブーストをつないで加速" }, { name: "リングギャップ", tip: "わっかのすきまを飛びこえよう" }, { name: "ゴールドバンク", tip: "外へふくらまないように曲がろう" }],
+    medalTime: 185,
     backgroundEffects: ["巨大惑星の光", "遠くの輪の層", "流れる氷の粒", "明るい発光レール"]
   };
   var meteorCourse = {
@@ -1286,6 +1290,8 @@
     lapCount: 3,
     curveTension: 0.62,
     topology: { route: "canyon-switchback", routeLabel: "渓谷ヘアピン", heightLabel: "高低差 大きい", cornerLabel: "急カーブ 多い", bankStrength: 0.55, maxBank: 8, bankLookAhead: 8, climbEffect: 14 },
+    sectors: [{ name: "赤い岩の入口", tip: "岩のあいだをまっすぐ走ろう" }, { name: "すなあらし渓谷", tip: "カーブ前に少しスピードを落とそう" }, { name: "火星基地ヘアピン", tip: "ドリフトをためてぬけよう" }],
+    medalTime: 225,
     backgroundEffects: ["オレンジの空", "遠くの巨大な山", "赤い砂ぼこり", "渓谷の影"]
   };
   var nebulaCourse = {
@@ -1320,11 +1326,13 @@
     lapCount: 3,
     curveTension: 0.46,
     topology: { route: "comet-s-curves", routeLabel: "下りS字ドリフト", heightLabel: "高低差 とても大きい", cornerLabel: "すべる連続カーブ", bankStrength: 0.95, maxBank: 11, bankLookAhead: 9, climbEffect: 10 },
+    sectors: [{ name: "青い氷の入口", tip: "早めに曲がってすべりをおさえよう" }, { name: "結晶S字", tip: "ドリフトを左右につなごう" }, { name: "すい星テール", tip: "下り坂で最高速をねらおう" }],
+    medalTime: 205,
     backgroundEffects: ["青白いすい星の尾", "氷のきらめき", "透明な結晶", "冷たい光のトンネル"]
   };
   var spaceCourses = [lunarCourse, meteorCourse, spaceCourse, nebulaCourse];
 
-  window.AURORA_GAME_DATA.version = "0.4.0-topology-v43";
+  window.AURORA_GAME_DATA.version = "0.5.0-mastery-v44";
   window.AURORA_GAME_DATA.difficulties = {
     Easy: { precision: 0.76, speed: 0.84, reaction: 0.8, maxSpeed: 0.86, acceleration: 0.84, cornerSpeed: 0.7, steeringSkill: 0.78, recoverySpeed: 0.9, boostUsageRate: 0.28, itemUsageSkill: 0.38, mistakeRate: 0.18, avoidanceStrength: 0.72, rubberBanding: 0.05 },
     Normal: { precision: 1.0, speed: 1.0, reaction: 1.0, maxSpeed: 1.02, acceleration: 1.02, cornerSpeed: 0.92, steeringSkill: 1.04, recoverySpeed: 1.14, boostUsageRate: 0.66, itemUsageSkill: 0.66, mistakeRate: 0.07, avoidanceStrength: 1.08, rubberBanding: 0.12 },

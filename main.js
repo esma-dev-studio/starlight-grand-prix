@@ -12,6 +12,13 @@ const TRACK_STEPS = (() => {
 })();
 const TRACK_WIDTH = 22;
 const MAX_SHIELD = 100;
+const RECORDS_KEY = "starlight-grand-prix-records-v2";
+const DRIFT_STAGES = [
+  { level: 0, min: 0, label: "ためよう", color: 0x7df9ff, turbo: 0 },
+  { level: 1, min: 0.55, label: "ブルー", color: 0x67e8f9, turbo: 0.58 },
+  { level: 2, min: 1.2, label: "ゴールド", color: 0xffd166, turbo: 1.0 },
+  { level: 3, min: 2.0, label: "スター", color: 0xff67d4, turbo: 1.5 }
+];
 const PLAYER_ID = "player";
 const DEG = Math.PI / 180;
 const QUALITY = (() => {
@@ -388,7 +395,14 @@ const state = {
   startedAudio: false,
   lastFrame: 0,
   currentScreen: "title",
-  helpReturnScreen: "title"
+  helpReturnScreen: "title",
+  startEarly: false,
+  startCharge: 0,
+  startResult: "",
+  lastSectorKey: "",
+  noticeTimer: 0,
+  lapStartedAt: 0,
+  lapTimes: []
 };
 
 const input = {
@@ -659,6 +673,17 @@ function cacheDom() {
     "hudCoach",
     "coachTitle",
     "coachText",
+    "raceFlow",
+    "sectorKicker",
+    "sectorName",
+    "raceProgressFill",
+    "driftReadout",
+    "driftStage",
+    "driftMeterFill",
+    "raceNotice",
+    "raceNoticeKicker",
+    "raceNoticeTitle",
+    "raceNoticeText",
     "screenOverlay",
     "titleScreen",
     "modeScreen",
@@ -978,6 +1003,83 @@ function activeLapTotal() {
   return lapTotalForCourse(activeCourse());
 }
 
+function courseSectors(course = activeCourse()) {
+  const sectors = Array.isArray(course?.sectors) ? course.sectors.filter(Boolean) : [];
+  return sectors.length ? sectors : [
+    { name: "スタートエリア", tip: "ひかるラインをねらおう" },
+    { name: "チャレンジエリア", tip: "カーブ前にじゅんびしよう" },
+    { name: "ゴールストレート", tip: "さいごまでスピードをのせよう" }
+  ];
+}
+
+function recordsStore() {
+  try {
+    return JSON.parse(localStorage.getItem(RECORDS_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
+function raceRecordKey(course = activeCourse(), mode = raceMode()) {
+  return (course?.id || "course") + ":" + (mode?.id || "race") + ":" + state.difficulty;
+}
+
+function bestRecord(course = activeCourse(), mode = raceMode()) {
+  return recordsStore()[raceRecordKey(course, mode)] || null;
+}
+
+function saveRaceRecord(time, rank) {
+  const store = recordsStore();
+  const key = raceRecordKey();
+  const previous = store[key] || null;
+  const isBest = !previous || time < previous.time;
+  store[key] = {
+    time: isBest ? time : previous.time,
+    bestRank: Math.min(rank, previous?.bestRank || 99),
+    races: (previous?.races || 0) + 1,
+    updatedAt: Date.now()
+  };
+  try {
+    localStorage.setItem(RECORDS_KEY, JSON.stringify(store));
+  } catch {
+    // Records are optional when storage is unavailable.
+  }
+  return { previous, record: store[key], isBest };
+}
+
+function raceMedal(time, rank) {
+  if (!raceMode().timeAttack) {
+    if (rank === 1) return { name: "ゴールド", className: "gold", mark: "G" };
+    if (rank <= 2) return { name: "シルバー", className: "silver", mark: "S" };
+    return { name: "ブロンズ", className: "bronze", mark: "B" };
+  }
+  const target = Number(activeCourse()?.medalTime || 210) * (activeLapTotal() / 3);
+  if (time <= target) return { name: "ゴールド", className: "gold", mark: "G" };
+  if (time <= target * 1.16) return { name: "シルバー", className: "silver", mark: "S" };
+  return { name: "ブロンズ", className: "bronze", mark: "B" };
+}
+
+function driftStageForCharge(charge) {
+  let stage = DRIFT_STAGES[0];
+  DRIFT_STAGES.forEach((candidate) => {
+    if (charge >= candidate.min) stage = candidate;
+  });
+  return stage;
+}
+
+function showRaceNotice(kicker, title, message, tone = "info", duration = 1450) {
+  if (!dom.raceNotice) return;
+  window.clearTimeout(state.noticeTimer);
+  dom.raceNoticeKicker.textContent = kicker;
+  dom.raceNoticeTitle.textContent = title;
+  dom.raceNoticeText.textContent = message;
+  dom.raceNotice.dataset.tone = tone;
+  dom.raceNotice.classList.remove("hidden", "notice-pop");
+  void dom.raceNotice.offsetWidth;
+  dom.raceNotice.classList.add("notice-pop");
+  state.noticeTimer = window.setTimeout(() => dom.raceNotice?.classList.add("hidden"), duration);
+}
+
 function modeSummaryText() {
   const mode = raceMode();
   const laps = activeLapTotal();
@@ -1190,6 +1292,8 @@ function populateCourse() {
       const difficultyText = course.difficultyLabel || "ふつう";
       const cautionText = course.caution || "コースの外に注意";
       const courseIcon = course.icon || "星";
+      const record = bestRecord(course);
+      const recordText = record?.time ? "ベスト " + formatTime(record.time) : "ベスト --:--.-";
       const topology = course.topology || {};
       const routeLabel = topology.routeLabel || "周回コース";
       const heightLabel = topology.heightLabel || "高低差 ふつう";
@@ -1200,6 +1304,7 @@ function populateCourse() {
         '<strong>' + escapeHtml(displayName(course)) + '</strong>' +
         '<small class="course-one-line">' + escapeHtml(shortCopy) + '</small>' +
         '<span class="course-meta-row"><span>むずかしさ ' + escapeHtml(difficultyText) + '</span><span>' + escapeHtml(lapTotalForCourse(course)) + 'しゅう</span></span>' +
+        '<span class="course-record">' + escapeHtml(recordText) + '</span>' +
         '<span class="course-drive-row"><span>' + escapeHtml(routeLabel) + '</span><span>' + escapeHtml(heightLabel) + '</span><span>' + escapeHtml(cornerLabel) + '</span></span>' +
         '<span class="course-caution">ちゅうい ' + escapeHtml(cautionText) + '</span>' +
         '<em><b>とくちょう</b> ' + escapeHtml(featureText) + '</em>';
@@ -1828,7 +1933,7 @@ function createTrackRibbon(trackInfo, offset, width, color, emissive, opacity, r
     roughness: lunarSurface ? 0.92 : marsSurface ? 0.88 : iceSurface ? 0.44 : receiveShadow ? 0.62 : 0.42,
     metalness: lunarSurface || marsSurface ? 0.02 : iceSurface ? 0.04 : ringSurface ? 0.18 : receiveShadow ? 0.16 : 0.03,
     emissive,
-    emissiveIntensity: lunarSurface ? 0.006 : marsSurface ? 0.01 : iceSurface ? 0.035 : ringSurface ? 0.025 : receiveShadow ? 0.018 : 0.34,
+    emissiveIntensity: lunarSurface ? 0.018 : marsSurface ? 0.045 : iceSurface ? 0.06 : ringSurface ? 0.055 : receiveShadow ? 0.035 : 0.34,
     flatShading: true,
     transparent: opacity < 1,
     opacity,
@@ -1837,6 +1942,8 @@ function createTrackRibbon(trackInfo, offset, width, color, emissive, opacity, r
   if (receiveShadow && width > 8) {
     materialOptions.map = createRoadSurfaceTexture(trackInfo.theme?.surfaceType || "metal-ring", trackInfo.theme);
     materialOptions.roughnessMap = createRoadRoughnessTexture(trackInfo.theme?.surfaceType || "metal-ring");
+    // The texture already carries the course palette; a pale multiplier keeps it readable.
+    materialOptions.color = new THREE.Color(color).lerp(new THREE.Color(0xffffff), lunarSurface ? 0.74 : 0.62);
   }
   const material = new THREE.MeshStandardMaterial(materialOptions);
   const mesh = new THREE.Mesh(geometry, material);
@@ -2177,11 +2284,18 @@ function addStartLine(trackInfo) {
 
   for (let s = -1; s <= 1; s += 2) {
     const arch = new THREE.Mesh(
-      new THREE.BoxGeometry(1.4, 13.5, 1.2),
-      new THREE.MeshStandardMaterial({ color: 0x203047, emissive: 0x225d7a, emissiveIntensity: 0.3 })
+      new THREE.BoxGeometry(1.0, 9.2, 0.9),
+      new THREE.MeshStandardMaterial({
+        color: new THREE.Color(theme.structureColor).lerp(new THREE.Color(theme.warningColor), 0.16),
+        emissive: theme.warningColor,
+        emissiveIntensity: QUALITY.low ? 0.08 : 0.14,
+        roughness: 0.58,
+        metalness: 0.22,
+        flatShading: true
+      })
     );
     arch.position.copy(sample.point).addScaledVector(sample.normal, s * (TRACK_WIDTH * 0.55 + 2));
-    arch.position.y += 6.75;
+    arch.position.y += 4.6;
     trackInfo.group.add(arch);
   }
 
@@ -2465,24 +2579,38 @@ function addThemedObstacle(trackInfo, sample, index, offset, type) {
 }
 
 function addRails(trackInfo) {
-  if ((trackInfo.theme || courseTheme()).id === "lunar-crater-run") return;
-  for (let i = 0; i < TRACK_STEPS; i += (QUALITY.low ? 32 : 10)) {
+  const theme = trackInfo.theme || courseTheme();
+  if (theme.id === "lunar-crater-run") return;
+  const palette = theme.palette || {};
+  const isMars = theme.id === "meteor-mining-belt";
+  const isIce = theme.id === "nebula-drift-stream";
+  const isRing = theme.id === "starlight-orbit-ring";
+  const height = isRing ? 1.75 : isIce ? 1.5 : 1.25;
+  const geometry = isMars || isIce
+    ? new THREE.ConeGeometry(isMars ? 0.44 : 0.38, height, 4)
+    : new THREE.BoxGeometry(0.5, height, 0.5);
+  const colors = [palette.railLeft || theme.railLeft || "#9eefff", palette.railRight || theme.railRight || "#ffd166"];
+  const materials = colors.map((color) => new THREE.MeshStandardMaterial({
+    color: new THREE.Color(color).lerp(new THREE.Color(palette.structure || "#526276"), 0.38),
+    emissive: color,
+    emissiveIntensity: isMars ? 0.1 : 0.16,
+    roughness: isMars ? 0.78 : 0.42,
+    metalness: isRing ? 0.42 : 0.08,
+    flatShading: true
+  }));
+  const step = QUALITY.low ? 34 : 14;
+  for (let i = 0; i < TRACK_STEPS; i += step) {
     const sample = trackInfo.samples[i];
     for (let side = -1; side <= 1; side += 2) {
-      const post = new THREE.Mesh(
-        new THREE.BoxGeometry(0.8, 2.2, 0.8),
-        new THREE.MeshStandardMaterial({
-          color: side > 0 ? 0x263d55 : 0x3a304a,
-          emissive: side > 0 ? 0x58d9ff : 0xffb45f,
-          emissiveIntensity: 0.28
-        })
-      );
-      post.position.copy(trackSurfacePoint(sample, side * (TRACK_WIDTH * 0.55 + 0.7), 1.1));
+      const post = new THREE.Mesh(geometry, materials[side > 0 ? 0 : 1]);
+      post.position.copy(trackSurfacePoint(sample, side * (TRACK_WIDTH * 0.55 + 0.55), height * 0.5));
+      post.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z) + (isIce ? Math.PI * 0.25 : 0);
+      post.castShadow = false;
+      post.receiveShadow = false;
       trackInfo.group.add(post);
     }
   }
 }
-
 function addLunarRoadDetails(trackInfo) {
   const theme = trackInfo.theme || courseTheme();
   const seamMat = new THREE.MeshBasicMaterial({ color: 0xf8fdff, transparent: true, opacity: QUALITY.low ? 0.18 : 0.26, depthWrite: false });
@@ -2706,11 +2834,13 @@ function createRoadSurfaceTexture(surfaceType = "metal-ring", theme = null) {
   canvas.height = size;
   const ctx = canvas.getContext("2d");
   const toCss = (hex, alpha = 1) => {
-    const color = new THREE.Color(hex);
-    const r = Math.round(color.r * 255);
-    const g = Math.round(color.g * 255);
-    const b = Math.round(color.b * 255);
-    return `rgba(${r},${g},${b},${alpha})`;
+    const value = typeof hex === "number"
+      ? hex
+      : Number.parseInt(String(hex || "#000000").replace("#", ""), 16);
+    const r = (value >> 16) & 255;
+    const g = (value >> 8) & 255;
+    const b = value & 255;
+    return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
   };
   const road = theme?.roadColor || 0x1b2d3d;
   const glow = theme?.centerLine || theme?.boostColor || 0x7df9ff;
@@ -4425,8 +4555,15 @@ function resetRace() {
   state.finishTime = 0;
   state.rank = 1;
   state.finishSequence = false;
+  state.startEarly = false;
+  state.startCharge = 0;
+  state.startResult = "";
+  state.lastSectorKey = "";
+  state.lapStartedAt = 0;
+  state.lapTimes = [];
   lastCoachKey = "";
   lastHudLap = 0;
+  lastHudRank = 1;
   state.winner = null;
   updateRanks();
   updateHud();
@@ -4494,6 +4631,18 @@ function ensureTrackForSelectedCourse() {
   }
 }
 
+function cpuRaceProfile(character, gridSlot) {
+  const profiles = [
+    { name: "ラインよみ", lane: 0.38, aggression: 0.72, corner: 1.05, drift: 1.08, boost: 0.94 },
+    { name: "パワー", lane: 0.62, aggression: 1.14, corner: 0.94, drift: 0.88, boost: 1.02 },
+    { name: "フロート", lane: 0.48, aggression: 0.82, corner: 1.08, drift: 1.14, boost: 1.06 },
+    { name: "バランス", lane: 0.52, aggression: 0.96, corner: 1.0, drift: 1.0, boost: 1.0 },
+    { name: "スプリント", lane: 0.72, aggression: 1.18, corner: 0.9, drift: 0.94, boost: 1.16 }
+  ];
+  const index = Math.max(0, DATA.characters.indexOf(character));
+  return profiles[index % profiles.length] || profiles[gridSlot % profiles.length];
+}
+
 function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
   const gridBack = 10 + gridSlot * 8.2;
   let gridIndex = 0;
@@ -4547,12 +4696,14 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     boostPanelLock: 0,
     impactPose: 0,
     driftCharge: 0,
+    driftStage: 0,
     driftActive: false,
     driftDir: 0,
     miniTurboTimer: 0,
     wobble: 0,
     laneOffset,
     ai: {
+      profile: cpuRaceProfile(character, gridSlot),
       targetOffset: laneOffset,
       noise: rand() * 10,
       useTimer: 1 + rand() * 2,
@@ -6100,9 +6251,14 @@ async function startCountdown() {
   startAudioOnce();
   state.mode = "countdown";
   state.finishSequence = false;
+  state.startEarly = false;
+  state.startCharge = 0;
+  state.startResult = "";
+  state.lastSectorKey = "";
+  state.countdown = 4;
   dom.hud.classList.remove("hidden");
   dom.app?.classList.remove("is-menu");
-  dom.app?.classList.add("is-racing");
+  dom.app?.classList.add("is-racing", "is-countdown");
   dom.screenOverlay.classList.add("hidden");
   dom.countdown.classList.remove("hidden");
   dom.countdown.classList.add("course-intro");
@@ -6123,22 +6279,48 @@ async function startCountdown() {
     state.finishSequence = false;
     updateHud();
   }
+  state.startEarly = false;
+  state.startCharge = 0;
   dom.countdown.classList.remove("course-intro");
-  state.countdown = 3;
   for (const label of ["3", "2", "1", "スタート！"]) {
+    state.countdown = Number(label) || 0;
     dom.countdown.textContent = label;
     pulseCountdown(label);
     await wait(680);
   }
   dom.countdown.classList.add("hidden");
+  dom.app?.classList.remove("is-countdown");
   state.mode = "racing";
   state.time = 0;
-  if (player && input.accel) {
-    player.miniTurboTimer = Math.max(player.miniTurboTimer, 0.72);
-    spawnShockwave(player.position, colorToHex(player.kart.boostColor || player.character.boostColor || "#ffd166"), 5.2);
-    playAudio("boost", 0.42);
-    gameHaptic(18);
+  const startSuccess = player && !state.startEarly && state.startCharge >= 0.14;
+  if (startSuccess) {
+    state.startResult = "success";
+    player.speed = Math.max(player.speed, 16);
+    player.miniTurboTimer = Math.max(player.miniTurboTimer, 1.12);
+    spawnShockwave(player.position, colorToHex(player.kart.boostColor || player.character.boostColor || "#ffd166"), 5.6);
+    playAudio("boost", 0.5);
+    gameHaptic([12, 18, 28]);
+    showRaceNotice("ナイススタート", "スタートダッシュ！", "「1」で すすむを押せたよ", "boost", 1500);
+  } else if (player && state.startEarly) {
+    state.startResult = "early";
+    player.stunTimer = Math.max(player.stunTimer, 0.42);
+    showRaceNotice("フライング", "ちょっと早い！", "つぎは「1」で すすむを押そう", "warning", 1500);
+  } else {
+    state.startResult = "normal";
+    const first = courseSectors()[0];
+    showRaceNotice("セクター 1/3", first.name, first.tip, "info", 1500);
   }
+}
+
+function updateCountdownStart(dt) {
+  if (state.mode !== "countdown") return;
+  if (input.accel && state.countdown > 1 && state.countdown <= 3) state.startEarly = true;
+  if (input.accel && state.countdown === 1 && !state.startEarly) state.startCharge = Math.min(0.8, state.startCharge + dt);
+  const pct = state.startEarly ? 100 : clamp(state.startCharge / 0.5, 0, 1) * 100;
+  dom.driftReadout?.classList.toggle("start-ready", state.countdown === 1 && !state.startEarly);
+  dom.driftReadout?.classList.toggle("start-early", state.startEarly);
+  if (dom.driftStage) dom.driftStage.textContent = state.startEarly ? "はやい！" : state.countdown === 1 ? "いま！" : "「1」で押す";
+  if (dom.driftMeterFill) dom.driftMeterFill.style.width = pct + "%";
 }
 function pulseCountdown(label) {
   dom.countdown.classList.remove("pop");
@@ -6215,23 +6397,30 @@ function finishRace() {
 function renderRaceResults(winner, playerRank) {
   const mode = raceMode();
   const playerCard = resultCharacterCardMarkup(player.character);
+  const saved = saveRaceRecord(state.finishTime, playerRank);
+  const medal = raceMedal(state.finishTime, playerRank);
+  const recordLabel = saved.isBest ? "しんきろく！" : "ベスト " + formatTime(saved.record.time);
+  const fastestLap = state.lapTimes.length ? Math.min(...state.lapTimes) : state.finishTime;
+  const award = '<div class="result-award award-' + medal.className + '">' +
+    '<span class="medal-mark">' + medal.mark + '</span>' +
+    '<span><small>今回のメダル</small><strong>' + medal.name + '</strong><em>' + recordLabel + '</em></span>' +
+  '</div>';
   if (mode.timeAttack) {
-    dom.resultTitle.textContent = "タイムアタック かんそう！";
-    dom.resultStats.innerHTML = playerCard + `
-      <div><span>モード</span><strong>${escapeHtml(mode.name)}</strong></div>
-      <div><span>タイム</span><strong>${formatTime(state.finishTime)}</strong></div>
-      <div><span>しゅう</span><strong>${activeLapTotal()}しゅう</strong></div>
-      <div><span>ひとこと</span><strong>じぶんのベストタイムにちょうせん！</strong></div>
-    `;
+    dom.resultTitle.textContent = saved.isBest ? "しんきろく！" : "タイムアタック かんそう！";
+    dom.resultStats.innerHTML = playerCard + award +
+      '<div><span>モード</span><strong>' + escapeHtml(mode.name) + '</strong></div>' +
+      '<div><span>タイム</span><strong>' + formatTime(state.finishTime) + '</strong></div>' +
+      '<div><span>ベスト</span><strong>' + formatTime(saved.record.time) + '</strong></div>' +
+      '<div><span>さいそくラップ</span><strong>' + formatTime(fastestLap) + '</strong></div>';
     return;
   }
   dom.resultTitle.textContent = playerRank === 1 ? "1い！ やったね！" : "レースのけっか";
-  dom.resultStats.innerHTML = playerCard + `
-    <div><span>モード</span><strong>${escapeHtml(mode.name)}</strong></div>
-    <div><span>じゅんい</span><strong>${playerRank}/${racers.length}</strong></div>
-    <div><span>タイム</span><strong>${formatTime(state.finishTime)}</strong></div>
-    <div><span>1いのレーサー</span><strong>${escapeHtml(displayName(winner.character))}</strong></div>
-  `;
+  dom.resultStats.innerHTML = playerCard + award +
+    '<div><span>モード</span><strong>' + escapeHtml(mode.name) + '</strong></div>' +
+    '<div><span>じゅんい</span><strong>' + playerRank + '/' + racers.length + '</strong></div>' +
+    '<div><span>タイム</span><strong>' + formatTime(state.finishTime) + '</strong></div>' +
+    '<div><span>さいそくラップ</span><strong>' + formatTime(fastestLap) + '</strong></div>' +
+    '<div><span>1いのレーサー</span><strong>' + escapeHtml(displayName(winner.character)) + '</strong></div>';
 }
 function showGoalBanner(playerRank) {
   if (!dom.countdown) return;
@@ -6322,6 +6511,7 @@ function burstLimit(count) {
 }
 function updateScene(dt) {
   const raceActive = state.mode === "racing";
+  if (state.mode === "countdown") updateCountdownStart(dt);
   if (raceActive) state.time += dt;
 
   itemBoxes.forEach((box) => {
@@ -6456,20 +6646,34 @@ function updateRacer(racer, dt) {
     racer.driftActive = true;
     racer.driftDir = Math.sign(steer);
     racer.driftCharge = 0;
+    racer.driftStage = 0;
   }
   if (racer.driftActive) {
-    racer.driftCharge += dt;
+    racer.driftCharge = Math.min(2.6, racer.driftCharge + dt);
+    const chargedStage = driftStageForCharge(racer.driftCharge);
+    if (chargedStage.level > (racer.driftStage || 0)) {
+      racer.driftStage = chargedStage.level;
+      spawnBurst(racer.position, chargedStage.color, racer.isPlayer ? 8 : 3, 0.72);
+      if (racer.isPlayer) {
+        playAudio("countdown", chargedStage.level);
+        gameHaptic(8 + chargedStage.level * 4);
+      }
+    }
     if (!controls.drift || racer.speed < maxSpeed * 0.2) {
-      if (racer.driftCharge > 0.75) {
-        racer.miniTurboTimer = clamp(racer.driftCharge * 0.45, 0.45, 1.45);
-        spawnBurst(racer.position, 0xffc857, 18, 1.5);
+      const releaseStage = DRIFT_STAGES[racer.driftStage || 0] || DRIFT_STAGES[0];
+      if (releaseStage.turbo > 0) {
+        racer.miniTurboTimer = Math.max(racer.miniTurboTimer, releaseStage.turbo);
+        racer.speed = Math.max(racer.speed, maxSpeed * (0.72 + releaseStage.level * 0.05));
+        spawnBurst(racer.position, releaseStage.color, racer.isPlayer ? 12 : 4, 1.05 + releaseStage.level * 0.18);
         if (racer.isPlayer) {
-          playAudio("boost", 0.45);
-          gameHaptic(14);
+          playAudio("boost", 0.36 + releaseStage.level * 0.08);
+          gameHaptic(10 + releaseStage.level * 5);
+          showRaceNotice("ドリフトダッシュ", releaseStage.label + " ダッシュ！", releaseStage.level === 3 ? "さいこうのタイミング！" : "もっとためると長くダッシュ", "boost", 950);
         }
       }
       racer.driftActive = false;
       racer.driftCharge = 0;
+      racer.driftStage = 0;
     }
   }
 
@@ -6673,6 +6877,7 @@ function readCpuControls(racer, dt) {
   const mistakeRate = diff.mistakeRate || 0.08;
   const boostUsage = diff.boostUsageRate || 0.55;
   const itemSkill = diff.itemUsageSkill || 0.55;
+  const profile = racer.ai.profile || cpuRaceProfile(racer.character, 0);
   const theme = track?.theme || courseTheme();
   const icyCourse = theme.id === "nebula-drift-stream";
   const marsCourse = theme.id === "meteor-mining-belt";
@@ -6709,6 +6914,7 @@ function readCpuControls(racer, dt) {
   const stallUrgency = clamp((racer.ai.stallTimer || 0) / 0.8, 0, 1);
 
   let targetOffset = (racer.ai.targetOffset || 0) * (0.3 - clamp(steeringSkill - 1, 0, 0.4) * 0.18);
+  targetOffset += Math.sin(state.time * (0.42 + profile.aggression * 0.16) + racer.ai.noise) * TRACK_WIDTH * 0.025 * profile.lane;
   if (edgeAmount > 0) targetOffset += centerSign * TRACK_WIDTH * (0.18 + edgeAmount * 0.24);
   if (stallUrgency > 0.01) targetOffset += centerSign * TRACK_WIDTH * (0.12 + stallUrgency * 0.22);
   if (curve > 0.12 && edgeAmount < 0.35) targetOffset *= 0.65;
@@ -6765,12 +6971,17 @@ function readCpuControls(racer, dt) {
     const ahead = local.dot(forward);
     const side = local.dot(right);
     if (ahead > -1.5 && ahead < 16 && Math.abs(side) < 5.8) {
-      const escapeSide = Math.sign(side || racer.ai.targetOffset || 1);
+      if (!racer.ai.overtakeSide || (racer.ai.overtakeTimer || 0) <= 0) {
+        racer.ai.overtakeSide = -Math.sign(side || racer.ai.targetOffset || (rand() - 0.5));
+        racer.ai.overtakeTimer = 1.1 + profile.aggression * 0.7;
+      }
+      const escapeSide = -racer.ai.overtakeSide;
       steer -= escapeSide * clamp((5.8 - Math.abs(side)) / 5.8, 0, 1) * 0.5 * avoidanceStrength;
       if (ahead > 0 && Math.abs(other.speed) < Math.abs(racer.speed) * 0.82) racer.ai.laneShift = -escapeSide * TRACK_WIDTH * 0.18;
     }
   });
-  racer.ai.laneShift = approach(racer.ai.laneShift || 0, 0, dt * 1.35);
+  racer.ai.overtakeTimer = Math.max(0, (racer.ai.overtakeTimer || 0) - dt);
+  racer.ai.laneShift = approach(racer.ai.laneShift || 0, 0, dt * (1.1 + profile.aggression * 0.3));
   steer -= clamp((racer.ai.laneShift || 0) / TRACK_WIDTH, -0.24, 0.24);
 
   if (rand() < mistakeRate * dt * 0.22 * Math.max(0, 1 - edgeAmount)) steer += (rand() - 0.5) * mistakeRate;
@@ -6778,15 +6989,15 @@ function readCpuControls(racer, dt) {
 
   const surfaceCornerPenalty = icyCourse ? 0.11 : marsCourse ? 0.05 : 0;
   const cornerSlowdown = clamp(curve * (0.62 + surfaceCornerPenalty - (diff.cornerSpeed || 0.9) * 0.2), 0.02, 0.58);
-  let targetSpeed = baseMax * (1 - cornerSlowdown);
+  let targetSpeed = baseMax * (1 - cornerSlowdown / Math.max(0.82, profile.corner));
   if (icyCourse && curve > 0.14) targetSpeed *= 0.91;
   if (edgeAmount > 0.01) targetSpeed *= 1 - edgeAmount * 0.56;
-  if (upcomingBoost && boostUsage > 0.62 && edgeAmount < 0.28) targetSpeed *= 1.1;
+  if (upcomingBoost && boostUsage * profile.boost > 0.62 && edgeAmount < 0.28) targetSpeed *= 1.1 + profile.boost * 0.04;
   if (stallUrgency > 0.12) targetSpeed = Math.max(targetSpeed, baseMax * (0.46 + stallUrgency * 0.16));
 
   const accel = stallUrgency > 0.18 || (edgeAmount < 0.78 && racer.speed < targetSpeed * (0.98 + boostUsage * 0.05)) || (upcomingBoost && edgeAmount < 0.28 && racer.speed < baseMax * 1.18);
   const brake = (edgeAmount > 0.52 && racer.speed > baseMax * 0.36) || (stallUrgency < 0.18 && racer.speed > targetSpeed * (1.04 + (diff.cornerSpeed || 1) * 0.06) && curve > 0.12);
-  const drift = racer.ai.recoveryTimer <= 0 && edgeAmount < 0.34 && curve > (icyCourse ? 0.16 : 0.22 + mistakeRate * 0.18) && Math.abs(steer) > (icyCourse ? 0.24 : 0.32) && racer.speed > baseMax * 0.38;
+  const drift = racer.ai.recoveryTimer <= 0 && edgeAmount < 0.34 && curve > (icyCourse ? 0.16 : (0.22 + mistakeRate * 0.18) / profile.drift) && Math.abs(steer) > (icyCourse ? 0.24 : 0.32) && racer.speed > baseMax * 0.38;
 
   if (racer.stunTimer > 0) return { accel: false, brake: true, steer: clamp(steer * 0.5, -1, 1), drift: false };
   return { accel, brake, steer, drift };
@@ -6990,14 +7201,23 @@ function handleRaceProgress(racer, nearest) {
   const next = nearest.index;
   if (old > TRACK_STEPS * 0.78 && next < TRACK_STEPS * 0.22 && racer.speed > 0) {
     if (racer.startedLap) {
+      if (racer.isPlayer) {
+        state.lapTimes.push(Math.max(0, state.time - state.lapStartedAt));
+        state.lapStartedAt = state.time;
+      }
       racer.lap += 1;
-      if (racer.isPlayer && racer.lap < activeLapTotal()) gameHaptic([12, 28, 14]);
+      if (racer.isPlayer && racer.lap < activeLapTotal()) {
+        gameHaptic([12, 28, 14]);
+        const finalLap = racer.lap === activeLapTotal() - 1;
+        showRaceNotice(finalLap ? "ファイナルラップ" : "つぎのしゅう", finalLap ? "さいごの1しゅう！" : (racer.lap + 1) + "しゅう目", finalLap ? "ゴールまで全力で走ろう" : "ベストラインをねらおう", finalLap ? "final" : "info", 1750);
+      }
       if (racer.lap >= activeLapTotal()) {
         racer.finished = true;
         racer.finishTime = state.time;
       }
     } else {
       racer.startedLap = true;
+      if (racer.isPlayer) state.lapStartedAt = state.time;
     }
   } else if (old < TRACK_STEPS * 0.2 && next > TRACK_STEPS * 0.8 && racer.speed < -4) {
     racer.lap = Math.max(0, racer.lap - 1);
@@ -7767,6 +7987,10 @@ function updateHud() {
     dom.positionValue.classList.remove("rank-bump", "rank-up", "rank-down");
     void dom.positionValue.offsetWidth;
     dom.positionValue.classList.add("rank-bump", rankDelta < 0 ? "rank-up" : "rank-down");
+    if (rankDelta < 0 && state.time > 3) {
+      showRaceNotice("ポジションアップ", state.rank + "いへ！", "このまま前をねらおう", "boost", 900);
+      gameHaptic(10);
+    }
     lastHudRank = state.rank;
   }
   const boosting = player.boostTimer > 0 || player.miniTurboTimer > 0;
@@ -7824,6 +8048,35 @@ function updateHud() {
     name.textContent = player.item ? displayName(player.item) : "なし";
     dom.itemSlot.append(icon, name);
   }
+  updateRaceFlow();
+}
+
+function updateRaceFlow() {
+  if (!player || !dom.raceFlow) return;
+  const sectors = courseSectors();
+  const lapFraction = player.startedLap ? clamp((player.trackIndex || 0) / TRACK_STEPS, 0, 0.999) : 0;
+  const sectorIndex = Math.min(sectors.length - 1, Math.floor(lapFraction * sectors.length));
+  const sector = sectors[sectorIndex];
+  const lapTotal = activeLapTotal();
+  const overall = clamp((player.lap + lapFraction) / Math.max(1, lapTotal), 0, 1);
+  const key = player.lap + ":" + sectorIndex;
+  dom.sectorKicker.textContent = "セクター " + (sectorIndex + 1) + "/" + sectors.length;
+  dom.sectorName.textContent = sector.name;
+  dom.raceProgressFill.style.width = (overall * 100).toFixed(1) + "%";
+
+  const stage = driftStageForCharge(player.driftCharge || 0);
+  const driftPct = clamp((player.driftCharge || 0) / DRIFT_STAGES[3].min, 0, 1);
+  dom.driftReadout.dataset.stage = String(stage.level);
+  dom.driftReadout.classList.toggle("is-active", player.driftActive);
+  dom.driftReadout.classList.remove("start-ready", "start-early");
+  dom.driftStage.textContent = player.driftActive ? stage.label : player.miniTurboTimer > 0 ? "ダッシュ！" : "ためよう";
+  dom.driftMeterFill.style.width = (driftPct * 100).toFixed(1) + "%";
+
+  if (state.lastSectorKey && key !== state.lastSectorKey && state.mode === "racing") {
+    showRaceNotice("セクター " + (sectorIndex + 1) + "/" + sectors.length, sector.name, sector.tip, "info", 1300);
+    gameHaptic(8);
+  }
+  state.lastSectorKey = key;
 }
 
 function updateRaceCoach(boosting, speedKmh) {
