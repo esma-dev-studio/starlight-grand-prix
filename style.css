@@ -6071,3 +6071,97 @@ button,
     bottom: auto;
   }
 }
+/* v46 flow pass: one readable language for skill, rivalry and results. */
+.race-flow[data-grade="B"] { border-left-color: #78f7c0; }
+.race-flow[data-grade="A"] { border-left-color: #ffd166; }
+.race-flow[data-grade="S"] {
+  border-left-color: #fff1a6;
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.36), inset 0 0 0 1px rgba(255, 225, 112, 0.16);
+}
+
+.race-flow.flow-hit {
+  animation: flowHit 280ms ease-out;
+}
+
+@keyframes flowHit {
+  0% { border-color: rgba(255, 255, 255, 0.8); }
+  100% { border-color: rgba(154, 224, 239, 0.3); }
+}
+
+#hud.is-duel .race-flow {
+  border-color: color-mix(in srgb, var(--duel-color, #ffd166) 56%, rgba(154, 224, 239, 0.3));
+}
+
+#hud.is-duel .race-intel {
+  border-color: color-mix(in srgb, var(--duel-color, #ffd166) 44%, transparent);
+  background: color-mix(in srgb, var(--duel-color, #ffd166) 8%, transparent);
+}
+
+#hud.is-duel .race-intel em {
+  color: var(--duel-color, #ffd166);
+}
+
+.result-flow-award {
+  --flow-color: #9fb4c1;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 72px;
+  padding: 10px 14px;
+  border: 1px solid rgba(214, 230, 239, 0.2);
+  border-left: 4px solid var(--flow-color);
+  background: rgba(5, 13, 24, 0.7);
+}
+
+.result-flow-award.grade-b { --flow-color: #78f7c0; }
+.result-flow-award.grade-a { --flow-color: #ffd166; }
+.result-flow-award.grade-s { --flow-color: #fff1a6; }
+
+.flow-mark {
+  display: grid;
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
+  place-items: center;
+  color: #07101b;
+  border: 2px solid color-mix(in srgb, var(--flow-color) 62%, white);
+  background: var(--flow-color);
+  font-size: 1.35rem;
+  font-weight: 950;
+}
+
+.result-flow-award > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.result-flow-award small,
+.result-flow-award em {
+  color: #9fb3c0;
+  font-size: 0.7rem;
+  font-style: normal;
+}
+
+.result-flow-award strong {
+  color: var(--flow-color);
+  font-size: 1.08rem;
+}
+
+@media (max-width: 620px) {
+  .result-flow-award {
+    gap: 10px;
+    padding: 9px 10px;
+  }
+
+  .flow-mark {
+    flex-basis: 44px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .result-flow-award em {
+    font-size: 0.64rem;
+  }
+}
