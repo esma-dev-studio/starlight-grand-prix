@@ -1903,6 +1903,8 @@ function buildTrack() {
   createTrackRibbon(trackInfo, -TRACK_WIDTH * 0.5 - 0.55, 1.1, theme.railLeft, theme.railLeft, theme.railOpacity, false);
   createTrackRibbon(trackInfo, TRACK_WIDTH * 0.5 + 0.55, 1.1, theme.railRight, theme.railRight, theme.railOpacity, false);
   createTrackRibbon(trackInfo, 0, theme.id === "meteor-mining-belt" ? 0.34 : 0.22, theme.centerLine, theme.centerLine, theme.id === "lunar-crater-run" ? 0.34 : 0.24, false, theme.id === "starlight-orbit-ring" ? 10 : 14);
+  createTrackRibbon(trackInfo, -TRACK_WIDTH * 0.34, 0.16, theme.railLeft, theme.railLeft, 0.48, false, 5);
+  createTrackRibbon(trackInfo, TRACK_WIDTH * 0.34, 0.16, theme.railRight, theme.railRight, 0.48, false, 5);
   if (theme.id === "lunar-crater-run") addLunarTrackShoulders(trackInfo, theme);
   (trackInfo.layout.shortcuts || []).forEach(([start, end, offset, width]) => {
     createTrackRibbon(trackInfo, offset, width, theme.shortcutColor, theme.boostColor, 0.42, false, 1, start, end);
@@ -1970,7 +1972,8 @@ function createTrackRibbon(trackInfo, offset, width, color, emissive, opacity, r
     materialOptions.map = createRoadSurfaceTexture(trackInfo.theme?.surfaceType || "metal-ring", trackInfo.theme);
     materialOptions.roughnessMap = createRoadRoughnessTexture(trackInfo.theme?.surfaceType || "metal-ring");
     // The texture already carries the course palette; a pale multiplier keeps it readable.
-    materialOptions.color = new THREE.Color(color).lerp(new THREE.Color(0xffffff), lunarSurface ? 0.74 : 0.62);
+    const surfaceLift = lunarSurface ? 0.16 : marsSurface ? 0.12 : iceSurface ? 0.28 : 0.16;
+    materialOptions.color = new THREE.Color(color).lerp(new THREE.Color(0xffffff), surfaceLift);
   }
   const material = new THREE.MeshStandardMaterial(materialOptions);
   const mesh = new THREE.Mesh(geometry, material);
@@ -4769,7 +4772,8 @@ function getDriverRaceScale(character, profile) {
     "comet-rin": 0.94
   };
   const scale = scales[character.id] || 0.96;
-  return profile.type === "bastion" ? scale * 1.02 : scale;
+  const heroScale = profile.type === "bastion" ? 1.07 : 1.1;
+  return scale * heroScale;
 }
 function createKartModel(character, kart, isPlayer) {
   const group = new THREE.Group();
@@ -4778,8 +4782,8 @@ function createKartModel(character, kart, isPlayer) {
   const primary = new THREE.Color(kart.colors.primary || character.colors.primary);
   const secondary = new THREE.Color(kart.colors.secondary || character.colors.secondary);
   const accent = new THREE.Color(kart.boostColor || character.boostColor || kart.colors.glow || kart.colors.accent || character.colors.accent);
-  const silhouette = new THREE.Color(0x0b1725).lerp(secondary, 0.52);
-  const canopyColor = new THREE.Color(0x07111d).lerp(accent, 0.16);
+  const silhouette = new THREE.Color(0x182535).lerp(secondary, 0.68);
+  const canopyColor = new THREE.Color(0x101c2a).lerp(accent, 0.24);
   group.userData.machineMotionParts = { pulse: [], spin: [], flutter: [], hover: [] };
   group.userData.machineProfile = profile;
   group.userData.machineType = profile.type;
@@ -4787,25 +4791,25 @@ function createKartModel(character, kart, isPlayer) {
   const bodyMat = new THREE.MeshStandardMaterial({
     color: primary,
     emissive: primary,
-    emissiveIntensity: isPlayer ? 0.025 : 0.012,
-    roughness: 0.42,
-    metalness: 0.34,
+    emissiveIntensity: isPlayer ? 0.065 : 0.025,
+    roughness: 0.36,
+    metalness: 0.38,
     flatShading: true
   });
   const trimMat = new THREE.MeshStandardMaterial({
     color: silhouette,
     emissive: secondary,
-    emissiveIntensity: 0.055,
-    roughness: 0.38,
+    emissiveIntensity: 0.1,
+    roughness: 0.34,
     metalness: 0.5,
     flatShading: true
   });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x0b1522, roughness: 0.62, metalness: 0.38, flatShading: true });
-  const tireMat = new THREE.MeshStandardMaterial({ color: 0x080d15, roughness: 0.7, metalness: 0.12, flatShading: true });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x172434, roughness: 0.56, metalness: 0.42, flatShading: true });
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x121b27, roughness: 0.64, metalness: 0.18, flatShading: true });
   const glassMat = new THREE.MeshStandardMaterial({
     color: canopyColor,
     emissive: accent,
-    emissiveIntensity: 0.08,
+    emissiveIntensity: 0.16,
     roughness: 0.22,
     metalness: 0.34,
     flatShading: true
@@ -4845,7 +4849,7 @@ function createKartModel(character, kart, isPlayer) {
 
   const canopy = new THREE.Mesh(new THREE.DodecahedronGeometry(profile.width * 0.28, 0), glassMat);
   canopy.scale.set(1.08, 0.48, 0.82);
-  canopy.position.set(0, 1.88, -0.16);
+  canopy.position.set(0, 1.82, -0.16);
   canopy.castShadow = isPlayer && !QUALITY.low;
   chassis.add(canopy);
 
@@ -8165,6 +8169,8 @@ function updateHud() {
   dom.app?.style.setProperty("--racer-accent", player.kart.boostColor || player.character.boostColor || "#7df9ff");
   dom.app?.classList.toggle("is-fast", speedKmh > 105);
   dom.app?.classList.toggle("is-max-speed", speedKmh > 168 || boosting);
+  dom.app?.classList.toggle("is-boosting", boosting);
+  dom.app?.classList.toggle("is-drifting", player.driftActive);
   dom.hud.classList.toggle("is-boosting", boosting);
   dom.hud.classList.toggle("is-drifting", player.driftActive);
   const shieldPct = clamp((player.shieldEnergy ?? MAX_SHIELD) / MAX_SHIELD, 0, 1);
@@ -8179,6 +8185,11 @@ function updateHud() {
   dom.positionValue.textContent = `${state.rank}/${racers.length}`;
   const lapTotal = activeLapTotal();
   const visibleLap = Math.min(player.lap + 1, lapTotal);
+  const finalLap = player.startedLap && visibleLap >= lapTotal && !player.finished;
+  dom.app?.classList.toggle("is-opening-lap", state.time < 9 && visibleLap === 1);
+  dom.app?.classList.toggle("is-final-lap", finalLap);
+  dom.app?.classList.toggle("is-front-pack", state.rank <= Math.min(3, racers.length));
+  dom.app?.classList.toggle("is-chasing", state.rank > Math.ceil(racers.length * 0.65));
   if (visibleLap !== lastHudLap) {
     dom.lapValue.classList.remove("lap-bump");
     void dom.lapValue.offsetWidth;
@@ -8457,8 +8468,8 @@ function updateCamera(dt) {
   const portraitFraming = clamp((0.86 - camera.aspect) / 0.42, 0, 1);
   const duelFocus = state.duelActive ? 1 : 0;
   const finalLapFocus = player.startedLap && player.lap >= activeLapTotal() - 1 ? 1 : 0;
-  const behind = 16.2 + speed01 * 8.9 + (boosting ? 4.5 : 0) + portraitFraming * 7.8 - duelFocus * 1.25 + finalLapFocus * 1.15;
-  const height = 4.95 + speed01 * 2.35 + portraitFraming * 1.8 - duelFocus * 0.28;
+  const behind = 13.9 + speed01 * 8.4 + (boosting ? 4.8 : 0) + portraitFraming * 7.6 - duelFocus * 1.25 - finalLapFocus * 0.45;
+  const height = 4.15 + speed01 * 2.15 + portraitFraming * 1.8 - duelFocus * 0.28 - finalLapFocus * 0.2;
   const targetPos = player.position
     .clone()
     .addScaledVector(forward, -behind)
@@ -8472,16 +8483,18 @@ function updateCamera(dt) {
   camera.position.lerp(targetPos, 1 - Math.pow(0.0012, dt));
   cameraTarget.copy(player.position).addScaledVector(forward, 14 + speed01 * 16);
   cameraTarget.addScaledVector(right, player.driftActive ? driftLean * 3.0 : steerLean * 1.55);
-  cameraTarget.y += 2.45 + speed01 * 1.9 + player.jumpHeight * 0.22;
+  cameraTarget.y += 2.05 + speed01 * 1.7 + player.jumpHeight * 0.22;
   const roll = clamp(-steerLean * 0.055 + driftLean * 0.105, -0.16, 0.16);
   camera.up.lerp(new THREE.Vector3(Math.sin(roll), Math.cos(roll), 0), 1 - Math.pow(0.004, dt));
   camera.lookAt(cameraTarget);
-  camera.fov = approach(camera.fov, 58 + speed01 * 10 + (boosting ? 8 : 0) + portraitFraming * 4 + duelFocus * 2.2 + finalLapFocus * 1.4 + clamp(player.jumpHeight * 0.26, 0, 3.5), 34 * dt);
+  camera.fov = approach(camera.fov, 58 + speed01 * 10 + (boosting ? 8 : 0) + portraitFraming * 4 + duelFocus * 2.2 + finalLapFocus * 3.2 + clamp(player.jumpHeight * 0.26, 0, 3.5), 34 * dt);
   camera.updateProjectionMatrix();
 
   speedLines.forEach((line, index) => {
     const lineSpeed = speed01 + (boosting ? 0.38 : 0);
-    line.material.opacity = clamp((lineSpeed - 0.32) * 1.35, 0, ART_DIRECTION.glowOpacity);
+    if (player.group.userData.signatureColor) line.material.color.copy(player.group.userData.signatureColor);
+    line.material.opacity = clamp((lineSpeed - 0.2) * 1.55, 0, ART_DIRECTION.glowOpacity + 0.16);
+    line.scale.z = 1 + speed01 * 0.65 + (boosting ? 1.15 : 0);
     line.position.set(
       line.userData.side * (3 + (index % 5) * 1.3),
       -2 + ((index * 1.7) % 6),

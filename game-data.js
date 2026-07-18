@@ -869,7 +869,7 @@
   ];
 
   window.AURORA_GAME_DATA = {
-    version: "0.1.0",
+    version: "0.8.1-art-v48",
     selectedTitleId: "aurora-velocity-arc",
     selectedTitle: titleCandidates[0],
     titleCandidates: titleCandidates,
@@ -1199,7 +1199,7 @@
     theme: "月の平原、クレーター、月面基地を走る低重力グランプリコース",
     description: "灰色の月面、白い粉じん、大きなクレーター、遠くの地球を見ながら走る月のコース。ジャンプがふわっと長く、道の外は月の砂で少しすべる。",
     colors: { primary: "#EAF6FF", secondary: "#1A2230", accent: "#E8C66A" },
-    palette: { road: "#687585", roadEmissive: "#17222E", railLeft: "#EAF8FF", railRight: "#A9D7EA", centerLine: "#EAFBFF", shortcut: "#657487", dust: "#AAB3BF", warning: "#E8C66A", sky: "#02050D", fog: "#070A12", structure: "#7E8998", boost: "#DFF8FF" },
+    palette: { road: "#465465", roadEmissive: "#0D141C", railLeft: "#EAF8FF", railRight: "#A9D7EA", centerLine: "#EAFBFF", shortcut: "#536173", dust: "#AAB3BF", warning: "#E8C66A", sky: "#02050D", fog: "#070A12", structure: "#7E8998", boost: "#DFF8FF" },
     surfaceType: "lunar-regolith-lane",
     backgroundType: "moon-surface",
     jumpStyle: "low-gravity",

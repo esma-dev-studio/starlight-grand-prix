@@ -6457,3 +6457,183 @@ button,
     font-size: 0.59rem;
   }
 }
+
+/* v48 motion feedback: event-driven speed without persistent particle cost. */
+#app.is-racing::after {
+  opacity: 0.72;
+  transition: opacity 120ms ease, background 120ms ease;
+}
+
+#app.is-racing.is-boosting::after {
+  opacity: 1;
+  background:
+    linear-gradient(108deg, rgba(125, 249, 255, 0.26), transparent 18%, transparent 82%, rgba(255, 209, 102, 0.24)),
+    radial-gradient(ellipse at 50% 58%, transparent 0 34%, rgba(4, 11, 22, 0.08) 53%, rgba(2, 6, 14, 0.58) 100%);
+  animation: boostFrameKick 260ms ease-out;
+}
+
+#app.is-racing.is-drifting::after {
+  background:
+    linear-gradient(105deg, rgba(255, 209, 102, 0.2), transparent 22%, transparent 76%, rgba(125, 249, 255, 0.18)),
+    radial-gradient(ellipse at 50% 70%, transparent 0 40%, rgba(2, 6, 14, 0.48) 100%);
+}
+
+@keyframes boostFrameKick {
+  0% { opacity: 0.34; }
+  45% { opacity: 1; }
+  100% { opacity: 0.84; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app.is-racing.is-boosting::after { animation: none; }
+}
+
+
+/* v48 cockpit hierarchy: one instrument language across race and menus. */
+#hud .hud-panel,
+#hud .hud-coach,
+#hud .race-flow,
+#hud .minimap-frame {
+  border-radius: 0;
+  border-color: rgba(166, 220, 232, 0.28);
+  background-color: rgba(3, 9, 18, 0.9);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+#hud .hud-left {
+  gap: 0;
+  border-left: 3px solid var(--racer-accent, #e8c66a);
+  background: rgba(3, 9, 18, 0.92);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+#hud .hud-left .hud-panel {
+  min-width: 0;
+  border-width: 1px 1px 1px 0;
+  clip-path: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+#hud .hud-left .hud-panel::after {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: rgba(166, 220, 232, 0.22);
+}
+
+#hud .hud-left #positionValue,
+#hud .hud-left #lapValue {
+  color: #f8fbff;
+  font-size: clamp(1.7rem, 3vw, 2.35rem);
+  line-height: 0.95;
+}
+
+#hud .hud-left #positionValue {
+  color: var(--racer-accent, #e8c66a);
+}
+
+#hud .hud-left #timeValue {
+  font-variant-numeric: tabular-nums;
+  color: #d9f7ff;
+}
+
+#hudRacerPanel,
+#hud .hud-right {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+#hud .speed-panel #speedValue {
+  color: #f8fbff;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--racer-accent, #7df9ff) 46%, transparent);
+}
+
+#hud .item-panel {
+  border-right: 3px solid var(--racer-accent, #7df9ff);
+}
+
+#hud .race-flow {
+  border-top: 1px solid rgba(166, 220, 232, 0.26);
+  border-bottom: 2px solid var(--racer-accent, #7df9ff);
+}
+
+#hud .race-progress {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+#hud .race-progress > i {
+  background: var(--racer-accent, #7df9ff);
+  box-shadow: none;
+}
+
+.mode-screen {
+  width: min(1080px, calc(100vw - 34px));
+}
+
+.mode-grid {
+  gap: 10px;
+}
+
+.mode-card {
+  min-height: 216px;
+  border-radius: 0;
+  border-top: 2px solid var(--mode-accent, #7df9ff);
+  background:
+    linear-gradient(112deg, color-mix(in srgb, var(--mode-accent, #7df9ff) 12%, transparent), transparent 48%),
+    rgba(4, 11, 21, 0.94);
+}
+
+.mode-card .mode-icon {
+  border-radius: 2px;
+}
+
+@media (max-width: 620px) {
+  #hud .hud-left #positionValue,
+  #hud .hud-left #lapValue {
+    font-size: 1.34rem;
+  }
+
+  #hud .hud-left {
+    border-left-width: 2px;
+  }
+}
+
+
+/* v48 race staging: opening, chase and final-lap states. */
+#app.is-opening-lap #hud .race-flow {
+  border-bottom-color: #9dddea;
+}
+
+#app.is-final-lap {
+  --phase-accent: #f2ce70;
+}
+
+#app.is-final-lap #hud .race-flow,
+#app.is-final-lap #hud .hud-left {
+  border-color: var(--phase-accent);
+}
+
+#app.is-final-lap #hud .race-progress > i {
+  background-color: var(--phase-accent);
+}
+
+#app.is-final-lap #hud .hud-left #lapValue {
+  color: var(--phase-accent);
+}
+
+#app.is-final-lap::before {
+  opacity: 0.62;
+  background:
+    linear-gradient(90deg, rgba(242, 206, 112, 0.1), transparent 18%, transparent 82%, rgba(242, 206, 112, 0.1)),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 5px);
+}
+
+#app.is-chasing #hud .hud-left #positionValue {
+  color: #ff8f72;
+}
+
+#app.is-front-pack #hud .hud-left #positionValue {
+  color: var(--racer-accent, #e8c66a);
+}
