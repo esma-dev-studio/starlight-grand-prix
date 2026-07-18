@@ -6165,3 +6165,295 @@ button,
     font-size: 0.64rem;
   }
 }
+/* v47 art direction: premium roster art, stronger hierarchy, restrained cockpit framing. */
+#screenOverlay { overflow-x: hidden !important; }
+:root {
+  --ui-ink: #030812;
+  --ui-panel: rgba(4, 10, 20, 0.96);
+  --ui-line: rgba(155, 225, 240, 0.26);
+  --ui-muted: #9db2bf;
+  --ui-gold: #e8c66a;
+}
+
+#selectScreen,
+#courseScreen {
+  width: min(1160px, calc(100vw - 34px));
+}
+
+#selectScreen .screen-heading,
+#courseScreen .screen-heading,
+#resultScreen .screen-heading {
+  padding-left: 15px;
+  border-left: 3px solid var(--ui-gold);
+}
+
+#selectScreen .select-copy,
+#courseScreen .course-copy {
+  border-left: 2px solid rgba(125, 249, 255, 0.38);
+  background: rgba(8, 18, 31, 0.74);
+}
+
+.racer-set-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.racer-set-card.choice-card.rich-card {
+  display: grid !important;
+  grid-template-columns: minmax(184px, 42%) minmax(0, 1fr);
+  grid-auto-rows: min-content;
+  align-content: center;
+  column-gap: 14px;
+  row-gap: 7px;
+  min-height: 326px;
+  padding: 0 14px 12px 0;
+  overflow: hidden;
+  text-align: left;
+  border-color: color-mix(in srgb, var(--accent, #ffd166) 34%, var(--ui-line));
+  background: linear-gradient(112deg, color-mix(in srgb, var(--primary, #7df9ff) 10%, transparent), transparent 42%), var(--ui-panel);
+}
+
+.racer-set-card.choice-card.rich-card > :not(.racer-set-visuals):not(.racer-ip-mark) {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.racer-set-card .racer-ip-mark {
+  display: none;
+}
+
+.racer-set-visuals {
+  grid-column: 1 !important;
+  grid-row: 1 / span 9 !important;
+  align-self: stretch;
+  min-height: 326px !important;
+  height: 100% !important;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--accent, #ffd166) 38%, var(--ui-line));
+  background: #050b14;
+}
+
+.racer-set-visuals::after {
+  left: 0;
+  top: auto;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  height: 42%;
+  transform: none;
+  background: linear-gradient(transparent, rgba(2, 7, 14, 0.82));
+}
+
+.racer-keyart {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 45%;
+  transform: scale(1.015);
+  transition: transform 180ms ease, filter 180ms ease;
+}
+
+.racer-set-card.selected .racer-keyart,
+.racer-set-card:hover .racer-keyart {
+  transform: scale(1.055);
+  filter: saturate(1.08) contrast(1.04);
+}
+
+.racer-set-visuals .set-character-slot,
+.racer-set-visuals .set-machine-slot {
+  display: none !important;
+}
+
+.racer-set-card .choice-kind {
+  align-self: end;
+  width: max-content;
+  margin-top: 12px;
+  padding: 3px 7px;
+  color: var(--accent, #ffd166);
+  border: 1px solid color-mix(in srgb, var(--accent, #ffd166) 46%, transparent);
+  background: transparent;
+  font-size: 0.62rem;
+  letter-spacing: 0;
+}
+
+.racer-set-card > strong {
+  color: #f7fbff;
+  font-size: 1.32rem;
+  line-height: 1.08;
+}
+
+.racer-set-card > small {
+  min-height: 2.4em;
+  color: #b2c3cd;
+  line-height: 1.45;
+}
+
+.racer-set-card .character-signature-label,
+.racer-set-card .machine-name {
+  padding: 7px 9px;
+  border-left: 3px solid var(--accent, #ffd166);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.racer-set-card .machine-name {
+  border-left-color: var(--machine-accent, #7df9ff);
+}
+
+.racer-set-card .set-stat-bars {
+  padding-block: 3px;
+}
+
+.racer-set-card .racer-line {
+  margin-top: 2px;
+  padding: 8px 9px;
+  color: #e8f2f7;
+  border: 1px solid rgba(211, 233, 240, 0.18);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 0.72rem;
+}
+
+.racer-set-card.selected {
+  border-color: var(--accent, #ffd166) !important;
+  box-shadow: inset 4px 0 0 var(--accent, #ffd166), 0 0 0 1px color-mix(in srgb, var(--accent, #ffd166) 34%, transparent), 0 22px 42px rgba(0, 0, 0, 0.46) !important;
+}
+
+#courseGrid.course-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+#courseGrid .course-card {
+  grid-template-columns: 82px minmax(0, 1fr);
+  min-height: 150px;
+  padding: 14px;
+  border-left: 3px solid var(--course-accent, #7df9ff);
+  background: linear-gradient(105deg, color-mix(in srgb, var(--course-accent, #7df9ff) 10%, transparent), transparent 42%), rgba(5, 12, 23, 0.94);
+}
+
+#courseGrid .course-orbit {
+  width: 70px;
+  height: 70px;
+}
+
+#courseGrid .course-card strong {
+  font-size: 1.08rem;
+}
+
+#courseGrid .course-one-line {
+  min-height: 0;
+  color: #aebfca;
+}
+
+.hud-racer-portrait {
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--accent, #ffd166) 62%, white 8%) !important;
+  background: #060d17 !important;
+}
+
+.hud-racer-keyart,
+.result-keyart {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.hud-racer-keyart {
+  object-position: center 30%;
+  transform: scale(1.08);
+}
+
+.result-racer-visuals {
+  position: relative;
+  overflow: hidden;
+  min-height: 190px;
+  border-right: 1px solid color-mix(in srgb, var(--accent, #ffd166) 38%, var(--ui-line));
+  background: #050b14;
+}
+
+.result-keyart {
+  position: absolute;
+  inset: 0;
+  object-position: center 43%;
+}
+
+#app.is-racing #hudRacerPanel {
+  border-left: 3px solid var(--racer-accent, #7df9ff) !important;
+}
+
+#app.is-racing .hud-left,
+#app.is-racing .hud-right {
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.36);
+}
+
+#app.is-racing .race-flow {
+  border-top-color: color-mix(in srgb, var(--racer-accent, #7df9ff) 52%, transparent);
+  background: rgba(3, 8, 16, 0.93);
+}
+
+#app.is-racing .minimap-frame {
+  background: rgba(2, 8, 16, 0.88) !important;
+}
+
+.result-award,
+.result-flow-award {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.045), transparent 68%), rgba(4, 10, 20, 0.82);
+}
+
+@media (max-width: 820px) {
+  .racer-set-grid,
+  #courseGrid.course-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .racer-set-card.choice-card.rich-card {
+    grid-template-columns: minmax(148px, 40%) minmax(0, 1fr);
+    min-height: 304px;
+  }
+
+  .racer-set-visuals {
+    min-height: 304px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  #selectScreen,
+  #courseScreen {
+    width: min(100%, calc(100vw - 18px));
+  }
+
+  .racer-set-card.choice-card.rich-card {
+    grid-template-columns: 38% minmax(0, 1fr);
+    column-gap: 10px;
+    min-height: 286px;
+    padding-right: 9px;
+  }
+
+  .racer-set-visuals {
+    min-height: 286px !important;
+  }
+
+  .racer-set-card > strong {
+    font-size: 1.02rem;
+  }
+
+  .racer-set-card > small,
+  .racer-set-card .racer-line {
+    font-size: 0.64rem;
+  }
+
+  .racer-set-card .character-signature-label,
+  .racer-set-card .machine-name {
+    padding: 5px 6px;
+    font-size: 0.62rem;
+  }
+
+  .racer-set-card .stat-bar {
+    grid-template-columns: 64px 1fr 14px;
+    font-size: 0.59rem;
+  }
+}

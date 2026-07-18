@@ -1141,6 +1141,17 @@ function machineForCharacter(character, fallbackIndex = 0) {
   return DATA.karts[machineIndexForCharacter(character, fallbackIndex)] || DATA.karts[0];
 }
 
+function characterKeyArt(character) {
+  const paths = {
+    "luna-mimi": "./assets/racer-luna-v47.webp",
+    "gamma-bolt": "./assets/racer-gamma-v47.webp",
+    "nebi-mist": "./assets/racer-nebi-v47.webp",
+    "sora-ranger": "./assets/racer-sora-v47.webp",
+    "comet-rin": "./assets/racer-rin-v47.webp"
+  };
+  return paths[character?.id] || paths["luna-mimi"];
+}
+
 function markMenuDirty() {
   menuDirty = true;
 }
@@ -1245,6 +1256,7 @@ function populateChoices() {
     button.innerHTML =
       '<span class="racer-ip-mark" aria-hidden="true"><i></i><b></b><em></em></span>' +
       '<span class="racer-set-visuals">' +
+        '<img class="racer-keyart" src="' + characterKeyArt(character) + '?v=47" alt="" loading="' + (index < 2 ? 'eager' : 'lazy') + '" decoding="async">' +
         '<span class="set-character-slot">' + characterVisualMarkup(character, "set-character") + '</span>' +
         '<span class="set-machine-slot">' + kartVisualMarkup(machine) + '</span>' +
       '</span>' +
@@ -1526,10 +1538,10 @@ function initThree() {
   camera = new THREE.PerspectiveCamera(62, 1, 0.1, 1600);
   camera.position.set(0, 20, -36);
 
-  const hemi = new THREE.HemisphereLight(0xd8f5ff, 0x111827, 1.45);
+  const hemi = new THREE.HemisphereLight(0xd8f5ff, 0x111827, 1.24);
   scene.add(hemi);
 
-  const sun = new THREE.DirectionalLight(0xffedc2, 2.15);
+  const sun = new THREE.DirectionalLight(0xffedc2, 1.82);
   sun.position.set(-70, 115, 60);
   sun.castShadow = !QUALITY.low;
   sun.shadow.mapSize.set(QUALITY.shadowSize, QUALITY.shadowSize);
@@ -1734,7 +1746,7 @@ function applyCourseAtmosphere(theme) {
   }
   if (scene) scene.background = new THREE.Color(theme.skyColor);
   if (renderer) {
-    const courseExposure = theme.id === "lunar-crater-run" || theme.id === "starlight-orbit-ring" ? 0.84 : 0.9;
+    const courseExposure = theme.id === "lunar-crater-run" ? 0.74 : theme.id === "starlight-orbit-ring" ? 0.8 : 0.88;
     renderer.toneMappingExposure = QUALITY.low ? courseExposure - 0.04 : courseExposure;
   }
 }
@@ -4766,7 +4778,7 @@ function createKartModel(character, kart, isPlayer) {
   const primary = new THREE.Color(kart.colors.primary || character.colors.primary);
   const secondary = new THREE.Color(kart.colors.secondary || character.colors.secondary);
   const accent = new THREE.Color(kart.boostColor || character.boostColor || kart.colors.glow || kart.colors.accent || character.colors.accent);
-  const silhouette = new THREE.Color(0x07111d).lerp(secondary, 0.28);
+  const silhouette = new THREE.Color(0x0b1725).lerp(secondary, 0.52);
   const canopyColor = new THREE.Color(0x07111d).lerp(accent, 0.16);
   group.userData.machineMotionParts = { pulse: [], spin: [], flutter: [], hover: [] };
   group.userData.machineProfile = profile;
@@ -4776,20 +4788,20 @@ function createKartModel(character, kart, isPlayer) {
     color: primary,
     emissive: primary,
     emissiveIntensity: isPlayer ? 0.025 : 0.012,
-    roughness: 0.58,
-    metalness: 0.22,
+    roughness: 0.42,
+    metalness: 0.34,
     flatShading: true
   });
   const trimMat = new THREE.MeshStandardMaterial({
     color: silhouette,
     emissive: secondary,
-    emissiveIntensity: 0.035,
-    roughness: 0.48,
-    metalness: 0.42,
+    emissiveIntensity: 0.055,
+    roughness: 0.38,
+    metalness: 0.5,
     flatShading: true
   });
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x050b13, roughness: 0.72, metalness: 0.3, flatShading: true });
-  const tireMat = new THREE.MeshStandardMaterial({ color: 0x030508, roughness: 0.74, metalness: 0.08, flatShading: true });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x0b1522, roughness: 0.62, metalness: 0.38, flatShading: true });
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x080d15, roughness: 0.7, metalness: 0.12, flatShading: true });
   const glassMat = new THREE.MeshStandardMaterial({
     color: canopyColor,
     emissive: accent,
@@ -4971,6 +4983,7 @@ function createKartModel(character, kart, isPlayer) {
     new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.1, blending: THREE.AdditiveBlending, depthWrite: false })
   );
   underglow.rotation.x = -Math.PI / 2;
+  underglow.material.opacity = 0.16;
   underglow.position.y = 0.11;
   group.add(underglow);
 
@@ -5622,8 +5635,17 @@ function createWheelAssembly(profile, accent, tireMat, glowMat, rear) {
   tire.userData.spin = true;
   group.add(tire);
 
+  if (type !== "bastion") {
+    const hoverHaloMat = glowMat.clone();
+    hoverHaloMat.opacity = type === "moon" || type === "comet" ? 0.82 : 0.56;
+    const hoverHalo = new THREE.Mesh(new THREE.TorusGeometry(profile.wheelRadius * 1.08, type === "moon" ? 0.06 : 0.042, 8, 34), hoverHaloMat);
+    hoverHalo.rotation.y = Math.PI / 2;
+    hoverHalo.scale.set(1, type === "comet" ? 0.72 : 1, type === "moon" ? 0.82 : 1);
+    group.add(hoverHalo);
+  }
+
   const treadMat = new THREE.MeshStandardMaterial({ color: type === "bastion" ? 0x1a1f2b : 0x111723, roughness: 0.72, metalness: type === "bastion" ? 0.3 : 0.12 });
-  const treadCount = type === "bastion" ? 18 : type === "comet" ? 8 : 12;
+  const treadCount = type === "bastion" ? 12 : type === "comet" ? 6 : 8;
   for (let i = 0; i < treadCount; i += 1) {
     const angle = (i / treadCount) * Math.PI * 2;
     const tread = new THREE.Mesh(new THREE.BoxGeometry(type === "bastion" ? 0.34 : 0.22, 0.05, type === "comet" ? 0.14 : 0.22), treadMat);
@@ -5659,7 +5681,7 @@ function createWheelAssembly(profile, accent, tireMat, glowMat, rear) {
   }
 
   const boltMat = new THREE.MeshStandardMaterial({ color: 0xe7f5ff, emissive: accentHex, emissiveIntensity: 0.22, roughness: 0.18, metalness: 0.8 });
-  const boltCount = type === "bastion" ? 8 : 6;
+  const boltCount = type === "bastion" ? 6 : 4;
   for (let i = 0; i < boltCount; i += 1) {
     const angle = (i / boltCount) * Math.PI * 2;
     const bolt = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.035, 8), boltMat);
@@ -8363,7 +8385,7 @@ function updateHudCharacter() {
   const key = character.id || displayName(character);
   if (key === lastHudCharacter) return;
   lastHudCharacter = key;
-  dom.hudRacerPortrait.innerHTML = characterVisualMarkup(character, "hud-racer-visual");
+  dom.hudRacerPortrait.innerHTML = '<img class="hud-racer-keyart" src="' + characterKeyArt(character) + '?v=47" alt="">';
   dom.hudRacerName.textContent = displayName(character);
   dom.hudRacerLine.textContent = art.shortLine || art.line;
   dom.hudRacerPanel?.style.setProperty("--primary", character.colors?.primary || "#7df9ff");
@@ -8383,8 +8405,7 @@ function resultCharacterCardMarkup(character) {
   const machineAccent = machine?.boostColor || machine?.colors?.accent || machine?.colors?.glow || accent;
   return '<div class="result-racer-card racer-' + escapeHtml(characterClassId(character)) + '" style="--primary:' + escapeHtml(primary) + ';--secondary:' + escapeHtml(secondary) + ';--accent:' + escapeHtml(accent) + ';--machine-primary:' + escapeHtml(machinePrimary) + ';--machine-secondary:' + escapeHtml(machineSecondary) + ';--machine-accent:' + escapeHtml(machineAccent) + '">' +
     '<span class="result-racer-visuals">' +
-      '<span class="result-racer-portrait">' + characterVisualMarkup(character, "result-racer-visual") + '</span>' +
-      '<span class="result-machine-portrait">' + kartVisualMarkup(machine) + '</span>' +
+      '<img class="result-keyart" src="' + characterKeyArt(character) + '?v=47" alt="">' +
     '</span>' +
     '<span class="result-racer-copy">' +
       '<span>ゴールポーズ</span>' +
@@ -8436,8 +8457,8 @@ function updateCamera(dt) {
   const portraitFraming = clamp((0.86 - camera.aspect) / 0.42, 0, 1);
   const duelFocus = state.duelActive ? 1 : 0;
   const finalLapFocus = player.startedLap && player.lap >= activeLapTotal() - 1 ? 1 : 0;
-  const behind = 14.8 + speed01 * 8.6 + (boosting ? 4.2 : 0) + portraitFraming * 7.5 - duelFocus * 1.25 + finalLapFocus * 1.15;
-  const height = 5.7 + speed01 * 2.7 + portraitFraming * 1.8 - duelFocus * 0.28;
+  const behind = 16.2 + speed01 * 8.9 + (boosting ? 4.5 : 0) + portraitFraming * 7.8 - duelFocus * 1.25 + finalLapFocus * 1.15;
+  const height = 4.95 + speed01 * 2.35 + portraitFraming * 1.8 - duelFocus * 0.28;
   const targetPos = player.position
     .clone()
     .addScaledVector(forward, -behind)
