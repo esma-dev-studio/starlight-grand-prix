@@ -12,6 +12,24 @@
     musicTempo: 136
   };
 
+  var MUSIC_SCORES = {
+    lunar: {
+      roots: [73.42, 87.31, 98.0, 82.41],
+      leads: [293.66, 0, 369.99, 440.0, 554.37, 440.0, 369.99, 0, 329.63, 0, 415.3, 493.88, 659.25, 493.88, 415.3, 0]
+    },
+    mars: {
+      roots: [65.41, 77.78, 69.3, 58.27],
+      leads: [261.63, 0, 311.13, 392.0, 466.16, 392.0, 311.13, 0, 233.08, 0, 293.66, 349.23, 392.0, 349.23, 293.66, 0]
+    },
+    ring: {
+      roots: [82.41, 98.0, 110.0, 92.5],
+      leads: [329.63, 0, 415.3, 493.88, 659.25, 493.88, 415.3, 0, 369.99, 0, 493.88, 587.33, 739.99, 587.33, 493.88, 0]
+    },
+    ice: {
+      roots: [87.31, 103.83, 116.54, 98.0],
+      leads: [698.46, 0, 830.61, 987.77, 1174.66, 987.77, 830.61, 0, 783.99, 0, 932.33, 1108.73, 1318.51, 1108.73, 932.33, 0]
+    }
+  };
   function clamp(value, min, max, fallback) {
     value = Number(value);
     if (!isFinite(value)) {
@@ -122,6 +140,7 @@
       this.engineNodes = null;
       this.engineWanted = false;
       this.engineState = { speed: 0, boost: 0 };
+      this.raceState = { intensity: 0, finalLap: false, theme: "lunar" };
       this.musicWanted = false;
       this.musicTimer = null;
       this.musicStep = 0;
@@ -187,6 +206,57 @@
       }, this);
     }
 
+    setRaceState(intensity, finalLap, theme) {
+      return this._guard(function () {
+        var nextIntensity = clamp01(intensity);
+        var nextFinal = !!finalLap;
+        var nextTheme = theme || "lunar";
+        var changed = Math.abs(nextIntensity - this.raceState.intensity) > 0.025 || nextFinal !== this.raceState.finalLap || nextTheme !== this.raceState.theme;
+        this.raceState.intensity = nextIntensity;
+        this.raceState.finalLap = nextFinal;
+        this.raceState.theme = nextTheme;
+        if (changed && this.ctx && this.musicBus) {
+          setTarget(this.musicBus.gain, this.options.musicVolume * (0.9 + nextIntensity * 0.18 + (nextFinal ? 0.12 : 0)), this.ctx.currentTime, 0.08);
+        }
+        return this;
+      }, this);
+    }
+
+    playSkill(level) {
+      return this._guard(function () {
+        if (!this._ensureContext()) return this;
+        var stage = clamp(level, 1, 3, 1);
+        var t = this.ctx.currentTime + 0.008;
+        var base = stage === 3 ? 783.99 : stage === 2 ? 659.25 : 523.25;
+        this._tone(base, 0.13, { time: t, type: "triangle", gain: 0.09 + stage * 0.015, bus: "sfx", delaySend: true });
+        this._tone(base * 1.5, 0.18, { time: t + 0.055, type: "sine", gain: 0.065 + stage * 0.012, bus: "sfx", delaySend: true });
+        if (stage >= 3) this._tone(base * 2, 0.28, { time: t + 0.11, type: "sine", gain: 0.07, bus: "sfx", delaySend: true });
+        return this;
+      }, this);
+    }
+
+    playLap(finalLap) {
+      return this._guard(function () {
+        if (!this._ensureContext()) return this;
+        var t = this.ctx.currentTime + 0.01;
+        var notes = finalLap ? [659.25, 783.99, 987.77, 1318.51] : [523.25, 659.25, 783.99];
+        for (var i = 0; i < notes.length; i += 1) {
+          this._tone(notes[i], finalLap ? 0.19 : 0.14, { time: t + i * 0.075, type: i % 2 ? "square" : "triangle", gain: finalLap ? 0.12 : 0.085, bus: "sfx", delaySend: true });
+        }
+        return this;
+      }, this);
+    }
+
+    playOvertake(rank) {
+      return this._guard(function () {
+        if (!this._ensureContext()) return this;
+        var t = this.ctx.currentTime + 0.008;
+        var high = Number(rank) === 1 ? 1174.66 : 987.77;
+        this._tone(493.88, 0.12, { time: t, type: "square", endFreq: high, gain: 0.09, bus: "sfx" });
+        this._tone(high, 0.2, { time: t + 0.09, type: "sine", gain: 0.08, bus: "sfx", delaySend: true });
+        return this;
+      }, this);
+    }
     startEngine() {
       return this._guard(function () {
         this.engineWanted = true;
@@ -581,7 +651,7 @@
       setTarget(this.master.gain, this.muted ? 0 : this.options.masterVolume, t, 0.018);
       setTarget(this.engineBus.gain, this.options.engineVolume, t, 0.018);
       setTarget(this.sfxBus.gain, this.options.sfxVolume, t, 0.018);
-      setTarget(this.musicBus.gain, this.options.musicVolume, t, 0.04);
+      setTarget(this.musicBus.gain, this.options.musicVolume * (0.9 + this.raceState.intensity * 0.18 + (this.raceState.finalLap ? 0.12 : 0)), t, 0.04);
     }
 
     _prime() {
@@ -675,8 +745,9 @@
       var t = this.ctx.currentTime;
       var speed = this.engineState.speed;
       var boost = this.engineState.boost;
-      var base = 54 + speed * 175 + boost * 68;
-      var filterFreq = 360 + speed * 1850 + boost * 1050;
+      var themePitch = this.raceState.theme === "mars" ? -8 : this.raceState.theme === "ring" ? 10 : this.raceState.theme === "ice" ? 17 : 0;
+      var base = 54 + themePitch + speed * 175 + boost * 68;
+      var filterFreq = 360 + speed * 1850 + boost * 1050 + this.raceState.intensity * 280;
       var amount = this.engineWanted ? 0.13 + speed * 0.7 + boost * 0.24 : 0;
 
       setTarget(nodes.low.frequency, base, t, 0.055);
@@ -865,7 +936,8 @@
       if (!this.musicWanted || !this.ctx) {
         return;
       }
-      var stepDur = 60 / this.options.musicTempo / 2;
+      var raceTempo = this.options.musicTempo * (1 + this.raceState.intensity * 0.08 + (this.raceState.finalLap ? 0.12 : 0));
+      var stepDur = 60 / raceTempo / 2;
       var horizon = this.ctx.currentTime + 0.45;
       if (!this.musicNextTime || this.musicNextTime < this.ctx.currentTime - 0.1) {
         this.musicNextTime = this.ctx.currentTime + 0.04;
@@ -879,20 +951,17 @@
 
     _musicStep(step, t, stepDur) {
       var chordIndex = Math.floor(step / 8) % 4;
-      var roots = [73.42, 87.31, 98.0, 82.41];
-      var leads = [
-        293.66, 0, 369.99, 440.0, 554.37, 440.0, 369.99, 0,
-        329.63, 0, 415.3, 493.88, 659.25, 493.88, 415.3, 0
-      ];
-      var rootFreq = roots[chordIndex];
-      var leadFreq = leads[step % leads.length];
+      var score = MUSIC_SCORES[this.raceState.theme] || MUSIC_SCORES.lunar;
+      var rootFreq = score.roots[chordIndex];
+      var leadFreq = score.leads[step % score.leads.length];
+      var intensityGain = 1 + this.raceState.intensity * 0.28 + (this.raceState.finalLap ? 0.18 : 0);
 
       if (step % 4 === 0) {
         this._tone(rootFreq, stepDur * 2.2, {
           time: t,
           type: "triangle",
           endFreq: rootFreq * 0.98,
-          gain: 0.095,
+          gain: 0.095 * intensityGain,
           bus: "music",
           filterType: "lowpass",
           filterFreq: 220
@@ -910,7 +979,7 @@
         this._tone(leadFreq, stepDur * 0.72, {
           time: t,
           type: step % 4 === 2 ? "triangle" : "sine",
-          gain: 0.048,
+          gain: 0.048 * intensityGain,
           bus: "music",
           filterType: "lowpass",
           filterFreq: 2800,

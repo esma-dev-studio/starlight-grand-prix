@@ -5931,3 +5931,143 @@ button,
 #hud[hidden] .race-flow {
   display: none !important;
 }
+/* v45 beyond pass: live pace, rivalry and skill-chain telemetry. */
+.race-flow {
+  width: min(610px, 52vw);
+  grid-template-columns: minmax(120px, 1.15fr) minmax(94px, 1.2fr) minmax(112px, 1fr) minmax(112px, 1fr);
+}
+
+.race-intel {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+  padding-inline: 9px;
+  border-inline: 1px solid rgba(145, 211, 226, 0.14);
+}
+
+.race-intel small {
+  color: #8faabd;
+  font-size: 0.57rem;
+  font-weight: 850;
+}
+
+.race-intel strong {
+  overflow: hidden;
+  color: #d9e8ef;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-intel strong.pace-ahead {
+  color: #78f7c0;
+}
+
+.race-intel strong.pace-behind {
+  color: #ffba86;
+}
+
+.race-intel em {
+  overflow: hidden;
+  color: #9fb4c1;
+  font-size: 0.59rem;
+  font-style: normal;
+  font-weight: 750;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-intel em[data-relation="behind"] {
+  color: #ffd166;
+}
+
+#hud.is-boosting .race-intel,
+#hud.is-drifting .race-intel {
+  border-color: color-mix(in srgb, var(--racer-accent, #7df9ff) 38%, transparent);
+}
+
+@media (max-width: 900px), (pointer: coarse) {
+  .race-flow {
+    width: min(500px, 62vw);
+    grid-template-columns: minmax(92px, 1fr) minmax(72px, 1fr) minmax(94px, 1fr) minmax(88px, 0.9fr);
+  }
+
+  .race-intel {
+    padding-inline: 5px;
+  }
+
+  .race-intel strong {
+    font-size: 0.64rem;
+  }
+
+  .race-intel em {
+    font-size: 0.53rem;
+  }
+}
+
+@media (max-width: 620px) {
+  .race-flow {
+    width: min(330px, calc(100vw - 92px));
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 7px;
+  }
+
+  .race-flow-copy {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .race-intel {
+    grid-column: 2;
+    grid-row: 1;
+    border-right: 0;
+  }
+
+  .race-progress {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .drift-readout {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 7px;
+  }
+
+  .drift-readout > i {
+    grid-column: 1 / -1;
+  }
+
+  .race-intel em {
+    display: none;
+  }
+}
+/* v45 device layout: keep race intelligence clear of minimap and touch controls. */
+@media (min-width: 621px) and (max-width: 1180px) {
+  .race-flow {
+    top: calc(152px + var(--safe-top));
+    bottom: auto;
+    width: min(450px, 44vw);
+  }
+
+  #hud .minimap-frame {
+    top: calc(228px + var(--safe-top));
+    bottom: auto;
+  }
+}
+
+@media (max-width: 620px) {
+  .race-flow {
+    top: calc(106px + var(--safe-top));
+    bottom: auto;
+  }
+
+  #hud .minimap-frame {
+    top: calc(192px + var(--safe-top));
+    bottom: auto;
+  }
+}

@@ -402,7 +402,10 @@ const state = {
   lastSectorKey: "",
   noticeTimer: 0,
   lapStartedAt: 0,
-  lapTimes: []
+  lapTimes: [],
+  sectorSplits: [],
+  paceDelta: null,
+  bestSkillChain: 0
 };
 
 const input = {
@@ -677,6 +680,9 @@ function cacheDom() {
     "sectorKicker",
     "sectorName",
     "raceProgressFill",
+    "paceLabel",
+    "paceValue",
+    "rivalGap",
     "driftReadout",
     "driftStage",
     "driftMeterFill",
@@ -1028,13 +1034,15 @@ function bestRecord(course = activeCourse(), mode = raceMode()) {
   return recordsStore()[raceRecordKey(course, mode)] || null;
 }
 
-function saveRaceRecord(time, rank) {
+function saveRaceRecord(time, rank, splits = state.sectorSplits) {
   const store = recordsStore();
   const key = raceRecordKey();
   const previous = store[key] || null;
   const isBest = !previous || time < previous.time;
   store[key] = {
     time: isBest ? time : previous.time,
+    splits: isBest ? [...splits] : (previous?.splits || []),
+    bestSkillChain: Math.max(state.bestSkillChain || 0, previous?.bestSkillChain || 0),
     bestRank: Math.min(rank, previous?.bestRank || 99),
     races: (previous?.races || 0) + 1,
     updatedAt: Date.now()
@@ -1868,7 +1876,7 @@ function buildTrack() {
 
   const theme = courseTheme(course);
   applyCourseAtmosphere(theme);
-  const trackInfo = { curve, samples, width: TRACK_WIDTH, group: new THREE.Group(), layout: courseLayout(course), theme, topology };
+  const trackInfo = { curve, samples, width: TRACK_WIDTH, totalLength, group: new THREE.Group(), layout: courseLayout(course), theme, topology };
   scene.add(trackInfo.group);
 
   addThemedTrackFoundation(trackInfo, theme);
@@ -4561,6 +4569,9 @@ function resetRace() {
   state.lastSectorKey = "";
   state.lapStartedAt = 0;
   state.lapTimes = [];
+  state.sectorSplits = [];
+  state.paceDelta = null;
+  state.bestSkillChain = 0;
   lastCoachKey = "";
   lastHudLap = 0;
   lastHudRank = 1;
@@ -4674,6 +4685,10 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     verticalSpeed: 0,
     jumpHeight: 0,
     wasAirborne: false,
+    airTime: 0,
+    jumpPeak: 0,
+    skillChain: 0,
+    skillChainTimer: 0,
     lap: 0,
     startedLap: false,
     trackIndex: nearest.index,
@@ -6372,6 +6387,10 @@ function finishRace() {
   if (state.finishSequence) return;
   state.finishSequence = true;
   state.finishTime = state.time;
+  const finishCheckpoint = activeLapTotal() * courseSectors().length;
+  state.sectorSplits[finishCheckpoint] = state.finishTime;
+  const finishReference = bestRecord()?.splits?.[finishCheckpoint] ?? bestRecord()?.time;
+  state.paceDelta = Number.isFinite(finishReference) ? state.finishTime - finishReference : null;
   state.mode = "finish";
   dom.app?.classList.add("is-racing", "is-finish");
   dom.mobileControls.classList.remove("active");
@@ -6411,7 +6430,8 @@ function renderRaceResults(winner, playerRank) {
       '<div><span>モード</span><strong>' + escapeHtml(mode.name) + '</strong></div>' +
       '<div><span>タイム</span><strong>' + formatTime(state.finishTime) + '</strong></div>' +
       '<div><span>ベスト</span><strong>' + formatTime(saved.record.time) + '</strong></div>' +
-      '<div><span>さいそくラップ</span><strong>' + formatTime(fastestLap) + '</strong></div>';
+      '<div><span>さいそくラップ</span><strong>' + formatTime(fastestLap) + '</strong></div>' +
+      '<div><span>スキルれんぞく</span><strong>' + (state.bestSkillChain || 0) + 'かい</strong></div>';
     return;
   }
   dom.resultTitle.textContent = playerRank === 1 ? "1い！ やったね！" : "レースのけっか";
@@ -6420,6 +6440,7 @@ function renderRaceResults(winner, playerRank) {
     '<div><span>じゅんい</span><strong>' + playerRank + '/' + racers.length + '</strong></div>' +
     '<div><span>タイム</span><strong>' + formatTime(state.finishTime) + '</strong></div>' +
     '<div><span>さいそくラップ</span><strong>' + formatTime(fastestLap) + '</strong></div>' +
+    '<div><span>スキルれんぞく</span><strong>' + (state.bestSkillChain || 0) + 'かい</strong></div>' +
     '<div><span>1いのレーサー</span><strong>' + escapeHtml(displayName(winner.character)) + '</strong></div>';
 }
 function showGoalBanner(playerRank) {
@@ -6584,6 +6605,8 @@ function updateRacer(racer, dt) {
   racer.impactPose = Math.max(0, (racer.impactPose || 0) - dt * 2.4);
   racer.miniTurboTimer = Math.max(0, racer.miniTurboTimer - dt);
   racer.wobble = Math.max(0, racer.wobble - dt * 3);
+  racer.skillChainTimer = Math.max(0, (racer.skillChainTimer || 0) - dt);
+  if (racer.skillChainTimer <= 0 && (racer.skillChain || 0) > 0) racer.skillChain = 0;
 
   const controls = racer.isPlayer ? readPlayerControls() : readCpuControls(racer, dt);
   if (racer.isPlayer) {
@@ -6706,6 +6729,10 @@ function updateRacer(racer, dt) {
   nearest = stabilizeRacerGrounding(racer, nearest, dt);
 
   const wasAirborne = racer.wasAirborne;
+  if (wasAirborne || racer.jumpHeight > 0.08 || racer.verticalSpeed > 0) {
+    racer.airTime = (racer.airTime || 0) + dt;
+    racer.jumpPeak = Math.max(racer.jumpPeak || 0, racer.jumpHeight || 0);
+  }
   if (racer.jumpHeight > 0 || racer.verticalSpeed > 0) {
     racer.verticalSpeed -= (track?.theme?.gravityFeel === "low" ? 24 : track?.theme?.gravityFeel === "floaty" ? 27 : 34) * dt;
     racer.jumpHeight = Math.max(0, racer.jumpHeight + racer.verticalSpeed * dt);
@@ -6713,6 +6740,7 @@ function updateRacer(racer, dt) {
   }
   racer.wasAirborne = racer.jumpHeight > 0.08 || racer.verticalSpeed > 0;
   if (wasAirborne && !racer.wasAirborne) {
+    handleLandingGrade(racer, nearest);
     if (lunarSurface) {
       spawnMoonDust(racer.position, racer.isPlayer ? 12 : 6, racer.isPlayer ? 1.15 : 0.78);
       spawnShockwave(racer.position, 0xdde8f2, racer.isPlayer ? 3.2 : 2.2);
@@ -7210,6 +7238,7 @@ function handleRaceProgress(racer, nearest) {
         gameHaptic([12, 28, 14]);
         const finalLap = racer.lap === activeLapTotal() - 1;
         showRaceNotice(finalLap ? "ファイナルラップ" : "つぎのしゅう", finalLap ? "さいごの1しゅう！" : (racer.lap + 1) + "しゅう目", finalLap ? "ゴールまで全力で走ろう" : "ベストラインをねらおう", finalLap ? "final" : "info", 1750);
+        playAudio("lap", finalLap);
       }
       if (racer.lap >= activeLapTotal()) {
         racer.finished = true;
@@ -7302,12 +7331,55 @@ function handleBoostPanels(racer, nearest) {
   }
 }
 
+function breakSkillChain(racer) {
+  if (!racer) return;
+  racer.skillChain = 0;
+  racer.skillChainTimer = 0;
+}
+
+function handleLandingGrade(racer, nearest) {
+  const airTime = racer.airTime || 0;
+  const jumpPeak = racer.jumpPeak || 0;
+  racer.airTime = 0;
+  racer.jumpPeak = 0;
+  if (!racer.isPlayer || airTime < 0.32 || !nearest?.sample) return;
+
+  const trackYaw = Math.atan2(nearest.sample.tangent.x, nearest.sample.tangent.z);
+  const yawError = Math.abs(shortestAngle(racer.yaw, trackYaw));
+  const centered = Math.abs(nearest.lateral || 0) / TRACK_WIDTH;
+  const perfect = airTime > 0.58 && yawError < 0.15 && centered < 0.24;
+  const clean = yawError < 0.3 && centered < 0.38;
+
+  if (perfect || clean) {
+    const reward = perfect ? 0.72 : 0.34;
+    racer.miniTurboTimer = Math.max(racer.miniTurboTimer, reward);
+    racer.skillChain = (racer.skillChain || 0) + 1;
+    racer.skillChainTimer = 5.2;
+    state.bestSkillChain = Math.max(state.bestSkillChain || 0, racer.skillChain);
+    const accent = colorToHex(racer.kart.boostColor || racer.character.boostColor || "#ffd166");
+    spawnShockwave(racer.position, perfect ? 0xffffff : accent, perfect ? 5.8 : 4.0);
+    showRaceNotice(
+      perfect ? "パーフェクト着地" : "ナイス着地",
+      perfect ? "ふわっとダッシュ！" : "着地ダッシュ！",
+      racer.skillChain > 1 ? racer.skillChain + "れんぞく スキル！" : (jumpPeak > 2.8 ? "大ジャンプせいこう" : "まっすぐ着地できたよ"),
+      perfect ? "final" : "boost",
+      1050
+    );
+    playAudio("skill", perfect ? 3 : 1);
+    gameHaptic(perfect ? [8, 16, 24] : 10);
+  } else {
+    breakSkillChain(racer);
+  }
+}
+
 function handleJumpRamps(racer, nearest) {
   for (const obstacle of obstacles) {
     if (obstacle.type !== "ramp") continue;
     if (indexDistance(nearest.index, obstacle.index) < 3 && Math.abs(nearest.lateral) < TRACK_WIDTH * 0.34 && racer.jumpHeight < 0.1) {
       racer.verticalSpeed = (track?.theme?.gravityFeel === "low" ? 14.5 : track?.theme?.gravityFeel === "floaty" ? 13.2 : 12) + Math.max(racer.speed, 0) * (track?.theme?.gravityFeel === "stable" ? 0.07 : 0.085);
       racer.jumpHeight = 0.2;
+      racer.airTime = 0;
+      racer.jumpPeak = 0.2;
       spawnBurst(racer.position, track?.theme?.boostColor || 0x9ee7ff, QUALITY.low ? 5 : 10, 1);
       break;
     }
@@ -7360,6 +7432,7 @@ function handleObstacleCollisions(racer, nearest) {
         spawnShockwave(racer.position, racer.kart.colors.accent || racer.character.colors.accent, obstacle.type === "pylon" ? 2.6 : 4.4);
         adjustShield(racer, obstacle.type === "pylon" ? -7 : -16, { big: obstacle.type !== "pylon" });
         if (racer.isPlayer) {
+          breakSkillChain(racer);
           playAudio("collision", obstacle.type === "pylon" ? 0.28 : 0.55);
           gameHaptic(obstacle.type === "pylon" ? 18 : [24, 28, 34]);
         }
@@ -7717,6 +7790,7 @@ function hitRacer(racer, item, owner, stun = 1.25) {
   spawnBurst(racer.position, colorToHex(item.color), 24, 1.8);
   spawnShockwave(racer.position, colorToHex(item.color), 6.8);
   if (racer.isPlayer || owner?.isPlayer) {
+    if (racer.isPlayer) breakSkillChain(racer);
     cameraShake = Math.max(cameraShake, 0.8);
     playAudio("collision", 0.7);
     if (racer.isPlayer) gameHaptic([30, 35, 45]);
@@ -7989,6 +8063,7 @@ function updateHud() {
     dom.positionValue.classList.add("rank-bump", rankDelta < 0 ? "rank-up" : "rank-down");
     if (rankDelta < 0 && state.time > 3) {
       showRaceNotice("ポジションアップ", state.rank + "いへ！", "このまま前をねらおう", "boost", 900);
+      playAudio("overtake", state.rank);
       gameHaptic(10);
     }
     lastHudRank = state.rank;
@@ -8051,6 +8126,31 @@ function updateHud() {
   updateRaceFlow();
 }
 
+function formatPaceDelta(delta) {
+  if (!Number.isFinite(delta)) return "--";
+  const amount = Math.abs(delta).toFixed(1);
+  return delta <= 0 ? amount + "びょう はやい" : amount + "びょう おそい";
+}
+
+function updateRivalGap() {
+  if (!dom.rivalGap || !player) return;
+  const rivals = racers.filter((racer) => racer !== player);
+  if (!rivals.length) {
+    dom.rivalGap.textContent = (player.skillChain || 0) > 1 ? player.skillChain + "れんぞく スキル" : "じぶんのベストへ";
+    return;
+  }
+  const nearest = rivals.reduce((best, racer) => {
+    const gap = (racer.progress || 0) - (player.progress || 0);
+    return !best || Math.abs(gap) < Math.abs(best.gap) ? { racer, gap } : best;
+  }, null);
+  const metersPerStep = (track?.totalLength || TRACK_STEPS * 2) / TRACK_STEPS;
+  const meters = Math.max(1, Math.round(Math.abs(nearest.gap) * metersPerStep));
+  const relation = nearest.gap >= 0 ? "前まで " : "後ろまで ";
+  const chain = (player.skillChain || 0) > 1 ? " / " + player.skillChain + "れんぞく" : "";
+  dom.rivalGap.textContent = relation + meters + "m" + chain;
+  dom.rivalGap.dataset.relation = nearest.gap >= 0 ? "ahead" : "behind";
+}
+
 function updateRaceFlow() {
   if (!player || !dom.raceFlow) return;
   const sectors = courseSectors();
@@ -8072,13 +8172,26 @@ function updateRaceFlow() {
   dom.driftStage.textContent = player.driftActive ? stage.label : player.miniTurboTimer > 0 ? "ダッシュ！" : "ためよう";
   dom.driftMeterFill.style.width = (driftPct * 100).toFixed(1) + "%";
 
-  if (state.lastSectorKey && key !== state.lastSectorKey && state.mode === "racing") {
-    showRaceNotice("セクター " + (sectorIndex + 1) + "/" + sectors.length, sector.name, sector.tip, "info", 1300);
+  if (state.lastSectorKey && key !== state.lastSectorKey && state.mode === "racing" && player.startedLap) {
+    const checkpoint = player.lap * sectors.length + sectorIndex;
+    if (!Number.isFinite(state.sectorSplits[checkpoint])) state.sectorSplits[checkpoint] = state.time;
+    const reference = bestRecord()?.splits?.[checkpoint];
+    state.paceDelta = Number.isFinite(reference) ? state.time - reference : null;
+    const paceText = Number.isFinite(state.paceDelta) ? " / " + formatPaceDelta(state.paceDelta) : "";
+    showRaceNotice("セクター " + (sectorIndex + 1) + "/" + sectors.length, sector.name, sector.tip + paceText, Number.isFinite(state.paceDelta) && state.paceDelta <= 0 ? "boost" : "info", 1400);
+    playAudio("skill", Number.isFinite(state.paceDelta) && state.paceDelta <= 0 ? 2 : 1);
     gameHaptic(8);
   }
   state.lastSectorKey = key;
-}
 
+  const record = bestRecord();
+  if (dom.paceValue) {
+    dom.paceValue.textContent = record ? (Number.isFinite(state.paceDelta) ? formatPaceDelta(state.paceDelta) : "けいそく中") : "ベストなし";
+    dom.paceValue.classList.toggle("pace-ahead", Number.isFinite(state.paceDelta) && state.paceDelta <= 0);
+    dom.paceValue.classList.toggle("pace-behind", Number.isFinite(state.paceDelta) && state.paceDelta > 0);
+  }
+  updateRivalGap();
+}
 function updateRaceCoach(boosting, speedKmh) {
   if (!dom.hudCoach || !player || state.mode !== "racing") return;
   const nearest = track ? nearestTrackSample(player.position, player.trackIndex) : null;
@@ -8261,7 +8374,14 @@ function updateCamera(dt) {
 function updateAudio() {
   if (!audio || !player) return;
   const speed01 = clamp(player.speed / 68, 0, 1);
-  audio.setEngine?.(speed01, player.boostTimer > 0 ? 1 : 0);
+  const boosting = player.boostTimer > 0 || player.miniTurboTimer > 0;
+  const closeRival = racers.some((racer) => racer !== player && Math.abs((racer.progress || 0) - (player.progress || 0)) < TRACK_STEPS * 0.055);
+  const finalLap = player.startedLap && player.lap >= activeLapTotal() - 1;
+  const intensity = clamp(speed01 * 0.58 + (boosting ? 0.18 : 0) + (closeRival ? 0.13 : 0) + (finalLap ? 0.2 : 0), 0, 1);
+  const themeId = track?.theme?.id || "";
+  const audioTheme = themeId === "meteor-mining-belt" ? "mars" : themeId === "starlight-orbit-ring" ? "ring" : themeId === "nebula-drift-stream" ? "ice" : "lunar";
+  audio.setRaceState?.(intensity, finalLap, audioTheme);
+  audio.setEngine?.(speed01, boosting ? 1 : 0);
 }
 
 function gameHaptic(pattern = 12) {
@@ -8280,7 +8400,10 @@ function playAudio(name, ...args) {
     itemPickup: ["itemPickup", "playItemPickup", "playItemGet"],
     itemUse: ["itemUse", "playItemUse", "playUseItem"],
     collision: ["collision", "playCollision", "playCrash"],
-    goal: ["goal", "playGoal", "playFinish"]
+    goal: ["goal", "playGoal", "playFinish"],
+    skill: ["skill", "playSkill"],
+    lap: ["lap", "playLap"],
+    overtake: ["overtake", "playOvertake"]
   };
   const methods = aliases[name] || [name];
   for (const method of methods) {
