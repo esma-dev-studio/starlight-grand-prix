@@ -4,14 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>スターライト・グランプリ</title>
-    <link rel="stylesheet" href="./style.css?v=design-v48-release" />
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
-        }
-      }
-    </script>
+    <link rel="stylesheet" href="./style.css?v=ipad-v49-release" />
+
   </head>
   <body>
     <main id="app">
@@ -208,22 +202,27 @@
     <script>
       (() => {
         window.__earlyStartRequested = false;
+        window.__earlyScreenRequested = "";
         const startButton = document.getElementById("startButton");
+        const helpButton = document.getElementById("helpTitleButton");
         if (startButton) startButton.dataset.readyLabel = startButton.textContent;
-        const markStart = () => {
+        if (helpButton) helpButton.dataset.readyLabel = helpButton.textContent;
+        const queueScreen = (screen, button) => {
           if (document.documentElement.classList.contains("app-ready")) return;
-          window.__earlyStartRequested = true;
-          startButton?.classList.add("is-loading", "is-pressed");
-          startButton?.setAttribute("aria-busy", "true");
-          if (startButton) startButton.textContent = "\u3058\u3085\u3093\u3073\u3061\u3085\u3046...";
+          window.__earlyScreenRequested = screen;
+          window.__earlyStartRequested = screen === "mode";
+          button?.classList.add("is-loading", "is-pressed");
+          button?.setAttribute("aria-busy", "true");
+          if (button) button.textContent = "\u3058\u3085\u3093\u3073\u3061\u3085\u3046...";
         };
-        ["pointerdown", "touchstart", "click"].forEach((type) => {
-          startButton?.addEventListener(type, markStart, { passive: true });
+        ["pointerdown", "touchstart"].forEach((type) => {
+          startButton?.addEventListener(type, () => queueScreen("mode", startButton), { passive: true });
+          helpButton?.addEventListener(type, () => queueScreen("help", helpButton), { passive: true });
         });
       })();
     </script>
-    <script src="./game-data.js?v=design-v48-release"></script>
+    <script src="./game-data.js?v=ipad-v49-release"></script>
     <script src="./audio.js"></script>
-    <script type="module" src="./main.js?v=design-v48-release"></script>
+    <script type="module" src="./main.js?v=ipad-v49-release"></script>
   </body>
 </html>

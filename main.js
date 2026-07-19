@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
 
 const TOTAL_LAPS = 3;
 const TRACK_LAYOUT_STEPS = 420;
@@ -620,10 +620,15 @@ function init() {
   populateItemGuide();
   updateDifficultyUi();
   bindEvents();
-  if (dom.startButton?.dataset.readyLabel) dom.startButton.textContent = dom.startButton.dataset.readyLabel;
-  dom.startButton?.classList.remove("is-loading", "is-pressed");
-  dom.startButton?.removeAttribute("aria-busy");
-  const initialScreen = window.__earlyStartRequested ? "mode" : "title";
+  [dom.startButton, dom.helpTitleButton].forEach((button) => {
+    if (button?.dataset.readyLabel) button.textContent = button.dataset.readyLabel;
+  });
+  [dom.startButton, dom.helpTitleButton].forEach((button) => {
+    button?.classList.remove("is-loading", "is-pressed");
+    button?.removeAttribute("aria-busy");
+  });
+  const initialScreen = window.__earlyScreenRequested || (window.__earlyStartRequested ? "mode" : "title");
+  if (initialScreen === "help") state.helpReturnScreen = "title";
   showScreen(initialScreen);
   document.documentElement.classList.add("app-ready");
   clock = new THREE.Clock();
@@ -762,34 +767,25 @@ const uiTapGuard = new WeakMap();
 
 function bindUiTap(button, action) {
   if (!button) return;
-  const instantTouch = button.classList.contains("game-button") || button.classList.contains("touch-button") || button.closest("#difficultySelector");
-  const run = (event, fromTouch = false) => {
+  const run = (event) => {
     if (event?.cancelable) event.preventDefault();
     event?.stopPropagation?.();
     const now = performance.now();
     const last = uiTapGuard.get(button) || 0;
-    if (now - last < 260) return;
+    if (now - last < 180) return;
     uiTapGuard.set(button, now);
     button.classList.add("is-pressed");
-    window.setTimeout(() => button.classList.remove("is-pressed"), fromTouch ? 150 : 110);
+    window.setTimeout(() => button.classList.remove("is-pressed"), 140);
     action(event);
   };
-  const runTouchStart = (event) => {
-    if (!instantTouch) return;
-    if (event.pointerType && event.pointerType === "mouse") return;
-    run(event, true);
-  };
-  button.addEventListener("pointerdown", runTouchStart, { passive: false });
-  button.addEventListener("touchstart", runTouchStart, { passive: false });
-  button.addEventListener("pointerup", (event) => run(event, true), { passive: false });
-  button.addEventListener("touchend", (event) => run(event, true), { passive: false });
-  button.addEventListener("click", (event) => {
-    if (performance.now() - (uiTapGuard.get(button) || 0) < 320) {
-      event.preventDefault();
-      return;
-    }
-    run(event, false);
+  const showPressed = () => button.classList.add("is-pressed");
+  const clearPressed = () => button.classList.remove("is-pressed");
+  button.addEventListener("pointerdown", showPressed, { passive: true });
+  button.addEventListener("touchstart", showPressed, { passive: true });
+  ["pointerup", "pointercancel", "touchend", "touchcancel"].forEach((type) => {
+    button.addEventListener(type, clearPressed, { passive: true });
   });
+  button.addEventListener("click", run, { passive: false });
 }
 function bindEvents() {
   const go = (screen) => showScreen(screen);

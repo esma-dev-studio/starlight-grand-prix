@@ -869,7 +869,7 @@
   ];
 
   window.AURORA_GAME_DATA = {
-    version: "0.8.1-art-v48",
+    version: "0.8.2-ipad-v49",
     selectedTitleId: "aurora-velocity-arc",
     selectedTitle: titleCandidates[0],
     titleCandidates: titleCandidates,
