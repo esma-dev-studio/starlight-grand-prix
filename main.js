@@ -422,7 +422,8 @@ const input = {
   drift: false,
   itemPressed: false,
   steerAxis: 0,
-  touchSteer: 0
+  touchSteer: 0,
+  lastTouchSteer: 0
 };
 
 const dom = {};
@@ -640,12 +641,20 @@ function collectQaSnapshot() {
     mode: state.mode,
     time: Math.round(state.time * 10) / 10,
     course: activeCourse()?.id || "",
+    steering: {
+      touch: Math.round((input.touchSteer || 0) * 100) / 100,
+      lastTouch: Math.round((input.lastTouchSteer || 0) * 100) / 100,
+      visual: Math.round(readPlayerVisualSteerInput() * 100) / 100,
+      physics: Math.round(readPlayerSteerInput() * 100) / 100
+    },
     racers: racers.map((racer) => {
       const nearest = track ? nearestTrackSample(racer.position, racer.trackIndex) : null;
       return {
         id: racer.id,
         player: racer.isPlayer,
         speed: Math.round(racer.speed * 10) / 10,
+        yaw: Math.round((racer.yaw || 0) * 1000) / 1000,
+        controlSteer: Math.round((racer.controlSteer || 0) * 100) / 100,
         progress: Math.round((racer.progress || 0) * 10) / 10,
         lap: racer.lap,
         lateral: nearest ? Math.round((nearest.lateral || 0) * 10) / 10 : 0,
@@ -913,6 +922,7 @@ function bindEvents() {
     const rect = dom.touchSteer.getBoundingClientRect();
     const center = rect.left + rect.width * 0.5;
     input.touchSteer = clamp((point.clientX - center) / (rect.width * 0.42), -1, 1);
+    input.lastTouchSteer = input.touchSteer;
     dom.touchSteer.style.setProperty("--steer-x", (input.touchSteer * rect.width * 0.32) + "px");
   };
   const clearTouchSteer = () => {
@@ -937,15 +947,18 @@ function bindEvents() {
     if (Number.isFinite(event?.pointerId)) dom.touchSteer.releasePointerCapture?.(event.pointerId);
     clearTouchSteer();
   };
-  dom.touchSteer.addEventListener("pointerdown", startTouchSteer, { passive: false });
-  dom.touchSteer.addEventListener("pointermove", moveTouchSteer, { passive: false });
-  ["pointerup", "pointercancel", "lostpointercapture"].forEach((type) => {
-    dom.touchSteer.addEventListener(type, endTouchSteer, { passive: false });
-  });
-  dom.touchSteer.addEventListener("touchstart", startTouchSteer, { passive: false });
-  dom.touchSteer.addEventListener("touchmove", moveTouchSteer, { passive: false });
-  dom.touchSteer.addEventListener("touchend", endTouchSteer, { passive: false });
-  dom.touchSteer.addEventListener("touchcancel", endTouchSteer, { passive: false });
+  if ("PointerEvent" in window) {
+    dom.touchSteer.addEventListener("pointerdown", startTouchSteer, { passive: false });
+    dom.touchSteer.addEventListener("pointermove", moveTouchSteer, { passive: false });
+    ["pointerup", "pointercancel", "lostpointercapture"].forEach((type) => {
+      dom.touchSteer.addEventListener(type, endTouchSteer, { passive: false });
+    });
+  } else {
+    dom.touchSteer.addEventListener("touchstart", startTouchSteer, { passive: false });
+    dom.touchSteer.addEventListener("touchmove", moveTouchSteer, { passive: false });
+    dom.touchSteer.addEventListener("touchend", endTouchSteer, { passive: false });
+    dom.touchSteer.addEventListener("touchcancel", endTouchSteer, { passive: false });
+  }
 
   const clearTouchInputs = () => {
     input.accel = false;
@@ -6929,8 +6942,8 @@ function readPlayerVisualSteerInput() {
 }
 
 function readPlayerSteerInput() {
-  // The chase camera looks toward +Z, so screen-right is world -X.
-  return -readPlayerVisualSteerInput();
+  // At yaw 0 the chase camera looks toward +Z and screen-right is world +X.
+  return readPlayerVisualSteerInput();
 }
 
 function readPlayerControls() {
