@@ -6637,3 +6637,246 @@ button,
 #app.is-front-pack #hud .hud-left #positionValue {
   color: var(--racer-accent, #e8c66a);
 }
+
+/* v52 clarity pass: route preview, explicit selection, readable items. */
+.route-guide {
+  position: fixed;
+  z-index: 27;
+  top: calc(78px + var(--safe-top));
+  left: 50%;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  width: min(240px, 34vw);
+  min-height: 52px;
+  padding: 5px 10px 5px 6px;
+  transform: translateX(-50%);
+  overflow: hidden;
+  border: 1px solid rgba(125, 249, 255, 0.48);
+  background: rgba(3, 10, 22, 0.9);
+  color: #ffffff;
+  pointer-events: none;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  box-shadow: inset 3px 0 0 rgba(125, 249, 255, 0.72), 0 10px 24px rgba(0, 0, 0, 0.32);
+}
+
+.route-guide.is-crest {
+  border-color: rgba(255, 209, 102, 0.72);
+  box-shadow: inset 3px 0 0 #ffd166, 0 10px 24px rgba(0, 0, 0, 0.36);
+}
+
+.route-guide-arrow {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: #07111d;
+  background: #7df9ff;
+  font-size: 1.8rem;
+  font-weight: 1000;
+  line-height: 1;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+}
+
+.route-guide.is-crest .route-guide-arrow {
+  background: #ffd166;
+}
+
+.route-guide-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.route-guide-copy small {
+  color: rgba(211, 238, 246, 0.76);
+  font-size: 0.61rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.route-guide-copy strong {
+  color: #ffffff;
+  font-size: 0.88rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.segmented .segment {
+  position: relative;
+  padding-top: 24px;
+  opacity: 0.7;
+}
+
+.segment-state,
+.course-card .choice-state {
+  display: inline-grid;
+  place-items: center;
+  min-height: 18px;
+  padding: 2px 7px;
+  border: 1px solid rgba(164, 234, 255, 0.26);
+  color: rgba(215, 237, 244, 0.68);
+  background: rgba(2, 8, 18, 0.74);
+  font-size: 0.58rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.segment-state {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+}
+
+.segmented .segment.selected,
+.segmented .segment[aria-pressed="true"] {
+  opacity: 1;
+  border-width: 2px;
+  box-shadow: inset 4px 0 0 #ffd166, 0 0 0 1px rgba(255, 209, 102, 0.32), 0 10px 24px rgba(0, 0, 0, 0.34) !important;
+}
+
+.segmented .segment.selected .segment-state,
+.segmented .segment[aria-pressed="true"] .segment-state {
+  border-color: #ffd166;
+  color: #07111d;
+  background: #ffd166;
+}
+
+.difficulty-hint {
+  padding-left: 9px;
+  border-left: 3px solid #ffd166;
+  color: #f7fbff;
+  font-size: 0.73rem;
+}
+
+#courseGrid .course-card {
+  padding-top: 38px;
+  opacity: 0.76;
+}
+
+.course-card .choice-state {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+}
+
+#courseGrid .course-card.selected,
+#courseGrid .course-card[aria-selected="true"] {
+  opacity: 1;
+  border-width: 2px;
+  border-left-width: 7px;
+  transform: translateY(-2px);
+  box-shadow: inset 0 0 0 1px var(--course-accent, #ffd166), 0 14px 30px rgba(0, 0, 0, 0.42) !important;
+}
+
+.course-card.selected .choice-state,
+.course-card[aria-selected="true"] .choice-state {
+  border-color: var(--course-accent, #ffd166);
+  color: #07111d;
+  background: var(--course-accent, #ffd166);
+}
+
+#hud .hud-right {
+  grid-template-columns: 116px minmax(188px, 212px);
+}
+
+#hud .item-panel {
+  grid-template-columns: minmax(0, 1fr) 76px;
+  min-width: 188px;
+}
+
+#hud .item-panel .item-hint {
+  max-width: none;
+  color: #f5fbff;
+  font-size: 0.64rem;
+  line-height: 1.25;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+#itemSlot .item-name {
+  font-size: 0.62rem;
+  white-space: normal;
+  text-align: center;
+}
+
+#mobileControls.has-item-ready #touchItem {
+  border-color: var(--item-color, #ffd166);
+  color: #ffffff;
+  background: color-mix(in srgb, var(--item-color, #ffd166) 30%, #07111d);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--item-color, #ffd166) 42%, transparent), 0 0 20px color-mix(in srgb, var(--item-color, #ffd166) 34%, transparent);
+}
+
+.race-notice[data-tone="item"] {
+  border-color: color-mix(in srgb, var(--notice-color, #ffd166) 68%, white 10%);
+  box-shadow: inset 4px 0 0 var(--notice-color, #ffd166), 0 18px 42px rgba(0, 0, 0, 0.44);
+}
+
+.race-notice[data-tone="item"] strong {
+  color: var(--notice-color, #ffd166);
+}
+
+@media (max-width: 900px) {
+  .route-guide {
+    top: calc(72px + var(--safe-top));
+    width: min(220px, 34vw);
+  }
+
+  #hud .hud-right {
+    grid-template-columns: 84px 162px;
+  }
+
+  #hud .item-panel {
+    min-width: 162px;
+    grid-template-columns: minmax(0, 1fr) 58px;
+  }
+
+  #hud .item-panel .item-hint {
+    display: block;
+    font-size: 0.58rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .route-guide {
+    top: calc(66px + var(--safe-top));
+    width: min(184px, 46vw);
+    grid-template-columns: 40px minmax(0, 1fr);
+    min-height: 44px;
+  }
+
+  .route-guide-arrow {
+    width: 34px;
+    height: 34px;
+    font-size: 1.45rem;
+  }
+
+  .route-guide-copy small {
+    font-size: 0.52rem;
+  }
+
+  .route-guide-copy strong {
+    font-size: 0.7rem;
+  }
+
+  #hud .hud-right {
+    grid-template-columns: 66px 86px;
+  }
+
+  #hud .item-panel {
+    min-width: 0;
+    grid-template-columns: 1fr;
+  }
+
+  #hud .item-panel .item-hint {
+    display: none;
+  }
+}
+
+/* The route preview replaces the older center coach while racing so both
+   instructions never compete for the same part of the track view. */
+#app.is-racing .hud-coach {
+  display: none !important;
+}

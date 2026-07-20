@@ -464,6 +464,8 @@ let lastMenuFrameTime = 0;
 let menuDirty = true;
 let environmentGroup = null;
 let trackLights = [];
+let routeBeacon = null;
+let routeCue = { direction: "straight", arrow: "↑", text: "まっすぐ", kicker: "つぎの道", targetIndex: 0, crest: false };
 let threeReady = false;
 let baseWarmupStarted = false;
 let raceWarmupStarted = false;
@@ -513,7 +515,7 @@ function normalizeData(raw) {
     merged.kind = item.kind || itemKindFromMeta(item) || base.kind;
     merged.shortEffect = item.shortEffect || itemEffectText(merged);
     return merged;
-  });
+  }).slice(0, 6);
   const courseSource = Array.isArray(source.courses) && source.courses.length
     ? source.courses
     : [source.course || fallbackData.course];
@@ -536,14 +538,26 @@ function itemKindFromMeta(item) {
 }
 
 function itemEffectText(item) {
+  if (item?.shortEffect) return item.shortEffect;
   const key = String(item?.kind || itemKindFromMeta(item) || "").toLowerCase();
-  if (key === "boost") return "少しの間、はやく走る";
-  if (key === "projectile") return "前に光をとばして相手を止める";
-  if (key === "aoe") return "近くの相手を光でおどろかせる";
-  if (key === "trap") return "後ろに光のしかけを置く";
-  if (key === "shield") return "一回だけぶつかりに強くなる";
-  if (key === "comeback") return "ダッシュと守りで追いつく";
+  if (key === "boost") return "2びょう大ダッシュする";
+  if (key === "projectile") return "前へ飛び、当たった相手を止める";
+  if (key === "aoe") return "近くの相手をスローダウンさせる";
+  if (key === "trap") return "うしろに置き、ふんだ相手を止める";
+  if (key === "shield") return "5びょう、こうげきを1回まもる";
+  if (key === "comeback") return "ダッシュ＋バリアで追いつく";
   return "使うとレースを助ける";
+}
+
+function itemUseResultText(item) {
+  const key = String(item?.kind || itemKindFromMeta(item) || "").toLowerCase();
+  if (key === "boost") return "ロケット点火。いまスピードアップ！";
+  if (key === "projectile") return "前へ発射。前の相手をねらう！";
+  if (key === "aoe") return "まわりに波。近くの相手をスローダウン！";
+  if (key === "trap") return "うしろに置いた。ふませよう！";
+  if (key === "shield") return "バリアON。こうげきを1回まもる！";
+  if (key === "comeback") return "ダッシュ＋バリア。まわりもはじく！";
+  return itemEffectText(item);
 }
 
 function difficultyCopy(id = state?.difficulty || "Normal") {
@@ -759,6 +773,10 @@ function cacheDom() {
     "itemHint",
     "difficultyHint",
     "itemGuide",
+    "routeGuide",
+    "routeGuideArrow",
+    "routeGuideKicker",
+    "routeGuideText",
     "minimap",
     "mobileControls",
     "touchSteer",
@@ -1123,8 +1141,12 @@ function updateDifficultyUi() {
     const selected = segment.dataset.difficulty === state.difficulty;
     segment.classList.toggle("selected", selected);
     segment.setAttribute("aria-pressed", selected ? "true" : "false");
+    segment.setAttribute("aria-current", selected ? "true" : "false");
+    const status = segment.querySelector(".segment-state");
+    if (status) status.textContent = selected ? "えらんでいる" : "えらぶ";
   });
-  if (dom.difficultyHint) dom.difficultyHint.textContent = difficultyCopy().hint;
+  const selectedLabel = dom.difficultySelector.querySelector('button[aria-pressed="true"] strong')?.textContent || "ふつう";
+  if (dom.difficultyHint) dom.difficultyHint.textContent = `いまは「${selectedLabel}」: ${difficultyCopy().hint}`;
 }
 
 function populateItemGuide() {
@@ -1323,6 +1345,7 @@ function populateCourse() {
       button.className = "course-card course-" + characterClassId(course) + (selected ? " selected" : "");
       button.dataset.course = course.id || String(index);
       button.setAttribute("aria-selected", selected ? "true" : "false");
+      button.setAttribute("aria-current", selected ? "true" : "false");
       button.style.setProperty("--course-primary", course.colors?.primary || "#7df9ff");
       button.style.setProperty("--course-secondary", course.colors?.secondary || "#102846");
       button.style.setProperty("--course-accent", course.colors?.accent || "#ffd166");
@@ -1338,6 +1361,7 @@ function populateCourse() {
       const heightLabel = topology.heightLabel || "高低差 ふつう";
       const cornerLabel = topology.cornerLabel || "カーブ ふつう";
       button.innerHTML =
+        '<span class="choice-state">' + (selected ? 'えらんでいる' : 'えらぶ') + '</span>' +
         '<span class="course-orbit" aria-hidden="true"><span class="course-icon">' + escapeHtml(courseIcon) + '</span></span>' +
         '<span class="course-kind">' + escapeHtml(course.kindLabel || "コース") + '</span>' +
         '<strong>' + escapeHtml(displayName(course)) + '</strong>' +
@@ -1577,6 +1601,7 @@ function initThree() {
   scene.add(makeSkyDome());
   scene.add(makeGroundPlane());
   createSpeedLines();
+  createRouteBeacon();
   resizeRenderer();
 
   if (window.RiftAudio) {
@@ -4575,6 +4600,125 @@ function createSpeedLines() {
   scene.add(camera);
 }
 
+function createRouteBeaconTexture(symbol) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "rgba(3, 10, 22, 0.88)";
+  ctx.strokeStyle = "#7df9ff";
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(20, 8);
+  ctx.lineTo(218, 8);
+  ctx.lineTo(248, 38);
+  ctx.lineTo(248, 120);
+  ctx.lineTo(38, 120);
+  ctx.lineTo(8, 90);
+  ctx.lineTo(8, 20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#ffd166";
+  ctx.font = "900 22px sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("NEXT", 24, 34);
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "900 76px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(symbol, 132, 104);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function createRouteBeacon() {
+  if (routeBeacon || !scene) return;
+  const textures = {
+    left: createRouteBeaconTexture("←"),
+    straight: createRouteBeaconTexture("↑"),
+    right: createRouteBeaconTexture("→")
+  };
+  const material = new THREE.SpriteMaterial({
+    map: textures.straight,
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.92,
+    depthTest: false,
+    depthWrite: false
+  });
+  routeBeacon = new THREE.Sprite(material);
+  routeBeacon.scale.set(10.5, 5.25, 1);
+  routeBeacon.renderOrder = 40;
+  routeBeacon.visible = false;
+  routeBeacon.userData.textures = textures;
+  scene.add(routeBeacon);
+}
+
+function calculateRouteCue(racer = player) {
+  if (!track?.samples?.length || !racer) return routeCue;
+  const speedRatio = clamp(Math.abs(racer.speed || 0) / 58, 0, 1);
+  const lookAhead = Math.round(34 + speedRatio * 22);
+  const nearIndex = (racer.trackIndex + Math.max(10, Math.round(lookAhead * 0.32))) % TRACK_STEPS;
+  const targetIndex = (racer.trackIndex + lookAhead) % TRACK_STEPS;
+  const near = track.samples[nearIndex];
+  const target = track.samples[targetIndex];
+  const aLength = Math.hypot(near.tangent.x, near.tangent.z) || 1;
+  const bLength = Math.hypot(target.tangent.x, target.tangent.z) || 1;
+  const ax = near.tangent.x / aLength;
+  const az = near.tangent.z / aLength;
+  const bx = target.tangent.x / bLength;
+  const bz = target.tangent.z / bLength;
+  const turnAngle = Math.atan2(az * bx - ax * bz, clamp(ax * bx + az * bz, -1, 1));
+  const rise = target.point.y - near.point.y;
+  const crest = near.grade > 0.07 || rise > 3.8;
+  const direction = Math.abs(turnAngle) < 0.13 ? "straight" : turnAngle > 0 ? "right" : "left";
+  const arrow = direction === "right" ? "→" : direction === "left" ? "←" : "↑";
+  const directionText = direction === "right" ? "みぎへ" : direction === "left" ? "ひだりへ" : "まっすぐ";
+  const distance = Math.max(20, Math.round(((track.totalLength || TRACK_STEPS) / TRACK_STEPS * lookAhead) / 10) * 10);
+  routeCue = {
+    direction,
+    arrow,
+    text: crest ? `さかの上で ${directionText}` : directionText,
+    kicker: crest ? `のぼりの先・あと${distance}m` : `つぎの道・あと${distance}m`,
+    targetIndex,
+    crest
+  };
+  return routeCue;
+}
+
+function updateRouteGuide() {
+  if (!dom.routeGuide || !player || !track) return;
+  const cue = calculateRouteCue(player);
+  dom.routeGuide.dataset.turn = cue.direction;
+  dom.routeGuide.classList.toggle("is-crest", cue.crest);
+  dom.routeGuideArrow.textContent = cue.arrow;
+  dom.routeGuideKicker.textContent = cue.kicker;
+  dom.routeGuideText.textContent = cue.text;
+}
+
+function updateRouteBeacon() {
+  if (!routeBeacon) return;
+  const visible = Boolean(player && track && (state.mode === "racing" || state.mode === "countdown"));
+  routeBeacon.visible = visible;
+  if (!visible) return;
+  const cue = routeCue.targetIndex === undefined ? calculateRouteCue(player) : routeCue;
+  const sample = track.samples[cue.targetIndex % TRACK_STEPS];
+  routeBeacon.position.copy(sample.point);
+  routeBeacon.position.y += cue.crest ? 8.5 : 6.5;
+  routeBeacon.position.x += sample.normal.x * 0.2;
+  routeBeacon.position.z += sample.normal.z * 0.2;
+  routeBeacon.position.y += Math.sin(performance.now() * 0.004) * 0.35;
+  const texture = routeBeacon.userData.textures?.[cue.direction] || routeBeacon.userData.textures?.straight;
+  if (texture && routeBeacon.material.map !== texture) {
+    routeBeacon.material.map = texture;
+    routeBeacon.material.needsUpdate = true;
+  }
+  routeBeacon.material.opacity = cue.crest ? 1 : 0.9;
+}
+
 function resetRace() {
   clearRaceObjects();
   racers = [];
@@ -7337,6 +7481,10 @@ function handleItemPickup(racer) {
       spawnBurst(box.position, 0xffd166, 18, 1.4);
       spawnShockwave(box.position, racer.item.color || 0xffd166, 5.2);
       if (racer.isPlayer) {
+        const itemName = displayName(racer.item);
+        const itemColor = racer.item.color || "#ffd166";
+        dom.raceNotice?.style.setProperty("--notice-color", itemColor);
+        showRaceNotice("どうぐゲット", friendlyItemIcon(racer.item) + " " + itemName, itemEffectText(racer.item) + " / 右下の「どうぐ」でつかう", "item", 2400);
         awardRaceSkill(racer, "どうぐゲット", 40, { chain: false });
         playAudio("itemPickup");
         gameHaptic([10, 22, 12]);
@@ -7733,6 +7881,11 @@ function useItem(racer) {
   racer.item = null;
   racer.itemCooldown = 0.55;
   playAudio("itemUse", item.kind);
+  if (racer.isPlayer) {
+    dom.raceNotice?.style.setProperty("--notice-color", item.color || "#ffd166");
+    showRaceNotice("どうぐをつかった", friendlyItemIcon(item) + " " + displayName(item), itemUseResultText(item), "item", 1500);
+    gameHaptic(item.kind === "comeback" ? [12, 18, 28] : [10, 18]);
+  }
   if (item.kind === "boost") {
     racer.boostTimer = Math.max(racer.boostTimer, 2.25);
     spawnBurst(racer.position, colorToHex(item.color), 22, 1.8);
@@ -8221,7 +8374,11 @@ function updateHud() {
   dom.speedValue.textContent = String(speedKmh);
   dom.mobileControls.classList.toggle("has-item-ready", Boolean(player.item));
   dom.touchItem.setAttribute("aria-label", player.item ? `${displayName(player.item)}を使う: ${itemEffectText(player.item)}` : "どうぐを使う");
-  if (dom.itemHint) dom.itemHint.textContent = player.item ? itemEffectText(player.item) : "光る箱でゲット";
+  dom.touchItem.textContent = player.item ? friendlyItemIcon(player.item) + " つかう" : "どうぐ";
+  dom.touchItem.dataset.itemKind = player.item?.kind || "empty";
+  dom.touchItem.style.setProperty("--item-color", player.item?.color || "#ffd166");
+  if (dom.itemHint) dom.itemHint.textContent = player.item ? "つかう: " + itemEffectText(player.item) : "光る箱でゲット";
+  updateRouteGuide();
   updateRaceCoach(boosting, speedKmh);
   const itemKey = player.item ? player.item.id || player.item.name : "empty";
   if (itemKey !== lastHudItem) {
@@ -8505,6 +8662,7 @@ function updateCamera(dt) {
   camera.lookAt(cameraTarget);
   camera.fov = approach(camera.fov, 58 + speed01 * 10 + (boosting ? 8 : 0) + portraitFraming * 4 + duelFocus * 2.2 + finalLapFocus * 3.2 + clamp(player.jumpHeight * 0.26, 0, 3.5), 34 * dt);
   camera.updateProjectionMatrix();
+  updateRouteBeacon();
 
   speedLines.forEach((line, index) => {
     const lineSpeed = speed01 + (boosting ? 0.38 : 0);

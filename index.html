@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>スターライト・グランプリ</title>
-    <link rel="stylesheet" href="./style.css?v=steer-v51-release" />
+    <link rel="stylesheet" href="./style.css?v=clarity-v52-release" />
 
   </head>
   <body>
@@ -56,6 +56,11 @@
           <span class="coach-label">ナビ</span>
           <strong id="coachTitle">ひかる線を走ろう</strong>
           <small id="coachText">コースのまんなかをねらおう</small>
+        </div>
+
+        <div id="routeGuide" class="route-guide" data-turn="straight" aria-live="polite">
+          <span id="routeGuideArrow" class="route-guide-arrow" aria-hidden="true">↑</span>
+          <span class="route-guide-copy"><small id="routeGuideKicker">つぎの道</small><strong id="routeGuideText">まっすぐ</strong></span>
         </div>
 
         <div id="raceFlow" class="race-flow" aria-label="レースのすすみぐあい">
@@ -126,9 +131,9 @@
           <div class="difficulty-panel">
             <span class="difficulty-title">ライバルの強さ</span>
             <div id="difficultySelector" class="segmented" aria-label="ライバルの強さ">
-              <button class="segment selected" data-difficulty="Normal"><strong>ふつう</strong><small>ちょうどいい</small></button>
-              <button class="segment" data-difficulty="Easy"><strong>やさしい</strong><small>ゆっくり</small></button>
-              <button class="segment" data-difficulty="Hard"><strong>つよい</strong><small>本気の速さ</small></button>
+              <button class="segment selected" data-difficulty="Normal"><span class="segment-state">えらんでいる</span><strong>ふつう</strong><small>ちょうどいい</small></button>
+              <button class="segment" data-difficulty="Easy"><span class="segment-state">えらぶ</span><strong>やさしい</strong><small>ゆっくり</small></button>
+              <button class="segment" data-difficulty="Hard"><span class="segment-state">えらぶ</span><strong>つよい</strong><small>本気の速さ</small></button>
             </div>
             <small id="difficultyHint" class="difficulty-hint">ライバルがほどよく速い、ふつうのレース。</small>
           </div>
@@ -221,8 +226,8 @@
         });
       })();
     </script>
-    <script src="./game-data.js?v=steer-v51-release"></script>
+    <script src="./game-data.js?v=clarity-v52-release"></script>
     <script src="./audio.js"></script>
-    <script type="module" src="./main.js?v=steer-v51-release"></script>
+    <script type="module" src="./main.js?v=clarity-v52-release"></script>
   </body>
 </html>

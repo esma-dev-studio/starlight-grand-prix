@@ -304,9 +304,13 @@
     {
       id: "aether-fold",
       name: "Aether Fold",
-      jaName: "エーテル・フォールド",
+      jaName: "スターラッシュ",
       category: "movement",
-      description: "短い距離だけ前方の走行ラインへ折り畳むように移動する。壁抜けや順位確定ワープはしない。",
+      kind: "comeback",
+      icon: "★",
+      color: "#FFE36E",
+      shortEffect: "3びょうダッシュ＋バリア。近くの相手もはじく",
+      description: "3びょうダッシュしながらバリアを張り、近くの相手を光ではじく。",
       colors: {
         primary: "#7DF9FF",
         secondary: "#FFFFFF",
@@ -328,9 +332,13 @@
     {
       id: "gale-thread",
       name: "Gale Thread",
-      jaName: "ゲイル・スレッド",
+      jaName: "ロケットダッシュ",
       category: "boost",
-      description: "風糸を後方へ伸ばし、数秒間だけ加速と旋回補助を得る。ドリフト中に使うと効果が安定する。",
+      kind: "boost",
+      icon: "≫",
+      color: "#34F0B2",
+      shortEffect: "2びょう大ダッシュする",
+      description: "ロケットに火をつけ、2びょう間いっきにスピードアップする。",
       colors: {
         primary: "#34F0B2",
         secondary: "#DFFFF5",
@@ -352,9 +360,13 @@
     {
       id: "mirror-mote",
       name: "Mirror Mote",
-      jaName: "ミラー・モート",
+      jaName: "スターシールド",
       category: "defense",
-      description: "小さな反射光をまとい、最初に受ける妨害効果を弱める。強い攻撃は完全無効ではなく減衰する。",
+      kind: "shield",
+      icon: "守",
+      color: "#8FE7FF",
+      shortEffect: "5びょう、こうげきを1回まもる",
+      description: "青いバリアを張り、5びょう間に受けたこうげきを1回まもる。",
       colors: {
         primary: "#F8E88B",
         secondary: "#EAFBFF",
@@ -376,9 +388,13 @@
     {
       id: "gravity-loom",
       name: "Gravity Loom",
-      jaName: "グラヴィティ・ルーム",
+      jaName: "おじゃまリング",
       category: "control",
-      description: "前方に重力の織り目を置き、踏んだ相手のハンドリングを短時間だけ重くする。",
+      kind: "trap",
+      icon: "!",
+      color: "#C278FF",
+      shortEffect: "うしろに置き、ふんだ相手を止める",
+      description: "うしろのコースに紫のリングを置き、ふんだ相手を止める。",
       colors: {
         primary: "#9C6BFF",
         secondary: "#251A3D",
@@ -400,9 +416,13 @@
     {
       id: "chrono-pebble",
       name: "Chrono Pebble",
-      jaName: "クロノ・ペブル",
+      jaName: "スローウェーブ",
       category: "tempo",
-      description: "周囲の時間感覚を一瞬だけずらし、自車の復帰加速を上げつつ近距離の相手を軽く減速させる。",
+      kind: "aoe",
+      icon: "波",
+      color: "#FFB020",
+      shortEffect: "近くの相手をスローダウンさせる",
+      description: "黄色い波をまわりに広げ、近くにいる相手をスローダウンさせる。",
       colors: {
         primary: "#FFB020",
         secondary: "#FFF5D1",
@@ -424,9 +444,13 @@
     {
       id: "flare-bloom",
       name: "Flare Bloom",
-      jaName: "フレア・ブルーム",
-      category: "hazard",
-      description: "路面に光花を咲かせる。接触した相手は視界端に強い発光ノイズを受け、少しだけ外へ押される。",
+      jaName: "ひかりロケット",
+      category: "projectile",
+      kind: "projectile",
+      icon: "→",
+      color: "#FF6F61",
+      shortEffect: "前へ飛び、当たった相手を止める",
+      description: "赤いひかりロケットを前へ飛ばし、当たった相手を止める。",
       colors: {
         primary: "#FF7A45",
         secondary: "#FFE2D4",
@@ -869,7 +893,7 @@
   ];
 
   window.AURORA_GAME_DATA = {
-    version: "0.8.4-steer-v51",
+    version: "0.8.5-clarity-v52",
     selectedTitleId: "aurora-velocity-arc",
     selectedTitle: titleCandidates[0],
     titleCandidates: titleCandidates,
@@ -1332,7 +1356,7 @@
   };
   var spaceCourses = [lunarCourse, meteorCourse, spaceCourse, nebulaCourse];
 
-  window.AURORA_GAME_DATA.version = "0.8.4-steer-v51";
+  window.AURORA_GAME_DATA.version = "0.8.5-clarity-v52";
   window.AURORA_GAME_DATA.difficulties = {
     Easy: { precision: 0.76, speed: 0.84, reaction: 0.8, maxSpeed: 0.86, acceleration: 0.84, cornerSpeed: 0.7, steeringSkill: 0.78, recoverySpeed: 0.9, boostUsageRate: 0.28, itemUsageSkill: 0.38, mistakeRate: 0.18, avoidanceStrength: 0.72, rubberBanding: 0.05 },
     Normal: { precision: 1.0, speed: 1.0, reaction: 1.0, maxSpeed: 1.02, acceleration: 1.02, cornerSpeed: 0.92, steeringSkill: 1.04, recoverySpeed: 1.14, boostUsageRate: 0.66, itemUsageSkill: 0.66, mistakeRate: 0.07, avoidanceStrength: 1.08, rubberBanding: 0.12 },
