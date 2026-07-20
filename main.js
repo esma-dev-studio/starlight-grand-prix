@@ -423,7 +423,8 @@ const input = {
   itemPressed: false,
   steerAxis: 0,
   touchSteer: 0,
-  lastTouchSteer: 0
+  lastTouchSteer: 0,
+  lastTouchPhysics: 0
 };
 
 const dom = {};
@@ -644,6 +645,7 @@ function collectQaSnapshot() {
     steering: {
       touch: Math.round((input.touchSteer || 0) * 100) / 100,
       lastTouch: Math.round((input.lastTouchSteer || 0) * 100) / 100,
+      lastTouchPhysics: Math.round((input.lastTouchPhysics || 0) * 100) / 100,
       visual: Math.round(readPlayerVisualSteerInput() * 100) / 100,
       physics: Math.round(readPlayerSteerInput() * 100) / 100
     },
@@ -923,6 +925,7 @@ function bindEvents() {
     const center = rect.left + rect.width * 0.5;
     input.touchSteer = clamp((point.clientX - center) / (rect.width * 0.42), -1, 1);
     input.lastTouchSteer = input.touchSteer;
+    input.lastTouchPhysics = visualSteerToPhysics(input.touchSteer);
     dom.touchSteer.style.setProperty("--steer-x", (input.touchSteer * rect.width * 0.32) + "px");
   };
   const clearTouchSteer = () => {
@@ -6942,8 +6945,12 @@ function readPlayerVisualSteerInput() {
 }
 
 function readPlayerSteerInput() {
-  // At yaw 0 the chase camera looks toward +Z and screen-right is world +X.
-  return readPlayerVisualSteerInput();
+  // Looking toward +Z mirrors world X on screen, so screen-right steers toward -X.
+  return visualSteerToPhysics(readPlayerVisualSteerInput());
+}
+
+function visualSteerToPhysics(steer) {
+  return -steer;
 }
 
 function readPlayerControls() {
