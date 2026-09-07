@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>スターライト・グランプリ</title>
-    <link rel="stylesheet" href="./style.css?v=clarity-v52-release" />
+    <link rel="stylesheet" href="./style.css?v=polish-v53-release" />
 
   </head>
   <body>
@@ -26,7 +26,7 @@
             <strong id="positionValue">1/6</strong>
           </div>
           <div class="hud-panel stat-panel">
-            <span class="hud-label">いま何しゅう目</span>
+            <span class="hud-label">しゅうかい</span>
             <strong id="lapValue">1/3</strong>
             <small id="lapHint" class="lap-hint">あと2しゅう</small>
           </div>
@@ -40,7 +40,7 @@
           <div class="hud-panel speed-panel">
             <span class="hud-label">はやさ</span>
             <strong id="speedValue">0</strong>
-            <span class="speed-unit">km/時</span>
+            <span class="speed-unit">km/h</span>
             <span class="shield-label">シールド</span>
             <span class="shield-meter" aria-label="スターシールド"><i id="shieldMeter"></i></span>
             <small id="shieldHint" class="shield-hint">安全</small>
@@ -60,7 +60,7 @@
 
         <div id="routeGuide" class="route-guide" data-turn="straight" aria-live="polite">
           <span id="routeGuideArrow" class="route-guide-arrow" aria-hidden="true">↑</span>
-          <span class="route-guide-copy"><small id="routeGuideKicker">つぎの道</small><strong id="routeGuideText">まっすぐ</strong></span>
+          <span class="route-guide-copy"><small id="routeGuideKicker">つぎのみち</small><strong id="routeGuideText">まっすぐ</strong></span>
         </div>
 
         <div id="raceFlow" class="race-flow" aria-label="レースのすすみぐあい">
@@ -195,7 +195,7 @@
         </div>
         <div class="touch-buttons">
           <button id="touchHelp" class="touch-button utility">あそびかた</button>
-          <button id="touchPause" class="touch-button utility">休けい</button>
+          <button id="touchPause" class="touch-button utility">やすむ</button>
           <button id="touchItem" class="touch-button item-action">どうぐ</button>
           <button id="touchDrift" class="touch-button">ドリフト</button>
           <button id="touchBrake" class="touch-button">ブレーキ</button>
@@ -226,8 +226,8 @@
         });
       })();
     </script>
-    <script src="./game-data.js?v=clarity-v52-release"></script>
-    <script src="./audio.js"></script>
-    <script type="module" src="./main.js?v=clarity-v52-release"></script>
+    <script src="./game-data.js?v=polish-v53-release"></script>
+    <script src="./audio.js?v=polish-v53-release"></script>
+    <script type="module" src="./main.js?v=polish-v53-release"></script>
   </body>
 </html>

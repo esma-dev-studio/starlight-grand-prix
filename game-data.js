@@ -893,7 +893,7 @@
   ];
 
   window.AURORA_GAME_DATA = {
-    version: "0.8.5-clarity-v52",
+    version: "0.9.0-polish-v53",
     selectedTitleId: "aurora-velocity-arc",
     selectedTitle: titleCandidates[0],
     titleCandidates: titleCandidates,
@@ -1356,7 +1356,7 @@
   };
   var spaceCourses = [lunarCourse, meteorCourse, spaceCourse, nebulaCourse];
 
-  window.AURORA_GAME_DATA.version = "0.8.5-clarity-v52";
+  window.AURORA_GAME_DATA.version = "0.9.0-polish-v53";
   window.AURORA_GAME_DATA.difficulties = {
     Easy: { precision: 0.76, speed: 0.84, reaction: 0.8, maxSpeed: 0.86, acceleration: 0.84, cornerSpeed: 0.7, steeringSkill: 0.78, recoverySpeed: 0.9, boostUsageRate: 0.28, itemUsageSkill: 0.38, mistakeRate: 0.18, avoidanceStrength: 0.72, rubberBanding: 0.05 },
     Normal: { precision: 1.0, speed: 1.0, reaction: 1.0, maxSpeed: 1.02, acceleration: 1.02, cornerSpeed: 0.92, steeringSkill: 1.04, recoverySpeed: 1.14, boostUsageRate: 0.66, itemUsageSkill: 0.66, mistakeRate: 0.07, avoidanceStrength: 1.08, rubberBanding: 0.12 },
@@ -1399,13 +1399,13 @@
     itemLabel: "うちゅうどうぐ"
   };
   window.AURORA_GAME_DATA.artDirection = {
-    visualNorthStar: "cool elementary-readable space grand prix",
+    visualNorthStar: "cohesive faceted spacecraft, readable racing, elementary-friendly cockpit UI",
     palette: {
-      main: ["#020512", "#08122A", "#15103A"],
-      support: ["#6EE7FF", "#7DF9FF", "#A78BFA"],
-      accents: ["#FFD166", "#FF4FD8", "#34F0B2"]
+      main: ["#0B1017", "#202B34", "#DDE8EA"],
+      support: ["#A6D8DE", "#85929A"],
+      accents: ["#EAC977", "#85D5BC"]
     },
-    materialLanguage: ["dark spacecraft metal", "glass helmet", "neon rails", "star dust", "planet glow"],
+    materialLanguage: ["faceted ceramic hull", "matte metal", "dark visor", "restrained engine glow", "regolith and ice"],
     qualityRules: [
       "Every racer is paired with one signature space machine.",
       "Selection cards must show racer, machine, specialty, stats, and a short line together.",
