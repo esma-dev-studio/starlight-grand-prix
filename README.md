@@ -42,6 +42,6 @@ node tools/perf-check.cjs
 
 ## アート
 
-`vehicle-art.js` がゲーム内の5台とパイロットを生成します。選択画像は `node tools/render-vehicles.cjs`、表紙は `node tools/render-cover.cjs` で同じ3Dモデルからオフライン描画します。メニュー表示のために3Dを常時回す必要はありません。
+`vehicle-art.js` がゲーム内の5台とパイロットを生成します。選択画像は `node tools/render-vehicles.cjs` で同じ3Dモデルからオフライン描画します。表紙は既存のイラスト `assets/title-keyart-v41.webp` を使用しています。メニュー表示のために3Dを常時回す必要はありません。
 
 `scene-art.js` は地球、地形の路肩、接地影と走路に重なる背景物の除外を担当します。大きな形と色でコースの違いを出し、リアルタイムの影や多数の点光源に依存しない構成です。

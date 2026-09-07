@@ -236,7 +236,7 @@ h2 {
   color: var(--void);
 }
 
-/* A static render of the actual racing models keeps the menu inexpensive. */
+/* Static title artwork keeps the menu inexpensive. */
 .screen-title {
   min-height: min(680px, calc(100svh - 52px));
   width: min(100%, 1320px);
@@ -256,8 +256,8 @@ h2 {
   opacity: 1;
   pointer-events: none;
   background:
-    linear-gradient(0deg, rgba(7, 11, 12, 0.24), transparent 20%),
-    url("./assets/title-cover-v53.webp") 65% center / cover no-repeat;
+    linear-gradient(0deg, rgba(7, 11, 12, 0.92), transparent 32%),
+    url("./assets/title-keyart-v41.webp") 65% center / cover no-repeat;
 }
 
 .title-showcase > .title-machine,
@@ -1719,7 +1719,7 @@ h2 {
   #titleShowcase {
     background:
       linear-gradient(0deg, #070b0c 0%, rgba(7, 11, 12, 0.05) 38%, rgba(7, 11, 12, 0.72) 100%),
-      url("./assets/title-cover-v53.webp") 82% center / auto 78% no-repeat;
+      url("./assets/title-keyart-v41.webp") 65% center / auto 78% no-repeat;
   }
 
   .screen-title .title-actions {
@@ -1981,7 +1981,7 @@ h2 {
   #titleShowcase {
     background:
       linear-gradient(0deg, rgba(7, 11, 12, 0.84), transparent 34%),
-      url("./assets/title-cover-v53.webp") 65% center / cover no-repeat;
+      url("./assets/title-keyart-v41.webp") 65% center / cover no-repeat;
   }
 
   .screen-actions {
