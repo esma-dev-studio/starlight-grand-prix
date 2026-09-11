@@ -1,6 +1,7 @@
 import * as THREE from "./vendor/three.module.min.js";
 import { createEarth, createContactShadow, createTerrainBanks, terrainHeightAt, clearSceneryCorridor } from "./scene-art.js?v=53";
 import { createRaceVehicle } from "./vehicle-art.js?v=53";
+import { SUPPLIES, drawItem, advanceLap, segmentDistanceSquared } from "./race-rules.mjs?v=54";
 
 const TOTAL_LAPS = 3;
 const TRACK_LAYOUT_STEPS = 420;
@@ -441,6 +442,10 @@ let racers = [];
 let player = null;
 let projectiles = [];
 let traps = [];
+let boostGates = [];
+let lapAnnouncementUntil = 0;
+let noticePriorityUntil = 0;
+let noticePriority = 0;
 let particles = [];
 const burstPool = [];
 let tireMarks = [];
@@ -524,7 +529,7 @@ function normalizeData(raw) {
     merged.kind = item.kind || itemKindFromMeta(item) || base.kind;
     merged.shortEffect = item.shortEffect || itemEffectText(merged);
     return merged;
-  }).slice(0, 6);
+  });
   const courseSource = Array.isArray(source.courses) && source.courses.length
     ? source.courses
     : [source.course || fallbackData.course];
@@ -781,6 +786,11 @@ function cacheDom() {
     "shieldHint",
     "itemSlot",
     "itemHint",
+    "itemStatus",
+    "lapBanner",
+    "lapBannerLabel",
+    "lapBannerTitle",
+    "lapBannerTime",
     "difficultyHint",
     "itemGuide",
     "routeGuide",
@@ -1073,7 +1083,7 @@ function recordsStore() {
 }
 
 function raceRecordKey(course = activeCourse(), mode = raceMode()) {
-  return (course?.id || "course") + ":" + (mode?.id || "race") + ":" + state.difficulty;
+  return (course?.id || "course") + ":" + (mode?.id || "race") + ":" + state.difficulty + ":" + (course.raceRevision || "original");
 }
 
 function bestRecord(course = activeCourse(), mode = raceMode()) {
@@ -1124,6 +1134,11 @@ function driftStageForCharge(charge) {
 
 function showRaceNotice(kicker, title, message, tone = "info", duration = 1450) {
   if (!dom.raceNotice) return;
+  const priority = kicker.includes("どうぐ") ? 2 : 1;
+  const now = performance.now();
+  if (now < noticePriorityUntil && priority < noticePriority) return;
+  noticePriority = priority;
+  noticePriorityUntil = now + duration;
   window.clearTimeout(state.noticeTimer);
   dom.raceNoticeKicker.textContent = kicker;
   dom.raceNoticeTitle.textContent = title;
@@ -1162,11 +1177,11 @@ function updateDifficultyUi() {
 function populateItemGuide() {
   if (!dom.itemGuide) return;
   dom.itemGuide.innerHTML = "";
-  DATA.items.slice(0, 6).forEach((item) => {
+  DATA.items.forEach((item) => {
     const chip = document.createElement("span");
     chip.className = "item-guide-chip";
     chip.style.setProperty("--item-color", item.color || item.colors?.primary || "#ffd166");
-    chip.innerHTML = '<b>' + escapeHtml(friendlyItemIcon(item)) + '</b><strong>' + escapeHtml(displayName(item)) + '</strong><small>' + escapeHtml(itemEffectText(item)) + '</small>';
+    chip.innerHTML = '<b>' + escapeHtml(friendlyItemIcon(item)) + '</b><strong>' + escapeHtml(displayName(item)) + '</strong><small>' + escapeHtml(item.description || itemEffectText(item)) + '</small>';
     dom.itemGuide.appendChild(chip);
   });
 }
@@ -1359,8 +1374,9 @@ function populateCourse() {
         '<span class="course-kind">' + escapeHtml(course.kindLabel || "コース") + '</span>' +
         '<strong>' + escapeHtml(displayName(course)) + '</strong>' +
         '<small class="course-one-line">' + escapeHtml(shortCopy) + '</small>' +
-        '<span class="course-meta-row"><span>むずかしさ ' + escapeHtml(difficultyText) + '</span><span>' + escapeHtml(lapTotalForCourse(course)) + 'しゅう</span></span>' +
+        '<span class="course-meta-row"><span>むずかしさ ' + escapeHtml(difficultyText) + '</span><span>1しゅう ' + escapeHtml(course.lengthLabel || "") + ' / ' + escapeHtml(lapTotalForCourse(course)) + 'しゅう</span></span>' +
         '<span class="course-record">' + escapeHtml(recordText) + '</span>' +
+        '<small class="course-one-line">' + escapeHtml(course.raceFeature || "") + '</small>' +
         '<span class="course-drive-row"><span>' + escapeHtml(routeLabel) + '</span><span>' + escapeHtml(heightLabel) + '</span><span>' + escapeHtml(cornerLabel) + '</span></span>' +
         '<span class="course-caution">ちゅうい ' + escapeHtml(cautionText) + '</span>' +
         '<em><b>とくちょう</b> ' + escapeHtml(featureText) + '</em>';
@@ -1790,7 +1806,8 @@ const COURSE_PATHS = {
 
 function courseTrackPoints(course = activeCourse()) {
   const points = COURSE_PATHS[course?.id || "lunar-crater-run"] || COURSE_PATHS["lunar-crater-run"];
-  return points.map(([x, y, z]) => new THREE.Vector3(x, y, z));
+  const scale = course.lengthScale || 1;
+  return points.map(([x, y, z]) => new THREE.Vector3(x * scale, y, z * scale));
 }
 
 function courseTopology(course = activeCourse()) {
@@ -1895,6 +1912,7 @@ function buildTrack() {
     if (i > 0) totalLength += point.distanceTo(samples[i - 1].point);
     samples.push({ point, tangent, normal, distance: totalLength, bank: 0, grade: Math.asin(clamp(tangent.y, -0.58, 0.58)) });
   }
+  totalLength += samples[0].point.distanceTo(samples[samples.length - 1].point);
   samples.forEach((sample, index) => {
     const next = samples[(index + 1) % TRACK_STEPS];
     const look = topology.bankLookAhead;
@@ -1914,6 +1932,10 @@ function buildTrack() {
   const theme = courseTheme(course);
   applyCourseAtmosphere(theme);
   const trackInfo = { curve, samples, width: TRACK_WIDTH, totalLength, group: new THREE.Group(), layout: courseLayout(course), theme, topology };
+  trackInfo.mapBounds = {
+    minX: Math.min(...samples.map(s => s.point.x)), maxX: Math.max(...samples.map(s => s.point.x)),
+    minZ: Math.min(...samples.map(s => s.point.z)), maxZ: Math.max(...samples.map(s => s.point.z))
+  };
   scene.add(trackInfo.group);
   const terrain = createTerrainBanks(THREE, trackInfo);
   if (terrain) {
@@ -1935,6 +1957,7 @@ function buildTrack() {
   addTrackStructure(trackInfo);
 
   addStartLine(trackInfo);
+  addLapFinishStripe(trackInfo);
   addBoostPanels(trackInfo);
   addDirtZones(trackInfo);
   addJumpRamps(trackInfo);
@@ -2474,49 +2497,35 @@ function addRepairPads(trackInfo) {
   });
 }
 function addItemBoxes(trackInfo) {
+  const materials = {};
+  Object.entries(SUPPLIES).forEach(([kind, supply]) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 128; canvas.height = 128;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#18252b"; ctx.fillRect(0, 0, 128, 128);
+    ctx.strokeStyle = supply.color; ctx.lineWidth = 8; ctx.strokeRect(6, 6, 116, 116);
+    ctx.fillStyle = supply.color; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.font = "bold 56px sans-serif"; ctx.fillText(supply.icon, 64, 52);
+    ctx.font = "bold 21px sans-serif"; ctx.fillText(supply.label, 64, 98);
+    const map = new THREE.CanvasTexture(canvas); map.colorSpace = THREE.SRGBColorSpace;
+    materials[kind] = new THREE.MeshBasicMaterial({ map });
+  });
+  const geometry = new THREE.BoxGeometry(3.6, 3.6, 3.6);
   (trackInfo.layout || courseLayout()).itemBoxes.forEach(([index, offset], n) => {
     const sample = trackInfo.samples[index];
     const group = new THREE.Group();
-    const glyphMap = createAtlasTileTexture(2 + (n % 2), 1) || createAdPanelTexture("\u3069\u3046\u3050", n + 50);
-    const shell = new THREE.Mesh(
-      new THREE.BoxGeometry(3.35, 3.35, 3.35),
-      new THREE.MeshStandardMaterial({
-        map: glyphMap,
-        color: 0xffffff,
-        emissive: 0x60e9ff,
-        emissiveMap: glyphMap,
-        emissiveIntensity: 1.15,
-        metalness: 0.28,
-        roughness: 0.18,
-        transparent: true,
-        opacity: 0.84
-      })
-    );
-    shell.rotation.set(0.12, 0.28, 0.08);
-    const core = new THREE.Mesh(
-      new THREE.IcosahedronGeometry(1.18, 1),
-      new THREE.MeshStandardMaterial({
-        color: 0xffd166,
-        emissive: 0xff9f1c,
-        emissiveIntensity: 1.15,
-        roughness: 0.16,
-        metalness: 0.28
-      })
-    );
+    const supply = offset < -1 ? "speed" : offset > 1 ? "attack" : "guard";
+    const shell = new THREE.Mesh(geometry, materials[supply]);
+    shell.rotation.y = 0.28;
     const halo = new THREE.Mesh(
-      new THREE.TorusGeometry(2.18, 0.07, 8, 42),
-      new THREE.MeshBasicMaterial({ color: n % 2 ? 0xff5fa8 : 0x7df9ff, transparent: true, opacity: 0.68, blending: THREE.AdditiveBlending, depthWrite: false })
+      new THREE.TorusGeometry(2.5, 0.1, 4, 16),
+      new THREE.MeshBasicMaterial({ color: SUPPLIES[supply].color })
     );
     halo.rotation.x = Math.PI / 2;
-    const base = new THREE.Mesh(
-      new THREE.CircleGeometry(2.3, 36),
-      new THREE.MeshBasicMaterial({ color: n % 2 ? 0xff5fa8 : 0x7df9ff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false })
-    );
-    base.rotation.x = -Math.PI / 2;
-    base.position.y = -2.15;
-    group.add(shell, core, halo, base);
+    halo.position.y = -2.15;
+    group.add(shell, halo);
     group.position.copy(trackSurfacePoint(sample, offset, 2.8));
-    group.userData = { index, cooldown: 0, offset, shell, core, halo, baseY: group.position.y };
+    group.userData = { index, cooldown: 0, offset, shell, halo, supply, baseY: group.position.y };
     trackInfo.group.add(group);
     itemBoxes.push(group);
   });
@@ -4717,16 +4726,22 @@ function resetRace() {
 }
 
 function clearRaceObjects() {
+  noticePriorityUntil = 0;
+  noticePriority = 0;
+  lapAnnouncementUntil = 0;
+  updateLapAnnouncement();
   const remove = (object) => { object?.removeFromParent(); disposeObject3D(object); };
   racers.forEach((racer) => { remove(racer.group); remove(racer.contactShadow); });
   projectiles.forEach((p) => remove(p.mesh));
   traps.forEach((trap) => remove(trap.mesh));
+  boostGates.forEach((gate) => remove(gate.mesh));
   particles.forEach(releaseParticle);
   tireMarks.forEach((mark) => remove(mark.mesh));
   racers = [];
   player = null;
   projectiles = [];
   traps = [];
+  boostGates = [];
   particles = [];
   tireMarks = [];
 }
@@ -4834,6 +4849,7 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     skillChainTimer: 0,
     lap: 0,
     startedLap: false,
+    lapCheckpoints: 0,
     trackIndex: nearest.index,
     progress: nearest.index > TRACK_STEPS * 0.55 ? nearest.index - TRACK_STEPS : nearest.index,
     rank: 1,
@@ -4843,6 +4859,12 @@ function createRacer(id, character, kart, gridSlot, laneOffset, isPlayer) {
     itemCooldown: 0,
     boostTimer: 0,
     shieldTimer: 0,
+    counterShield: false,
+    hitProtection: 0,
+    magnetTimer: 0,
+    magnetTarget: null,
+    hopLandingPending: false,
+    repairLock: 0,
     shieldEnergy: MAX_SHIELD,
     shieldWarningTimer: 0,
     stunTimer: 0,
@@ -6622,6 +6644,7 @@ function renderRaceResults(winner, playerRank) {
 
 function showScreen(name) {
   state.mode = name === "pause" ? "paused" : state.mode;
+  updateLapAnnouncement();
   dom.app?.classList.toggle("is-menu", !["racing", "countdown"].includes(state.mode));
   dom.app?.classList.toggle("is-racing", state.mode === "racing");
   dom.screenOverlay.classList.remove("hidden");
@@ -6709,6 +6732,7 @@ function updateScene(dt) {
   const raceActive = state.mode === "racing";
   if (state.mode === "countdown") updateCountdownStart(dt);
   if (raceActive) state.time += dt;
+  updateLapAnnouncement();
 
   itemBoxes.forEach((box) => {
     const phase = performance.now() * 0.003 + box.userData.index;
@@ -6741,6 +6765,7 @@ function updateScene(dt) {
     racers.forEach((racer) => updateRacer(racer, dt));
     updateProjectiles(dt);
     updateTraps(dt);
+    updateBoostGates(dt);
     updateRanks();
     hudTimer -= dt;
     if (hudTimer <= 0) {
@@ -6771,6 +6796,17 @@ function updateRacer(racer, dt) {
   racer.itemCooldown = Math.max(0, racer.itemCooldown - dt);
   racer.boostTimer = Math.max(0, racer.boostTimer - dt);
   racer.shieldTimer = Math.max(0, racer.shieldTimer - dt);
+  racer.hitProtection = Math.max(0, racer.hitProtection - dt);
+  racer.repairLock = Math.max(0, racer.repairLock - dt);
+  racer.magnetTimer = Math.max(0, racer.magnetTimer - dt);
+  if (racer.shieldShell) {
+    racer.shieldShell.visible = racer.shieldTimer > 0;
+    racer.shieldShell.rotation.y += dt;
+  }
+  if (racer.shieldTimer <= 0) racer.counterShield = false;
+  const chasing = racer.magnetTimer > 0 && racer.magnetTarget && !racer.magnetTarget.finished
+    && forwardRaceDistance(racer, racer.magnetTarget) < 125;
+  if (racer.magnetTimer > 0 && !chasing) racer.magnetTimer = 0;
   racer.shieldWarningTimer = Math.max(0, (racer.shieldWarningTimer || 0) - dt);
   racer.stunTimer = Math.max(0, racer.stunTimer - dt);
   racer.obstacleCooldown = Math.max(0, (racer.obstacleCooldown || 0) - dt);
@@ -6817,7 +6853,7 @@ function updateRacer(racer, dt) {
     reverse = 0.2;
   }
 
-  if (throttle) racer.speed += accel * dt;
+  if (throttle) racer.speed += accel * dt * (chasing ? 1.65 : racer.boostTimer > 0 ? 1.45 : 1);
   if (reverse) racer.speed -= racer.speed > 4 ? brake * dt : accel * 0.55 * dt;
   if (!throttle && !reverse) racer.speed = approach(racer.speed, 0, (6.5 + Math.abs(racer.speed) * 0.05) * dt);
 
@@ -6835,7 +6871,7 @@ function updateRacer(racer, dt) {
   const grade = track?.samples?.[racer.trackIndex]?.tangent?.y || 0;
   const climbEffect = track?.topology?.climbEffect || 10;
   racer.speed -= grade * climbEffect * clamp(Math.abs(racer.speed) / 24, 0.3, 1) * dt;
-  const currentMax = maxSpeed * (boosting ? 1.32 * boostPower : 1) * shieldSpeedLimit * rubberBand;
+  const currentMax = maxSpeed * (boosting ? 1.32 * boostPower : chasing ? 1.3 : 1) * shieldSpeedLimit * rubberBand;
   racer.speed = clamp(racer.speed, -maxSpeed * 0.32, currentMax);
 
   const steer = controls.steer;
@@ -6918,6 +6954,11 @@ function updateRacer(racer, dt) {
   racer.wasAirborne = racer.jumpHeight > 0.08 || racer.verticalSpeed > 0;
   if (wasAirborne && !racer.wasAirborne) {
     handleLandingGrade(racer, nearest);
+    if (racer.hopLandingPending) {
+      racer.hopLandingPending = false;
+      grantDash(racer, 1.25);
+      if (racer.isPlayer) showRaceNotice("ジャンプせいこう", "着地ダッシュ！", "とびこえて おいぬこう", "boost", 1200);
+    }
     if (lunarSurface) {
       spawnMoonDust(racer.position, racer.isPlayer ? 12 : 6, racer.isPlayer ? 1.15 : 0.78);
       spawnShockwave(racer.position, 0xdde8f2, racer.isPlayer ? 3.2 : 2.2);
@@ -6965,7 +7006,7 @@ function updateRacer(racer, dt) {
   racer.group.traverse((child) => {
     if (child.userData.spin) child.rotation.x += racer.speed * dt * 0.55;
   });
-  animateKartVisuals(racer, dt, speedFactor, boosting, steer);
+  animateKartVisuals(racer, dt, speedFactor, boosting || chasing, steer);
   if (racer.group.userData.engineLight) {
     racer.group.userData.engineLight.intensity = boosting ? 16 : 4 + speedFactor * 5;
   }
@@ -7101,24 +7142,24 @@ function readCpuControls(racer, dt) {
 
   racer.ai.useTimer -= dt * (0.85 + itemSkill * 0.45);
   if (racer.ai.useTimer <= 0 && racer.item) {
-    if (rand() < itemSkill) useItem(racer);
-    racer.ai.useTimer = 1.25 + rand() * (3.0 - itemSkill * 1.2);
+    if (cpuShouldUseItem(racer) && rand() < itemSkill) useItem(racer);
+    racer.ai.useTimer = 0.45 + (1 - itemSkill) * 1.5;
   }
 
   const nearest = nearestTrackSample(racer.position, racer.trackIndex);
   const stats = combinedStats(racer);
   const baseMax = (34 + stats.speed * 3.4) * (diff.maxSpeed || diff.speed || 1);
   const speedAbs = clamp(Math.abs(racer.speed), 0, 90);
-  const lookAhead = Math.floor(16 + speedAbs * (0.36 + steeringSkill * 0.07));
-  const targetIndex = (nearest.index + lookAhead) % TRACK_STEPS;
-  const farIndex = (nearest.index + lookAhead + Math.floor(18 + steeringSkill * 9)) % TRACK_STEPS;
-  const edgeIndex = (nearest.index + Math.floor(8 + speedAbs * 0.18)) % TRACK_STEPS;
+  const lookAhead = 12 + speedAbs * 0.48;
+  const targetIndex = trackIndexAtDistance(nearest.index, lookAhead);
+  const farIndex = trackIndexAtDistance(nearest.index, lookAhead + 24);
+  const edgeIndex = trackIndexAtDistance(nearest.index, 8 + speedAbs * 0.2);
   const targetSample = track.samples[targetIndex];
   const farSample = track.samples[farIndex];
   const edgeSample = track.samples[edgeIndex];
-  const futureA = track.samples[(nearest.index + 8) % TRACK_STEPS].tangent;
-  const futureB = track.samples[(nearest.index + 30) % TRACK_STEPS].tangent;
-  const futureC = track.samples[(nearest.index + 56) % TRACK_STEPS].tangent;
+  const futureA = track.samples[trackIndexAtDistance(nearest.index, 12)].tangent;
+  const futureB = track.samples[trackIndexAtDistance(nearest.index, 48)].tangent;
+  const futureC = track.samples[trackIndexAtDistance(nearest.index, 92)].tangent;
   const curve = Math.max(1 - clamp(futureA.dot(futureB), -1, 1), (1 - clamp(futureB.dot(futureC), -1, 1)) * 0.86);
 
   const lateral = nearest.lateral || 0;
@@ -7141,6 +7182,14 @@ function readCpuControls(racer, dt) {
   if (upcomingBoost && boostUsage > 0.55 && curve < 0.38 && edgeAmount < 0.35) targetOffset *= 1 - boostUsage * 0.78;
 
   const maxLane = edgeAmount > 0 ? TRACK_WIDTH * 0.08 : TRACK_WIDTH * 0.18;
+  if (canCollectSupply(racer) && edgeAmount < 0.2 && curve < 0.24) {
+    let closestBox = null, distance = 70;
+    for (const box of itemBoxes) {
+      const gap = ((box.userData.index - nearest.index + TRACK_STEPS) % TRACK_STEPS) * track.totalLength / TRACK_STEPS;
+      if (box.userData.cooldown <= 0 && gap > 0 && gap < distance) { distance = gap; closestBox = box; }
+    }
+    if (closestBox) targetOffset = closestBox.userData.offset * 0.76;
+  }
   targetOffset = clamp(targetOffset, -maxLane, maxLane);
 
   const target = targetSample.point
@@ -7281,7 +7330,7 @@ function handleCpuCourseAssist(racer, nearest, controls, dt) {
   const hardEdge = TRACK_WIDTH * 0.46;
   const side = Math.sign(nearest.lateral || 1);
   const amount = clamp((absLateral - softEdge) / Math.max(0.01, hardEdge - softEdge), 0, 1);
-  const targetIndex = (nearest.index + Math.floor(10 + clamp(Math.abs(racer.speed), 0, 90) * 0.16)) % TRACK_STEPS;
+  const targetIndex = trackIndexAtDistance(nearest.index, 10 + clamp(Math.abs(racer.speed), 0, 90) * 0.22);
   const targetSample = track.samples[targetIndex] || nearest.sample;
   const safeLateral = clamp((nearest.lateral || 0) * 0.14, -TRACK_WIDTH * 0.08, TRACK_WIDTH * 0.08);
   const target = targetSample.point.clone().addScaledVector(targetSample.normal, safeLateral);
@@ -7315,15 +7364,10 @@ function stabilizeRacerGrounding(racer, nearest, dt) {
   const current = nearestTrackSample(racer.position, nearest?.index ?? racer.trackIndex);
   if (!current?.sample) return nearest;
   const groundY = trackSurfaceY(current.sample, current.lateral || 0);
-  const airborne = racer.jumpHeight > 0.08 || racer.verticalSpeed > 0.1;
-  if (racer.position.y < groundY - 0.08) {
-    racer.position.y = groundY;
-    racer.verticalSpeed = Math.max(0, racer.verticalSpeed || 0);
-    racer.jumpHeight = Math.max(0, racer.jumpHeight || 0);
-    if (racer.isPlayer) cameraShake = Math.max(cameraShake, 0.08);
-  } else if (!airborne) {
-    racer.position.y = approach(racer.position.y, groundY, (racer.isPlayer ? 18 : 14) * dt);
-  }
+  // position is the road contact point; jumpHeight is the independent air offset.
+  // Resetting downward velocity on every uphill sample made jumps float forever.
+  racer.position.y = groundY;
+  racer.jumpHeight = Math.max(0, racer.jumpHeight || 0);
   return current;
 }
 
@@ -7416,31 +7460,31 @@ function handleSurface(racer, nearest, dt) {
 }
 
 function handleRaceProgress(racer, nearest) {
-  const old = racer.trackIndex;
   const next = nearest.index;
-  if (old > TRACK_STEPS * 0.78 && next < TRACK_STEPS * 0.22 && racer.speed > 0) {
-    if (racer.startedLap) {
+  const forward = racer.speed > 0 && forwardFromYaw(racer.yaw).dot(nearest.sample.tangent) > 0;
+  const event = advanceLap(racer, next, TRACK_STEPS, forward);
+  if (event === "lap") {
       if (racer.isPlayer) {
         state.lapTimes.push(Math.max(0, state.time - state.lapStartedAt));
         state.lapStartedAt = state.time;
       }
-      racer.lap += 1;
+      if (racer.lap < activeLapTotal()) {
+        adjustShield(racer, 20, { silent: true });
+        if (!racer.item) racer.item = { ...DATA.items.find(item => item.kind === "boost"), charges: 1 };
+        else if (racer.item.kind === "boost") racer.item.charges = Math.min(3, (racer.item.charges || 1) + 1);
+      }
       if (racer.isPlayer && racer.lap < activeLapTotal()) {
         gameHaptic([12, 28, 14]);
         const finalLap = racer.lap === activeLapTotal() - 1;
-        showRaceNotice(finalLap ? "ファイナルラップ" : "つぎのしゅう", finalLap ? "さいごの1しゅう！" : (racer.lap + 1) + "しゅう目", finalLap ? "ゴールまで全力で走ろう" : "ベストラインをねらおう", finalLap ? "final" : "info", 1750);
+        announceLap(finalLap);
         playAudio("lap", finalLap);
       }
       if (racer.lap >= activeLapTotal()) {
         racer.finished = true;
         racer.finishTime = state.time;
       }
-    } else {
-      racer.startedLap = true;
-      if (racer.isPlayer) state.lapStartedAt = state.time;
-    }
-  } else if (old < TRACK_STEPS * 0.2 && next > TRACK_STEPS * 0.8 && racer.speed < -4) {
-    racer.lap = Math.max(0, racer.lap - 1);
+  } else if (event === "start" && racer.isPlayer) {
+    state.lapStartedAt = state.time;
   }
   racer.trackIndex = next;
   if (!racer.startedLap && next > TRACK_STEPS * 0.55) {
@@ -7450,21 +7494,60 @@ function handleRaceProgress(racer, nearest) {
   }
 }
 
+function announceLap(finalLap) {
+  const lapTime = state.lapTimes[state.lapTimes.length - 1];
+  const best = Math.min(...state.lapTimes);
+  dom.lapBannerLabel.textContent = `${player.lap}しゅう はしった！`;
+  dom.lapBannerTitle.textContent = finalLap ? "さいごの1しゅう！" : `${player.lap + 1} / ${activeLapTotal()} しゅう`;
+  const refill = player.item?.kind === "boost" ? "ダッシュほきゅう" : "マシンかいふく";
+  dom.lapBannerTime.textContent = `${formatTime(lapTime)}  ${lapTime <= best ? "ベストラップ" : formatPaceDelta(lapTime - best)} / ${refill}`;
+  dom.lapBanner.dataset.final = String(finalLap);
+  lapAnnouncementUntil = state.time + 3.4;
+  updateLapAnnouncement();
+}
+
+function updateLapAnnouncement() {
+  const visible = state.mode === "racing" && lapAnnouncementUntil > state.time;
+  dom.lapBanner?.classList.toggle("hidden", !visible);
+  dom.app?.classList.toggle("is-lap-announcement", visible);
+}
+
+function addLapFinishStripe(trackInfo) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  for (let y = 0; y < 2; y += 1) for (let x = 0; x < 8; x += 1) {
+    ctx.fillStyle = (x + y) % 2 ? "#17212b" : "#f3efdf";
+    ctx.fillRect(x * 32, y * 32, 32, 32);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const stripeGeometry = new THREE.PlaneGeometry(TRACK_WIDTH, 5);
+  stripeGeometry.rotateX(-Math.PI / 2);
+  const stripe = new THREE.Mesh(stripeGeometry, new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
+  const sample = trackInfo.samples[0];
+  stripe.position.copy(sample.point); stripe.position.y += 0.12;
+  orientTrackObject(stripe, sample);
+  trackInfo.group.add(stripe);
+}
+
 function handleItemPickup(racer) {
-  if (racer.item || racer.itemCooldown > 0) return;
+  if (!canCollectSupply(racer)) return;
   for (const box of itemBoxes) {
     if (!box.visible || box.userData.cooldown > 0) continue;
     if (racer.position.distanceTo(box.position) < 5.2) {
-      racer.item = chooseItemForRank(racer.rank, racers.length);
+      const exchanged = Boolean(racer.item);
+      racer.item = chooseItemForRank(racer.rank, racers.length, box.userData.supply, racer.item?.kind || racer.lastItemKind, Boolean(targetAhead(racer)));
+      racer.lastItemKind = racer.item.kind;
       racer.itemCooldown = 0.4;
-      box.userData.cooldown = 5.5;
+      box.userData.cooldown = racer.lap === activeLapTotal() - 1 ? 3.2 : 5.5;
       spawnBurst(box.position, 0xffd166, 18, 1.4);
       spawnShockwave(box.position, racer.item.color || 0xffd166, 5.2);
       if (racer.isPlayer) {
         const itemName = displayName(racer.item);
         const itemColor = racer.item.color || "#ffd166";
         dom.raceNotice?.style.setProperty("--notice-color", itemColor);
-        showRaceNotice("どうぐゲット", friendlyItemIcon(racer.item) + " " + itemName, itemEffectText(racer.item) + " / 右下の「どうぐ」でつかう", "item", 2400);
+        showRaceNotice(exchanged ? "どうぐいれかえ" : "どうぐゲット", friendlyItemIcon(racer.item) + " " + itemName, itemEffectText(racer.item) + " / 右下の「どうぐ」でつかう", "item", 2400);
         awardRaceSkill(racer, "どうぐゲット", 40, { chain: false });
         playAudio("itemPickup");
         gameHaptic([10, 22, 12]);
@@ -7489,8 +7572,10 @@ function adjustShield(racer, amount, options = {}) {
 }
 
 function handleRepairPads(racer, nearest) {
+  if (racer.repairLock > 0) return;
   for (const pad of repairPads) {
-    if (indexDistance(nearest.index, pad.userData.index) < 5 && Math.abs(nearest.lateral - (pad.userData.offset || 0)) < TRACK_WIDTH * 0.32) {
+    if (racer.position.distanceToSquared(pad.position) < 48) {
+      racer.repairLock = 1;
       adjustShield(racer, racer.isPlayer ? 15 : 10, { silent: (pad.userData.cooldown || 0) > 0 });
       racer.stunTimer = Math.max(0, racer.stunTimer - 0.18);
       if ((pad.userData.cooldown || 0) <= 0) {
@@ -7504,7 +7589,7 @@ function handleRepairPads(racer, nearest) {
 }
 function handleBoostPanels(racer, nearest) {
   for (const panel of boostPanels) {
-    if (indexDistance(nearest.index, panel.userData.index) < 5 && Math.abs(nearest.lateral) < TRACK_WIDTH * 0.38) {
+    if (racer.position.distanceToSquared(panel.position) < 60) {
       const freshBoost = (racer.boostPanelLock || 0) <= 0;
       racer.boostTimer = Math.max(racer.boostTimer, 1.12);
       if (freshBoost) {
@@ -7610,7 +7695,7 @@ function handleLandingGrade(racer, nearest) {
 function handleJumpRamps(racer, nearest) {
   for (const obstacle of obstacles) {
     if (obstacle.type !== "ramp") continue;
-    if (indexDistance(nearest.index, obstacle.index) < 3 && Math.abs(nearest.lateral) < TRACK_WIDTH * 0.34 && racer.jumpHeight < 0.1) {
+    if (racer.position.distanceToSquared(obstacle.mesh.position) < 46 && Math.abs(nearest.lateral) < TRACK_WIDTH * 0.34 && racer.jumpHeight < 0.1 && racer.speed > 8) {
       racer.verticalSpeed = (track?.theme?.gravityFeel === "low" ? 14.5 : track?.theme?.gravityFeel === "floaty" ? 13.2 : 12) + Math.max(racer.speed, 0) * (track?.theme?.gravityFeel === "stable" ? 0.07 : 0.085);
       racer.jumpHeight = 0.2;
       racer.airTime = 0;
@@ -7622,6 +7707,7 @@ function handleJumpRamps(racer, nearest) {
 }
 
 function handleObstacleCollisions(racer, nearest) {
+  if (racer.jumpHeight > 3) return;
   obstacles.forEach((obstacle) => {
     if (obstacle.radius <= 0) return;
     if (!racer.isPlayer && (racer.ghostTimer || 0) > 0) return;
@@ -7840,73 +7926,135 @@ function idleRacer(racer, dt) {
   animateKartVisuals(racer, dt, victory ? 0.72 : 0.22, victory, victory ? Math.sin(t * 2.4) * 0.32 : 0);
 }
 
-function chooseItemForRank(rank, total) {
-  const lowRank = rank / total;
-  const pool = [];
-  DATA.items.forEach((item) => {
-    let weight = 1;
-    if (item.kind === "comeback") weight = lowRank > 0.65 ? 8 : 0.2;
-    if (item.kind === "boost") weight = lowRank > 0.45 ? 5 : 1.6;
-    if (item.kind === "projectile") weight = lowRank > 0.35 ? 3 : 2.2;
-    if (item.kind === "aoe") weight = lowRank > 0.55 ? 4 : 1.2;
-    if (item.kind === "trap" || item.kind === "shield") weight = lowRank < 0.35 ? 4 : 1.4;
-    for (let i = 0; i < Math.max(1, Math.round(weight)); i += 1) pool.push(item);
-  });
-  return { ...pool[Math.floor(rand() * pool.length)] };
+function chooseItemForRank(rank, total, supply, previousKind, targetAvailable = true) {
+  return drawItem(DATA.items, { rank, total, supply, previousKind, targetAvailable, solo: raceMode().id === "timeAttack" }, rand);
+}
+
+function canCollectSupply(racer) {
+  if (racer.itemCooldown > 0) return false;
+  return !racer.item || (["projectile", "magnet"].includes(racer.item.kind) && !targetAhead(racer));
+}
+
+function forwardRaceDistance(from, to) {
+  const distance = ((to.trackIndex - from.trackIndex + TRACK_STEPS) % TRACK_STEPS) * track.totalLength / TRACK_STEPS;
+  return distance > 0.1 ? distance : Infinity;
+}
+
+function targetAhead(racer, range = 110) {
+  let target = null;
+  let distance = range;
+  for (const other of racers) {
+    if (other === racer || other.finished) continue;
+    const gap = forwardRaceDistance(racer, other);
+    if (gap < distance) { distance = gap; target = other; }
+  }
+  return target;
+}
+
+function grantDash(racer, seconds) {
+  racer.boostTimer = Math.max(racer.boostTimer, seconds);
+  const max = (34 + combinedStats(racer).speed * 3.4) * (racer.isPlayer ? 1 : difficulty().maxSpeed || 1);
+  racer.speed = Math.max(racer.speed, max * 1.1);
+  if (racer.isPlayer) { cameraShake = Math.max(cameraShake, 0.2); playAudio("boost", 0.55); }
+}
+
+function cpuShouldUseItem(racer) {
+  const kind = racer.item?.kind;
+  const ahead = targetAhead(racer);
+  const near = racers.some(other => other !== racer && !other.finished && other.position.distanceToSquared(racer.position) < 225);
+  const tangent = track.samples[racer.trackIndex].tangent;
+  const turn = 1 - tangent.dot(track.samples[trackIndexAtDistance(racer.trackIndex, 50)].tangent);
+  if (kind === "projectile" || kind === "magnet") return !!ahead;
+  if (kind === "aoe") return near;
+  if (kind === "trap") return racers.some(other => other !== racer && forwardRaceDistance(other, racer) < 65);
+  if (kind === "shield") return near || projectiles.some(p => p.target === racer);
+  if (kind === "hop") return racer.jumpHeight < 0.1 && (near || obstacles.some(o => o.radius > 0 && o.mesh.position.distanceToSquared(racer.position) < 650));
+  return turn < 0.18 && racer.boostTimer < 0.3;
+}
+
+function itemFeedback(racer, title, detail, kind = "item") {
+  if (!racer.isPlayer) return;
+  showRaceNotice("どうぐ", title, detail, kind, 1800);
 }
 
 function useItem(racer) {
   if (!racer || !racer.item || racer.itemCooldown > 0 || racer.finished) return;
   const item = racer.item;
-  racer.item = null;
-  racer.itemCooldown = 0.55;
-  playAudio("itemUse", item.kind);
+  const target = targetAhead(racer);
+  if ((item.kind === "magnet" || item.kind === "projectile") && !target) {
+    itemFeedback(racer, "前のマシンをねらおう", "いなければ つぎの箱でいれかえ");
+    racer.itemCooldown = 0.35;
+    return;
+  }
+  if (item.kind === "hop" && racer.jumpHeight > 0.1) return;
+  item.charges = (item.charges || item.maxCharges || 1) - 1;
+  if (item.charges <= 0) racer.item = null;
+  racer.itemCooldown = 0.38;
+  if (racer.isPlayer) playAudio("itemUse", item.kind);
   if (racer.isPlayer) {
     dom.raceNotice?.style.setProperty("--notice-color", item.color || "#ffd166");
-    showRaceNotice("どうぐをつかった", friendlyItemIcon(item) + " " + displayName(item), itemUseResultText(item), "item", 1500);
+    showRaceNotice("どうぐをつかった", friendlyItemIcon(item) + " " + displayName(item), item.shortEffect || itemUseResultText(item), "item", 1500);
     gameHaptic(item.kind === "comeback" ? [12, 18, 28] : [10, 18]);
   }
   if (item.kind === "boost") {
-    racer.boostTimer = Math.max(racer.boostTimer, 2.25);
+    grantDash(racer, 1.15);
+    itemFeedback(racer, "ダッシュ！", item.charges ? `あと${item.charges}かい つかえるよ` : "3かい つかいきった！", "boost");
     spawnBurst(racer.position, colorToHex(item.color), 22, 1.8);
     spawnShockwave(racer.position, colorToHex(item.color), 6.0);
   } else if (item.kind === "projectile") {
-    spawnProjectile(racer, item);
+    spawnProjectile(racer, item, target);
+    itemFeedback(racer, "スター はっしゃ！", displayName(target.character) + "を おいかける");
   } else if (item.kind === "aoe") {
     spawnBloom(racer, item);
   } else if (item.kind === "trap") {
     spawnTrap(racer, item);
   } else if (item.kind === "shield") {
-    racer.shieldTimer = Math.max(racer.shieldTimer, 5.0);
+    racer.shieldTimer = Math.max(racer.shieldTimer, 6.0);
+    racer.counterShield = true;
     spawnShield(racer, item);
   } else if (item.kind === "comeback") {
-    racer.boostTimer = Math.max(racer.boostTimer, 3.4);
+    grantDash(racer, 3.4);
     racer.shieldTimer = Math.max(racer.shieldTimer, 3.0);
-    spawnBloom(racer, item, 22, true);
+    racer.counterShield = false;
+    spawnShield(racer, item);
+  } else if (item.kind === "magnet") {
+    racer.magnetTimer = 5;
+    racer.magnetTarget = target;
+    spawnShockwave(racer.position, item.color, 5);
+    itemFeedback(racer, "おいつきマグネット！", displayName(target.character) + "を おって はやくなる");
+  } else if (item.kind === "hop") {
+    racer.jumpHeight = 0.2;
+    racer.verticalSpeed = track.theme.gravityFeel === "low" ? 16 : 19;
+    racer.hopLandingPending = true;
+    racer.airTime = 0;
+    racer.jumpPeak = 0.2;
+    spawnShockwave(racer.position, item.color, 5);
+  } else if (item.kind === "gate") {
+    spawnBoostGate(racer, item);
   }
   updateHud();
 }
 
-function spawnProjectile(racer, item) {
+function spawnProjectile(racer, item, target = targetAhead(racer)) {
+  if (projectiles.length >= 10) retireEffect(projectiles.shift());
   const forward = forwardFromYaw(racer.yaw);
   const mesh = new THREE.Mesh(
-    new THREE.ConeGeometry(0.55, 2.6, 12),
-    new THREE.MeshStandardMaterial({
-      color: colorToHex(item.color),
-      emissive: colorToHex(item.color),
-      emissiveIntensity: 1.4
-    })
+    new THREE.OctahedronGeometry(1.15, 0),
+    new THREE.MeshBasicMaterial({ color: item.color })
   );
   mesh.rotation.x = Math.PI / 2;
   mesh.rotation.y = racer.yaw;
   mesh.position.copy(racer.position).addScaledVector(forward, 5);
-  mesh.position.y += 2.2;
+  mesh.position.y += racer.jumpHeight + 2.2;
   scene.add(mesh);
   projectiles.push({
     owner: racer,
     mesh,
     velocity: forward.multiplyScalar(72 + Math.max(racer.speed, 0)),
-    life: 2.8,
+    life: 3.4,
+    target,
+    previous: mesh.position.clone(),
+    aim: new THREE.Vector3(),
     item
   });
 }
@@ -7926,45 +8074,39 @@ function spawnBloom(racer, item, radius = 15, strong = false) {
   scene.add(ring);
   addParticle({ mesh: ring, life: 0.55, maxLife: 0.55, velocity: new THREE.Vector3(), scaleRate: radius });
 
+  let hits = 0;
   racers.forEach((other) => {
     if (other === racer || other.finished) return;
     const dist = other.position.distanceTo(racer.position);
     if (dist >= radius) return;
-    if (other.shieldTimer > 0) {
-      other.shieldTimer = 0;
-      spawnBurst(other.position, 0x9ee7ff, 10, 1);
-      return;
-    }
-    if (dist < radius) {
-      other.stunTimer = Math.max(other.stunTimer, strong ? 1.8 : 1.1);
-      other.speed *= strong ? 0.45 : 0.65;
-      spawnBurst(other.position, colorToHex(item.color), 14, 1.2);
-    }
+    if (hitRacer(other, item, racer, 0.55)) hits += 1;
   });
+  itemFeedback(racer, hits ? `${hits}だいに ヒット！` : "とどかなかった！", "近くのマシンに つかおう");
 }
 
 function spawnTrap(racer, item) {
+  if (traps.length >= 10) retireEffect(traps.shift());
   const backward = forwardFromYaw(racer.yaw).multiplyScalar(-1);
   const mesh = new THREE.Mesh(
-    new THREE.TorusGeometry(1.5, 0.18, 8, 32),
+    new THREE.IcosahedronGeometry(1.45, 0),
     new THREE.MeshStandardMaterial({
       color: colorToHex(item.color),
       emissive: colorToHex(item.color),
       emissiveIntensity: 1.05,
-      transparent: true,
-      opacity: 0.86
+      roughness: 0.8
     })
   );
   mesh.position.copy(racer.position).addScaledVector(backward, 5);
   mesh.position.y += 0.5;
   mesh.rotation.x = Math.PI / 2;
   scene.add(mesh);
-  traps.push({ owner: racer, mesh, life: 24, item });
+  traps.push({ owner: racer, mesh, life: 18, armTimer: 0.65, item });
 }
 
 function spawnShield(racer, item) {
+  if (racer.shieldShell) { racer.shieldShell.visible = true; return; }
   const shell = new THREE.Mesh(
-    new THREE.SphereGeometry(4, 24, 12),
+    new THREE.IcosahedronGeometry(4, 1),
     new THREE.MeshBasicMaterial({
       color: colorToHex(item.color),
       transparent: true,
@@ -7973,22 +8115,30 @@ function spawnShield(racer, item) {
     })
   );
   racer.group.add(shell);
-  addParticle({ mesh: shell, life: 5, maxLife: 5, velocity: new THREE.Vector3(), parented: true });
+  racer.shieldShell = shell;
 }
 
 function updateProjectiles(dt) {
   projectiles = projectiles.filter((projectile) => {
     projectile.life -= dt;
+    projectile.previous.copy(projectile.mesh.position);
+    if (projectile.target && !projectile.target.finished) {
+      projectile.aim.copy(projectile.target.position);
+      projectile.aim.y += projectile.target.jumpHeight + 2.1;
+      projectile.aim.sub(projectile.mesh.position).normalize().multiplyScalar(110);
+      projectile.velocity.lerp(projectile.aim, Math.min(1, dt * 5));
+    }
     projectile.mesh.position.addScaledVector(projectile.velocity, dt);
     projectile.mesh.rotation.z += dt * 12;
     projectile.trailTimer = (projectile.trailTimer || 0) - dt;
     if (projectile.trailTimer <= 0) {
       spawnBurst(projectile.mesh.position, colorToHex(projectile.item.color), 1, 0.6);
-      projectile.trailTimer = 0.08;
+      projectile.trailTimer = QUALITY.low ? 0.25 : 0.16;
     }
     for (const racer of racers) {
       if (racer === projectile.owner || racer.finished) continue;
-      if (racer.position.distanceTo(projectile.mesh.position) < 4.2) {
+      const a = projectile.previous, b = projectile.mesh.position;
+      if (segmentDistanceSquared(racer.position.x, racer.position.y + racer.jumpHeight + 2, racer.position.z, a.x, a.y, a.z, b.x, b.y, b.z) < 10) {
         hitRacer(racer, projectile.item, projectile.owner);
         scene.remove(projectile.mesh);
         disposeObject3D(projectile.mesh);
@@ -8007,9 +8157,11 @@ function updateProjectiles(dt) {
 function updateTraps(dt) {
   traps = traps.filter((trap) => {
     trap.life -= dt;
+    trap.armTimer = Math.max(0, trap.armTimer - dt);
+    trap.mesh.scale.set(1, 1, trap.armTimer > 0 ? 0.5 : 0.85);
     trap.mesh.rotation.z += dt * 2.4;
     for (const racer of racers) {
-      if (racer === trap.owner || racer.finished) continue;
+      if (racer === trap.owner || racer.finished || trap.armTimer > 0 || racer.jumpHeight > 2) continue;
       if (racer.position.distanceTo(trap.mesh.position) < 4) {
         hitRacer(racer, trap.item, trap.owner, 0.85);
         scene.remove(trap.mesh);
@@ -8026,16 +8178,63 @@ function updateTraps(dt) {
   });
 }
 
-function hitRacer(racer, item, owner, stun = 1.25) {
-  if (racer.shieldTimer > 0) {
-    racer.shieldTimer = 0;
-    spawnBurst(racer.position, 0x9ee7ff, 18, 1.4);
-    return;
+function retireEffect(effect) {
+  effect.mesh.removeFromParent();
+  disposeObject3D(effect.mesh);
+}
+
+function spawnBoostGate(racer, item) {
+  if (boostGates.length >= 3) retireEffect(boostGates.shift());
+  const index = trackIndexAtDistance(racer.trackIndex, 20);
+  const sample = track.samples[index];
+  const mesh = new THREE.Group();
+  const material = new THREE.MeshBasicMaterial({ color: item.color });
+  const arch = new THREE.Mesh(new THREE.TorusGeometry(5.4, 0.28, 4, 12, Math.PI), material);
+  arch.position.y = 0.3;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(10.8, 0.15, 2.5), material);
+  mesh.add(arch, base);
+  mesh.position.copy(sample.point); mesh.position.y += 0.15;
+  mesh.rotation.y = Math.atan2(sample.tangent.x, sample.tangent.z);
+  scene.add(mesh);
+  boostGates.push({ mesh, life: 12, owner: racer, used: new Set(), index });
+}
+
+function updateBoostGates(dt) {
+  for (let index = boostGates.length - 1; index >= 0; index -= 1) {
+    const gate = boostGates[index];
+    gate.life -= dt;
+    gate.mesh.visible = gate.life > 2 || Math.floor(gate.life * 8) % 2 === 0;
+    for (const racer of racers) {
+      if (racer.finished || gate.used.has(racer.id) || racer.jumpHeight > 5) continue;
+      if (racer.position.distanceToSquared(gate.mesh.position) < 42) {
+        gate.used.add(racer.id);
+        grantDash(racer, 1.6);
+        spawnShockwave(racer.position, 0x85d5bc, 5);
+        itemFeedback(racer, "ゲートダッシュ！", gate.owner === racer ? "じぶんの門を くぐった！" : "あいての門も つかえる！", "boost");
+      }
+    }
+    if (gate.life <= 0) { retireEffect(gate); boostGates.splice(index, 1); }
   }
+}
+
+function hitRacer(racer, item, owner, stun = 0.8) {
+  if (racer.finished || racer.hitProtection > 0) return false;
+  if (racer.shieldTimer > 0) {
+    if (racer.counterShield) {
+      racer.shieldTimer = 0;
+      racer.counterShield = false;
+      grantDash(racer, 1.4);
+      itemFeedback(racer, "ふせいで ダッシュ！", "おかえしバリア せいこう", "boost");
+    }
+    spawnBurst(racer.position, 0x9ee7ff, 18, 1.4);
+    return false;
+  }
+  racer.hitProtection = 1.6;
   adjustShield(racer, -22, { big: true });
   racer.stunTimer = Math.max(racer.stunTimer, stun);
-  racer.speed *= 0.42;
+  racer.speed *= item.kind === "aoe" ? 0.72 : 0.58;
   racer.wobble = 1.2;
+  racer.impactPose = 1;
   spawnBurst(racer.position, colorToHex(item.color), 24, 1.8);
   spawnShockwave(racer.position, colorToHex(item.color), 6.8);
   if (racer.isPlayer || owner?.isPlayer) {
@@ -8044,6 +8243,9 @@ function hitRacer(racer, item, owner, stun = 1.25) {
     playAudio("collision", 0.7);
     if (racer.isPlayer) gameHaptic([30, 35, 45]);
   }
+  itemFeedback(owner || racer, displayName(racer.character) + "に ヒット！", displayName(item));
+  if (racer.isPlayer) itemFeedback(racer, "ヒットされた！", "バリアやジャンプで よけよう");
+  return true;
 }
 
 function spawnSparks(racer) {
@@ -8373,13 +8575,27 @@ function updateHud() {
   dom.speedValue.textContent = String(speedKmh);
   dom.mobileControls.classList.toggle("has-item-ready", Boolean(player.item));
   dom.touchItem.setAttribute("aria-label", player.item ? `${displayName(player.item)}を使う: ${itemEffectText(player.item)}` : "どうぐを使う");
-  dom.touchItem.textContent = player.item ? friendlyItemIcon(player.item) + " つかう" : "どうぐ";
+  dom.touchItem.textContent = player.item ? friendlyItemIcon(player.item) + (player.item.kind === "boost" ? ` ${player.item.charges || player.item.maxCharges || 1}かい` : " つかう") : "どうぐ";
   dom.touchItem.dataset.itemKind = player.item?.kind || "empty";
   dom.touchItem.style.setProperty("--item-color", player.item?.color || "#ffd166");
-  if (dom.itemHint) dom.itemHint.textContent = player.item ? "つかう: " + itemEffectText(player.item) : "光る箱でゲット";
+  if (dom.itemHint) dom.itemHint.textContent = player.item ? itemEffectText(player.item) : "色のちがう箱でえらぼう";
+  if (dom.itemStatus) {
+    const aimed = player.item && ["projectile", "magnet"].includes(player.item.kind) ? targetAhead(player) : null;
+    dom.itemStatus.textContent = player.item?.kind === "boost" ? `のこり ${player.item.charges || player.item.maxCharges || 1}かい`
+      : aimed ? "ねらう: " + displayName(aimed.character)
+      : player.item && ["projectile", "magnet"].includes(player.item.kind) ? "箱でいれかえ / 前をねらう"
+      : player.shieldTimer > 0 ? `バリア ${player.shieldTimer.toFixed(1)}びょう`
+      : player.magnetTimer > 0 ? `おいつき ${player.magnetTimer.toFixed(1)}びょう`
+      : player.hopLandingPending ? "着地で ダッシュ！"
+      : player.boostTimer > 0 ? `ダッシュ ${player.boostTimer.toFixed(1)}びょう`
+      : player.item?.kind === "gate" ? "あいても つかえる門"
+      : player.item?.kind === "trap" ? "うしろのマシンを ねらおう"
+      : player.item?.kind === "aoe" ? "近くのマシンに つかおう"
+      : player.item ? "どうぐボタン / Eキーでつかう" : "緑:すすめる 赤:しかける 青:まもる";
+  }
   updateRouteGuide();
   updateRaceCoach(boosting, speedKmh);
-  const itemKey = player.item ? player.item.id || player.item.name : "empty";
+  const itemKey = player.item ? (player.item.id || player.item.name) + ":" + player.item.charges : "empty";
   if (itemKey !== lastHudItem) {
     dom.itemSlot.classList.remove("item-pulse", "has-item", "is-empty");
     void dom.itemSlot.offsetWidth;
@@ -8449,15 +8665,13 @@ function updateRaceFlow() {
   const lapFraction = player.startedLap ? clamp((player.trackIndex || 0) / TRACK_STEPS, 0, 0.999) : 0;
   const sectorIndex = Math.min(sectors.length - 1, Math.floor(lapFraction * sectors.length));
   const sector = sectors[sectorIndex];
-  const lapTotal = activeLapTotal();
-  const overall = clamp((player.lap + lapFraction) / Math.max(1, lapTotal), 0, 1);
   const key = player.lap + ":" + sectorIndex;
   const grade = flowGrade();
   dom.raceFlow.dataset.grade = grade;
   dom.raceFlow.dataset.flow = "FLOW " + grade + " / " + state.styleScore;
-  dom.sectorKicker.textContent = "セクター " + (sectorIndex + 1) + "/" + sectors.length;
+  dom.sectorKicker.textContent = "この1しゅう " + Math.round(lapFraction * 100) + "% / あと" + Math.ceil((1 - lapFraction) * track.totalLength / 10) * 10 + "m";
   dom.sectorName.textContent = sector.name;
-  dom.raceProgressFill.style.width = (overall * 100).toFixed(1) + "%";
+  dom.raceProgressFill.style.width = ((player.finished ? 1 : lapFraction) * 100).toFixed(1) + "%";
 
   const stage = driftStageForCharge(player.driftCharge || 0);
   const driftPct = clamp((player.driftCharge || 0) / DRIFT_STAGES[3].min, 0, 1);
@@ -8608,8 +8822,11 @@ function updateMinimap() {
   ctx.fillRect(0, 0, w, h);
   ctx.save();
   ctx.translate(w / 2, h / 2);
-  ctx.scale(0.5, 0.5);
-  ctx.lineWidth = 8;
+  const b = track.mapBounds;
+  const scale = Math.min((w - 22) / (b.maxX - b.minX), (h - 22) / (b.maxZ - b.minZ));
+  ctx.scale(scale, scale);
+  ctx.translate(-(b.minX + b.maxX) / 2, -(b.minZ + b.maxZ) / 2);
+  ctx.lineWidth = 3 / scale;
   ctx.strokeStyle = "rgba(124, 231, 255, 0.42)";
   ctx.beginPath();
   track.samples.forEach((sample, index) => {
@@ -8620,10 +8837,13 @@ function updateMinimap() {
   });
   ctx.closePath();
   ctx.stroke();
+  const start = track.samples[0].point;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(start.x - 4 / scale, start.z - 2 / scale, 8 / scale, 4 / scale);
   racers.forEach((racer) => {
     ctx.fillStyle = racer.isPlayer ? "#ffd166" : "#d7f7ff";
     ctx.beginPath();
-    ctx.arc(racer.position.x, racer.position.z, racer.isPlayer ? 5 : 3.5, 0, Math.PI * 2);
+    ctx.arc(racer.position.x, racer.position.z, (racer.isPlayer ? 3.5 : 2) / scale, 0, Math.PI * 2);
     ctx.fill();
   });
   ctx.restore();

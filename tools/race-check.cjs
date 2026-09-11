@@ -13,6 +13,7 @@ window.__raceTest = {
   stats: () => ({...collectQaSnapshot(), art: player.group.userData.artVersion,
     vehicleMeshes: racers.map(r => { let n = 0; r.group.traverse(c => { if(c.isMesh) n++; }); return n; })}),
   render: () => renderer.render(scene, camera),
+  lapNotice: () => { player.lap=1;player.startedLap=true;state.lapTimes=[48.3];state.time=50;announceLap(true);updateHud();renderer.render(scene,camera); },
   frame: (n) => { for(let i=0;i<n;i++) updateScene(1/60); renderer.render(scene,camera); },
   place: (fraction=0,speed=0) => { const index=Math.floor(fraction*TRACK_STEPS)%TRACK_STEPS; const s=track.samples[index];
     player.position.copy(s.point); player.trackIndex=index; player.yaw=Math.atan2(s.tangent.x,s.tangent.z);
@@ -22,7 +23,9 @@ window.__raceTest = {
     return {x:player.position.x,z:player.position.z,yaw:player.yaw}; },
   state: () => ({x:player.position.x,z:player.position.z,yaw:player.yaw,...collectQaSnapshot()}),
   course: (index) => { state.selectedCourse=index; state.difficulty='Hard'; rebuildTrackForSelectedCourse(); resetRace(); state.mode='racing'; },
-  item: (kind) => { player.item={...DATA.items.find(i=>i.kind===kind)}; player.itemCooldown=0; updateHud(); },
+  item: (kind) => { player.item={...DATA.items.find(i=>i.kind===kind),charges:kind==='boost'?3:1}; player.itemCooldown=0;
+    if(kind==='projectile') {const other=racers.find(r=>r!==player),index=trackIndexAtDistance(player.trackIndex,40);other.trackIndex=index;other.position.copy(track.samples[index].point);}
+    updateHud(); },
   effects: () => ({item:player.item,boost:player.boostTimer,shield:player.shieldTimer,projectiles:projectiles.length,traps:traps.length,particles:particles.length}),
   clearEffects: () => { particles.forEach(p=>p.life=0); updateParticles(1); },
   tireTest: () => { const scratch=new THREE.Scene(); for(let i=0;i<100;i++){
@@ -87,10 +90,13 @@ async function run() {
     for(const kind of ['boost','shield','trap','aoe','projectile','comeback']) {
       await page.evaluate(()=>__raceTest.reset());
       await page.evaluate(k=>__raceTest.item(k),kind);
+      await page.waitForTimeout(220);
       await page.locator('#touchItem').evaluate(el=>el.click());
       const effects=await page.evaluate(()=>__raceTest.effects());
-      assert.equal(effects.item,null,kind+' must be consumed');
-      if(['boost','comeback'].includes(kind)) assert(effects.boost>2);
+      if(kind==='boost') assert.equal(effects.item.charges,2,'One tap spends one dash charge');
+      else assert.equal(effects.item,null,kind+' must be consumed');
+      if(kind==='boost') assert(effects.boost>1);
+      if(kind==='comeback') assert(effects.boost>3);
       if(['shield','comeback'].includes(kind)) assert(effects.shield>2);
       if(kind==='projectile') assert(effects.projectiles>0);
       if(kind==='trap') assert(effects.traps>0);

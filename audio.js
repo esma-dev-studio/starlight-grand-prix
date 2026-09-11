@@ -239,9 +239,17 @@
       return this._guard(function () {
         if (!this._ensureContext()) return this;
         var t = this.ctx.currentTime + 0.01;
-        var notes = finalLap ? [659.25, 783.99, 987.77, 1318.51] : [523.25, 659.25, 783.99];
+        var notes = finalLap ? [659.25, 783.99, 987.77, 1318.51] : [523.25, 659.25, 1046.5];
         for (var i = 0; i < notes.length; i += 1) {
-          this._tone(notes[i], finalLap ? 0.19 : 0.14, { time: t + i * 0.075, type: i % 2 ? "square" : "triangle", gain: finalLap ? 0.12 : 0.085, bus: "sfx", delaySend: true });
+          var last = i === notes.length - 1;
+          this._tone(notes[i], last ? 0.38 : 0.18, {
+            time: t + i * (finalLap ? 0.12 : 0.14),
+            type: last ? "sine" : "triangle",
+            gain: finalLap ? 0.16 : 0.14,
+            attack: 0.004,
+            release: last ? 0.3 : 0.12,
+            bus: "sfx"
+          });
         }
         return this;
       }, this);
@@ -386,43 +394,62 @@
       return this.playItemPickup();
     }
 
-    playItemUse() {
+    playItemUse(kind) {
       return this._guard(function () {
         if (!this._ensureContext()) {
           return this;
         }
         var t = this.ctx.currentTime + 0.01;
-        this._tone(1046.5, 0.28, {
-          time: t,
-          type: "square",
-          endFreq: 392,
-          gain: 0.13,
-          bus: "sfx",
-          filterType: "bandpass",
-          filterFreq: 1250,
-          filterQ: 7,
-          delaySend: true
-        });
-        this._tone(1567.98, 0.11, {
-          time: t + 0.06,
-          type: "sine",
-          endFreq: 987.77,
-          gain: 0.07,
-          bus: "sfx"
-        });
-        this._noiseBurst(0.16, {
-          time: t + 0.02,
-          gain: 0.05,
-          bus: "sfx",
-          filterType: "highpass",
-          filterFreq: 2500
-        });
+        // Short, dry motifs stay distinct when charges are used in quick succession.
+        switch (kind) {
+          case "boost":
+            this._tone(196, 0.22, { time: t, type: "triangle", endFreq: 783.99, gain: 0.12, bus: "sfx" });
+            this._tone(987.77, 0.09, { time: t + 0.15, type: "sine", gain: 0.08, bus: "sfx" });
+            break;
+          case "projectile":
+            this._tone(1318.51, 0.08, { time: t, type: "square", gain: 0.055, bus: "sfx" });
+            this._tone(1567.98, 0.23, { time: t + 0.07, type: "triangle", endFreq: 293.66, gain: 0.12, bus: "sfx" });
+            break;
+          case "shield":
+            this._tone(659.25, 0.32, { time: t, type: "sine", gain: 0.1, release: 0.24, bus: "sfx" });
+            this._tone(987.77, 0.29, { time: t + 0.04, type: "sine", gain: 0.08, release: 0.22, bus: "sfx" });
+            break;
+          case "trap":
+            this._tone(220, 0.1, { time: t, type: "triangle", endFreq: 110, gain: 0.14, bus: "sfx" });
+            this._tone(164.81, 0.13, { time: t + 0.13, type: "square", endFreq: 82.41, gain: 0.055, bus: "sfx" });
+            break;
+          case "aoe":
+            this._tone(392, 0.32, { time: t, type: "triangle", endFreq: 98, gain: 0.14, bus: "sfx" });
+            this._tone(196, 0.28, { time: t + 0.04, type: "sine", endFreq: 587.33, gain: 0.09, bus: "sfx" });
+            break;
+          case "comeback":
+            this._tone(261.63, 0.15, { time: t, type: "triangle", endFreq: 523.25, gain: 0.11, bus: "sfx" });
+            this._tone(659.25, 0.15, { time: t + 0.12, type: "triangle", gain: 0.1, bus: "sfx" });
+            this._tone(1046.5, 0.25, { time: t + 0.24, type: "sine", gain: 0.1, bus: "sfx" });
+            break;
+          case "magnet":
+            this._tone(293.66, 0.15, { time: t, type: "sine", endFreq: 440, gain: 0.12, bus: "sfx" });
+            this._tone(293.66, 0.2, { time: t + 0.17, type: "sine", endFreq: 659.25, gain: 0.12, bus: "sfx" });
+            break;
+          case "hop":
+            this._tone(329.63, 0.13, { time: t, type: "triangle", endFreq: 1318.51, gain: 0.12, bus: "sfx" });
+            this._tone(783.99, 0.16, { time: t + 0.16, type: "sine", endFreq: 392, gain: 0.085, bus: "sfx" });
+            break;
+          case "gate":
+            this._tone(392, 0.13, { time: t, type: "triangle", gain: 0.1, bus: "sfx" });
+            this._tone(587.33, 0.13, { time: t + 0.1, type: "triangle", gain: 0.1, bus: "sfx" });
+            this._tone(783.99, 0.28, { time: t + 0.2, type: "sine", endFreq: 1046.5, gain: 0.09, bus: "sfx" });
+            break;
+          default:
+            this._tone(1046.5, 0.22, { time: t, type: "triangle", endFreq: 392, gain: 0.12, bus: "sfx" });
+            this._tone(1567.98, 0.11, { time: t + 0.06, type: "sine", endFreq: 987.77, gain: 0.07, bus: "sfx" });
+        }
         return this;
       }, this);
     }
 
-    playUseItem() {
-      return this.playItemUse();
+    playUseItem(kind) {
+      return this.playItemUse(kind);
     }
 
     playCollision(power01) {

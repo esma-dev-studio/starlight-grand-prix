@@ -1356,7 +1356,25 @@
   };
   var spaceCourses = [lunarCourse, meteorCourse, spaceCourse, nebulaCourse];
 
-  window.AURORA_GAME_DATA.version = "0.9.0-polish-v53";
+  // Extend distance, not rendering density; keep each course's width and elevation.
+  [1.72, 1.68, 1.48, 1.64].forEach(function (scale, index) {
+    spaceCourses[index].lengthScale = scale;
+    spaceCourses[index].raceRevision = "long-v54";
+    spaceCourses[index].raceFeature = "ながい1しゅう / ゴールラインでダッシュほきゅう";
+    spaceCourses[index].lengthLabel = ["やく1.9km", "やく2.3km", "やく2.5km", "やく2.7km"][index];
+  });
+  window.AURORA_GAME_DATA.items = [
+    { id: "triple-dash", jaName: "3かいダッシュ", kind: "boost", supply: "speed", icon: ">>", color: "#85D5BC", maxCharges: 3, shortEffect: "3かいに分けてダッシュ", description: "カーブのあとに1かいずつ。3かいタップでつかいきる。" },
+    { id: "star-seeker", jaName: "おいかけスター", kind: "projectile", supply: "attack", icon: "◎", color: "#EF947F", shortEffect: "前の1だいをおいかける", description: "ねらう名前をたしかめて発射。バリアでふせげる。" },
+    { id: "counter-shield", jaName: "おかえしバリア", kind: "shield", supply: "guard", icon: "◇", color: "#A6D8EE", shortEffect: "ふせぐとダッシュ！", description: "6びょうのあいだ、こうげきを1かいふせぐとダッシュ。" },
+    { id: "orbit-mine", jaName: "おきボム", kind: "trap", supply: "attack", icon: "!", color: "#EF947F", shortEffect: "うしろにワナをおく", description: "うしろのマシンをおそくする。ジャンプでよけられる。" },
+    { id: "pulse-wave", jaName: "まわりにドン", kind: "aoe", supply: "attack", icon: "波", color: "#EAC977", shortEffect: "近くのマシンをおそくする", description: "すぐ近くのマシンにまとめてヒット。遠くにはとどかない。" },
+    { id: "comet-rush", jaName: "むてきラッシュ", kind: "comeback", supply: "speed", icon: "★", color: "#EAC977", shortEffect: "バリアで一気においぬく", description: "うしろのじゅんいで出るレアなどうぐ。3びょうまもってダッシュ。" },
+    { id: "tow-star", jaName: "おいつきマグネット", kind: "magnet", supply: "speed", icon: "U", color: "#85D5BC", shortEffect: "前をおうあいだ はやくなる", description: "前のマシンを5びょうおいかける。じぶんでハンドルを切ろう。" },
+    { id: "moon-hop", jaName: "ジャンプダッシュ", kind: "hop", supply: "guard", icon: "↑", color: "#A6D8EE", shortEffect: "とんで よけて 着地ダッシュ", description: "ボムや小さな岩をとびこえる。着地するとダッシュ。" },
+    { id: "shared-gate", jaName: "ダッシュゲート", kind: "gate", supply: "speed", icon: "門", color: "#85D5BC", shortEffect: "くぐるとダッシュする門", description: "前に12びょう出す。じぶんもあいても1かいずつつかえる。" }
+  ];
+  window.AURORA_GAME_DATA.version = "0.10.0-raceplay-v54";
   window.AURORA_GAME_DATA.difficulties = {
     Easy: { precision: 0.76, speed: 0.84, reaction: 0.8, maxSpeed: 0.86, acceleration: 0.84, cornerSpeed: 0.7, steeringSkill: 0.78, recoverySpeed: 0.9, boostUsageRate: 0.28, itemUsageSkill: 0.38, mistakeRate: 0.18, avoidanceStrength: 0.72, rubberBanding: 0.05 },
     Normal: { precision: 1.0, speed: 1.0, reaction: 1.0, maxSpeed: 1.02, acceleration: 1.02, cornerSpeed: 0.92, steeringSkill: 1.04, recoverySpeed: 1.14, boostUsageRate: 0.66, itemUsageSkill: 0.66, mistakeRate: 0.07, avoidanceStrength: 1.08, rubberBanding: 0.12 },
@@ -1390,7 +1408,7 @@
     characterId: "luna-mimi",
     kartId: "moon-skipper",
     courseId: "lunar-crater-run",
-    itemPool: items.map(function (item) { return item.id; })
+    itemPool: window.AURORA_GAME_DATA.items.map(function (item) { return item.id; })
   };
   window.AURORA_GAME_DATA.uiCopy = {
     selectCharacter: "レーサー選択",

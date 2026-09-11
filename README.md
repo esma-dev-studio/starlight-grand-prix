@@ -28,12 +28,16 @@ ES Modules を使用するため、HTML ファイルの直接オープンでは�
 npm install --no-save --package-lock=false playwright sharp
 npx playwright install chromium
 node tools/race-check.cjs
+node tools/race-rules-check.mjs
+node tools/raceplay-check.cjs
 node tools/touch-check.cjs
 node tools/perf-check.cjs
 ```
 
 - `race-check`: 全4コースのCPU走行、左右の物理方向、6種の道具の実効果、リスタート後のGPUリソース解放。
-- `touch-check`: iPad・スマートフォン相当の縦横4サイズ、同時タッチ、画面遷移、HUDの重なり、空白でない3Dキャンバス。
+- `race-rules-check`: 9種類の抽選・順位補正、移動系限定のタイムアタック、周回判定と逆走防止。Node.jsのみで実行可能。
+- `raceplay-check`: 9種類の道具、3回ダッシュ、追尾命中、バリア反撃、ジャンプ回避、ゲート共用、全4コースの3周走行、周回通知の優先表示。
+- `touch-check`: iPad・スマートフォン相当の縦横4サイズ、同時タッチ、画面遷移、HUDの重なり、9種類の文言、周回表示、空白でない3Dキャンバスとコース図。
 - `perf-check`: 同じ月面カメラ・タッチ端末設定で旧版 `507a6b6` と描画コストを比較。`QA_BASE_REF` で比較先を変更できます。
 - スクリーンショットと計測JSONは Git 対象外の `artifacts/` に出力されます。
 - テスト専用操作は Playwright がローカル応答に注入します。公開ゲームには含まれません。

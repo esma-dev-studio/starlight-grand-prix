@@ -5,7 +5,7 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { hooks } = require('./race-check.cjs');
 const root = path.join(__dirname, '..');
-const out = path.join(root, 'artifacts', 'v53-touch');
+const out = path.join(root, 'artifacts', 'v54-touch');
 fs.mkdirSync(out, { recursive: true });
 
 async function attach(page) {
@@ -49,6 +49,8 @@ async function checkSurface(page, name) {
   const canvas=await page.locator('#gameCanvas').screenshot();
   const stats=await sharp(canvas).stats();
   assert(stats.channels.slice(0,3).some(c=>c.stdev>20), `${name}: canvas must contain rendered scenery`);
+  const mapStats=await sharp(await page.locator('#minimap').screenshot()).stats();
+  assert(mapStats.channels.slice(0,3).some(c=>c.stdev>15), `${name}: entire course map must fit and be visible`);
   await page.screenshot({path:path.join(out,name+'-race.png')});
   return layout;
 }
@@ -77,7 +79,18 @@ async function run() {
       }
       await page.evaluate(()=>__raceTest.item('shield'));
       await page.locator('#touchItem').tap();
+      assert((await page.evaluate(()=>__raceTest.effects())).shield>5, 'Touch actually activates barrier');
       await page.screenshot({path:path.join(out,name+'-item.png')});
+      for (const kind of ['boost','projectile','shield','trap','aoe','comeback','magnet','hop','gate']) {
+        await page.evaluate(k=>__raceTest.item(k),kind);
+        const overflow=await page.locator('.item-panel').evaluate(panel=>[panel,...panel.querySelectorAll('.item-name,.item-hint,.item-status')].some(e=>e.scrollWidth>e.clientWidth+1));
+        assert(!overflow, name+' '+kind+' item text overflow');
+      }
+      await page.evaluate(()=>__raceTest.lapNotice());
+      assert(await page.locator('#lapBanner').isVisible());
+      const banner=await page.locator('#lapBanner').boundingBox();
+      assert(banner.x>=0&&banner.y>=0&&banner.x+banner.width<=width+1&&banner.y+banner.height<=height+1,name+' lap notice offscreen');
+      await page.screenshot({path:path.join(out,name+'-lap.png')});
       await page.locator('#touchPause').tap();
       await page.locator('#resumeButton').tap();
       await page.evaluate(()=>__raceTest.finish());

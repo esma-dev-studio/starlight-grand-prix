@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>スターライト・グランプリ</title>
-    <link rel="stylesheet" href="./style.css?v=polish-v53-title-restore" />
+    <link rel="stylesheet" href="./style.css?v=raceplay-v54" />
 
   </head>
   <body>
@@ -48,6 +48,7 @@
           <div class="hud-panel item-panel">
             <span class="hud-label">どうぐ</span>
             <div id="itemSlot" class="item-slot">なし</div>
+            <small id="itemStatus" class="item-status"></small>
             <small id="itemHint" class="item-hint">光る箱でゲット</small>
           </div>
         </div>
@@ -80,6 +81,11 @@
         <small id="raceNoticeKicker">セクター</small>
         <strong id="raceNoticeTitle">スタートエリア</strong>
         <span id="raceNoticeText">ひかるラインをねらおう</span>
+      </div>
+      <div id="lapBanner" class="lap-banner hidden" aria-live="polite" aria-atomic="true">
+        <small id="lapBannerLabel"></small>
+        <strong id="lapBannerTitle"></strong>
+        <span id="lapBannerTime"></span>
       </div>
 
       <section id="screenOverlay" class="screen-overlay">
@@ -169,8 +175,15 @@
             <article class="help-card"><span class="help-key">シールド</span><strong>スターシールド</strong><p>ぶつかるとへる。青いリペアリングを通ると回復する。少ない時は安全に走ろう。</p></article>
             <article class="help-card"><span class="help-key">WASD</span><strong>キーボード</strong><p>矢印またはWASDで走る。スペースでドリフト、EまたはShiftでどうぐ、Escで休けい。</p></article>
           </div>
+          <div class="supply-legend" aria-label="ほきゅうの色">
+            <strong>ほきゅう</strong>
+            <span class="supply-move"><i aria-hidden="true"></i>緑：すすめる</span>
+            <span class="supply-attack"><i aria-hidden="true"></i>赤：しかける</span>
+            <span class="supply-guard"><i aria-hidden="true"></i>青：まもる</span>
+          </div>
+          <p class="lap-pit-help">1しゅうするとマシンがかいふく。どうぐがなければダッシュ1かいをほきゅう。持っているどうぐはなくならないよ。</p>
           <div id="itemGuide" class="item-guide" aria-label="どうぐの効果"></div>
-          <div class="help-callout">どうぐが入っている時は「どうぐ」ボタンが光ります。光ったら押せばOK。</div>
+          <div class="help-callout">どうぐのせつめいを見て、つかうタイミングをえらぼう。スターとマグネットは、ねらう相手がいなければ箱でいれかえられるよ。</div>
           <div class="screen-actions">
             <button id="closeHelpButton" class="game-button primary">もどる</button>
           </div>
@@ -226,8 +239,8 @@
         });
       })();
     </script>
-    <script src="./game-data.js?v=polish-v53-release"></script>
-    <script src="./audio.js?v=polish-v53-release"></script>
-    <script type="module" src="./main.js?v=polish-v53-release"></script>
+    <script src="./game-data.js?v=raceplay-v54"></script>
+    <script src="./audio.js?v=raceplay-v54"></script>
+    <script type="module" src="./main.js?v=raceplay-v54"></script>
   </body>
 </html>
